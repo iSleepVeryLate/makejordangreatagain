@@ -1,0 +1,24 @@
+{
+  "name": "jordan-stand-tall",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Jordan Stand Tall — community hub with Discord login and multiplayer games",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "chess.js": "^1.0.0-beta.8",
+    "react": "^18.3.1",
+    "react-chessboard": "^4.7.2",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  }
+}
