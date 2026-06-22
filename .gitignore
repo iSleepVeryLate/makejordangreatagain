@@ -16,3 +16,5 @@ npm-debug.log*
 
 # transient DB connection string for one-off migrations (never commit)
 .db-conn
+# Supabase personal access token for CLI / function deploys (never commit)
+.supabase-token
