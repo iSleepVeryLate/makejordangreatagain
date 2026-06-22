@@ -211,6 +211,8 @@
 .status-banner.win { background: rgba(24,163,97,.16); color: var(--green-bright); border: 1px solid rgba(24,163,97,.35); }
 .status-banner.lose { background: rgba(228,0,43,.12); color: #ff5572; border: 1px solid rgba(228,0,43,.3); }
 .status-banner.draw { background: rgba(255,255,255,.06); color: #fff; border: 1px solid var(--line); }
+.status-banner.reconnecting { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; background: rgba(245,158,11,.1); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+.status-banner.reconnecting .spinner.sm { border-top-color: #f59e0b; }
 
 .waiting-room { text-align: center; padding: 40px 10px; }
 .waiting-room .code { font-family: ui-monospace, monospace; background: var(--ink-3); border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; display: inline-block; margin: 12px 0; user-select: all; }
@@ -249,6 +251,10 @@
 .choice-btn.wrong { border-color: rgba(228,0,43,.4); background: rgba(228,0,43,.12); color: #ff5572; }
 .choice-btn:disabled { cursor: default; }
 .trivia-wait { text-align: center; color: var(--txt-dim); margin-top: 18px; font-size: 14px; }
+.trivia-final { text-align: center; padding: 16px 0; }
+.trivia-final-h { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--txt-dim); margin-bottom: 14px; }
+.trivia-score.big { font-size: 22px; margin-bottom: 10px; }
+.trivia-final-note { color: var(--txt-dim); font-size: 14px; }
 
 /* ===================== leaderboard ===================== */
 .lb-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }

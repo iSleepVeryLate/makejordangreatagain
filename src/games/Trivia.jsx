@@ -36,7 +36,19 @@ export default function Trivia({ match, myId, answerTrivia }) {
     }
   }, [qid])
 
-  if (match.status !== 'active') return null
+  // Finished / abandoned — show the final tally instead of an empty board.
+  if (match.status !== 'active') {
+    return (
+      <div className="trivia trivia-final">
+        <div className="trivia-final-h">Final score</div>
+        <div className="trivia-score big">
+          <span style={{ color: 'var(--green-bright)' }}>You · {scores[myId] || 0}</span>
+          <span style={{ color: 'var(--txt-mid)' }}>Opponent · {scores[oppId] || 0}</span>
+        </div>
+        <div className="trivia-final-note">{total} question{total === 1 ? '' : 's'}</div>
+      </div>
+    )
+  }
   if (!question) {
     return <div className="spinner" />
   }

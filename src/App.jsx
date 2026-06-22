@@ -1,12 +1,15 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { RequireAuth, useAuth } from './context/AuthContext.jsx'
-import Landing from './pages/Landing.jsx'
-import Login from './pages/Login.jsx'
-import AuthCallback from './pages/AuthCallback.jsx'
-import Lobby from './pages/Lobby.jsx'
-import Game from './pages/Game.jsx'
-import Leaderboard from './pages/Leaderboard.jsx'
-import Profile from './pages/Profile.jsx'
+
+// Route-level code splitting: each page ships as its own chunk.
+const Landing = lazy(() => import('./pages/Landing.jsx'))
+const Login = lazy(() => import('./pages/Login.jsx'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback.jsx'))
+const Lobby = lazy(() => import('./pages/Lobby.jsx'))
+const Game = lazy(() => import('./pages/Game.jsx'))
+const Leaderboard = lazy(() => import('./pages/Leaderboard.jsx'))
+const Profile = lazy(() => import('./pages/Profile.jsx'))
 
 function MeRedirect() {
   const { profile, loading } = useAuth()
@@ -17,6 +20,7 @@ function MeRedirect() {
 
 export default function App() {
   return (
+    <Suspense fallback={<div className="page-loader"><div className="spinner" /></div>}>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
@@ -58,5 +62,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

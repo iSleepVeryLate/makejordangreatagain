@@ -11,6 +11,9 @@ export default function ChessGame({ match, myId, makeMove, disabled }) {
 
   const onDrop = (from, to) => {
     if (disabled) return false
+    // Local legality check is only for instant UX feedback (snap-back on an
+    // illegal drag). The server re-derives and is the source of truth, so we
+    // send just the coordinates — never the resulting board.
     const game = new Chess(fen)
     if (game.turn() !== myColor) return false
 
@@ -22,11 +25,7 @@ export default function ChessGame({ match, myId, makeMove, disabled }) {
     }
     if (!move) return false
 
-    let outcome = null
-    if (game.isCheckmate()) outcome = 'checkmate'
-    else if (game.isGameOver()) outcome = 'draw'
-
-    makeMove({ from, to, promotion: 'q', fen: game.fen(), pgn: game.pgn(), outcome })
+    makeMove({ from, to, promotion: 'q' })
     return true
   }
 

@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { useMatch } from '../hooks/useMatch.js'
 import { gameLabel } from '../games/config.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
-import TicTacToe from '../games/TicTacToe.jsx'
-import ConnectFour from '../games/ConnectFour.jsx'
-import ChessGame from '../games/ChessGame.jsx'
-import Trivia from '../games/Trivia.jsx'
+
+// Lazy-loaded so each board (and chess's heavy engine + board deps) only ships
+// to players who actually open that game.
+const TicTacToe = lazy(() => import('../games/TicTacToe.jsx'))
+const ConnectFour = lazy(() => import('../games/ConnectFour.jsx'))
+const ChessGame = lazy(() => import('../games/ChessGame.jsx'))
+const Trivia = lazy(() => import('../games/Trivia.jsx'))
 
 function Seat({ profile, label, isTurn, isOnline, isYou, rating }) {
   return (
@@ -29,7 +32,7 @@ function Seat({ profile, label, isTurn, isOnline, isYou, rating }) {
 export default function Game() {
   const { matchId } = useParams()
   const navigate = useNavigate()
-  const { match, players, online, loading, error, myId, applyRow } = useMatch(matchId)
+  const { match, players, online, loading, error, connState, myId, applyRow } = useMatch(matchId)
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const [ratings, setRatings] = useState({})
@@ -65,6 +68,39 @@ export default function Game() {
 
   const makeMove = useCallback((move) => rpc('make_move', { p_match_id: matchId, p_move: move }), [rpc, matchId])
   const answerTrivia = useCallback((choice) => rpc('trivia_answer', { p_match_id: matchId, p_choice: choice }), [rpc, matchId])
+
+  // Chess goes through the server-authoritative Edge Function, which re-derives
+  // the move with a real engine. We send only the move coordinates — never a
+  // board the client made up.
+  const makeChessMove = useCallback(
+    async (move) => {
+      setActionError('')
+      const { data, error } = await supabase.functions.invoke('chess-move', {
+        body: { match_id: matchId, from: move.from, to: move.to, promotion: move.promotion },
+      })
+      if (!error) {
+        applyRow(data)
+        return data
+      }
+      // FunctionsHttpError → the function ran and rejected the move (illegal /
+      // not your turn). Surface it; never fall back to the open RPC path.
+      if (error.context && typeof error.context.json === 'function') {
+        let msg = 'Move rejected.'
+        try {
+          msg = (await error.context.json())?.error || msg
+        } catch {
+          /* non-JSON body */
+        }
+        setActionError(msg)
+        return null
+      }
+      // Couldn't reach the function (not deployed yet) — fall back to the legacy
+      // RPC so honest play keeps working during rollout. Once chess-move is
+      // deployed and migration 0004 is applied, this branch is never taken.
+      return rpc('make_move', { p_match_id: matchId, p_move: move })
+    },
+    [matchId, applyRow, rpc],
+  )
 
   const resign = async () => {
     if (!confirm('Resign this game?')) return
@@ -180,19 +216,26 @@ export default function Game() {
 
           <div className="game-layout">
             <div className="board-panel">
+              {connState === 'reconnecting' && !finished && (
+                <div className="status-banner wait reconnecting">
+                  <span className="spinner sm" /> Reconnecting… your moves are safe.
+                </div>
+              )}
               {banner}
-              {match.game_type === 'tictactoe' && (
-                <TicTacToe match={match} makeMove={makeMove} disabled={boardDisabled} />
-              )}
-              {match.game_type === 'connect_four' && (
-                <ConnectFour match={match} makeMove={makeMove} disabled={boardDisabled} />
-              )}
-              {match.game_type === 'chess' && (
-                <ChessGame match={match} myId={myId} makeMove={makeMove} disabled={boardDisabled} />
-              )}
-              {match.game_type === 'trivia' && (
-                <Trivia match={match} myId={myId} answerTrivia={answerTrivia} />
-              )}
+              <Suspense fallback={<div className="spinner" style={{ margin: '40px auto' }} />}>
+                {match.game_type === 'tictactoe' && (
+                  <TicTacToe match={match} makeMove={makeMove} disabled={boardDisabled} />
+                )}
+                {match.game_type === 'connect_four' && (
+                  <ConnectFour match={match} makeMove={makeMove} disabled={boardDisabled} />
+                )}
+                {match.game_type === 'chess' && (
+                  <ChessGame match={match} myId={myId} makeMove={makeChessMove} disabled={boardDisabled} />
+                )}
+                {match.game_type === 'trivia' && (
+                  <Trivia match={match} myId={myId} answerTrivia={answerTrivia} />
+                )}
+              </Suspense>
 
               {finished && (
                 <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>

@@ -91,11 +91,33 @@ export default function Lobby() {
 
   useEffect(() => {
     fetchData()
+
+    // Realtime fires on every visible match change site-wide; debounce so a
+    // burst of moves collapses into a single refetch instead of thrashing.
+    let debounce
+    const refresh = () => {
+      clearTimeout(debounce)
+      debounce = setTimeout(fetchData, 400)
+    }
     const ch = supabase
       .channel('lobby')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, refresh)
       .subscribe()
+
+    // Fallback so live counts stay fresh even if realtime goes quiet, plus an
+    // immediate catch-up whenever the tab regains focus.
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchData()
+    }, 15000)
+    const onVisible = () => {
+      if (!document.hidden) fetchData()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
     return () => {
+      clearTimeout(debounce)
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
       supabase.removeChannel(ch)
     }
   }, [fetchData])
