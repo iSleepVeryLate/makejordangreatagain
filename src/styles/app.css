@@ -1,7 +1,14 @@
 /* ===================== shared app styles ===================== */
 
 .app-wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
-.app-main { padding: 38px 0 80px; min-height: calc(100vh - 68px); }
+/* Authenticated app shell runs a touch lighter than the marketing landing so
+   surfaces read as elevated. Overriding the --ink* vars here re-tones every
+   card/panel that derives from them, scoped to the logged-in pages only. */
+.app-main {
+  --ink-2: #181a20; --ink-3: #21242b;
+  padding: 38px 0 80px; min-height: calc(100vh - 68px);
+  background: #101116;
+}
 
 /* loaders */
 .page-loader { min-height: 60vh; display: flex; align-items: center; justify-content: center; }
@@ -27,7 +34,7 @@
 .err-text { color: #ff5572; font-size: 14px; }
 
 /* ===================== app navbar ===================== */
-.appnav { position: sticky; top: 0; z-index: 50; background: rgba(10,10,11,.82); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.appnav { position: sticky; top: 0; z-index: 50; background: rgba(16,17,22,.86); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
 .appnav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 18px; }
 .appnav-links { display: flex; align-items: center; gap: 26px; font-size: 15px; color: var(--txt-mid); font-weight: 500; }
 .appnav-links a { display: inline-flex; align-items: center; gap: 7px; }
