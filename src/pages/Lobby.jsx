@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, Plus, Link2, Users, Trophy, Check, Crown } from 'lucide-react'
+import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOnline } from '../context/PresenceContext.jsx'
@@ -174,40 +174,52 @@ export default function Lobby() {
                 {GAMES.map((g) => {
                   const live = liveCounts[g.key] || 0
                   const waiting = waitingCounts[g.key] || 0
-                  const meta =
-                    live > 0 ? `${live} live now` : waiting > 0 ? `${waiting} waiting` : g.hint
                   const isSel = selected === g.key
                   return (
                     <button
                       key={g.key}
-                      className={`gcard${isSel ? ' selected' : ''}`}
+                      className={`gcard ${g.tint}${isSel ? ' selected' : ''}`}
                       onClick={() => setSelected(g.key)}
                     >
-                      {isSel && (
-                        <span className="gcheck">
-                          <Check size={13} strokeWidth={3} />
+                      <div className="gcard-top">
+                        <span className={`gicon ${g.tint}`}>
+                          <GameIcon game={g.key} size={23} />
                         </span>
-                      )}
-                      <span className={`gicon ${g.tint}`}>
-                        <GameIcon game={g.key} size={22} />
-                      </span>
+                        {live > 0 ? (
+                          <span className="card-badge live">
+                            <span className="ld" />
+                            {live} live
+                          </span>
+                        ) : waiting > 0 ? (
+                          <span className="card-badge wait">{waiting} waiting</span>
+                        ) : (
+                          <span className="card-badge dur">{g.hint}</span>
+                        )}
+                      </div>
                       <h3>{g.label}</h3>
                       <p>{g.desc}</p>
-                      <div className="gmeta">{meta}</div>
+                      <div className="gcard-foot">
+                        <span className="select-hint">{isSel ? 'Selected' : 'Tap to select'}</span>
+                        {isSel ? (
+                          <Check className="arrow" size={16} strokeWidth={2.6} />
+                        ) : (
+                          <ArrowRight className="arrow" size={16} />
+                        )}
+                      </div>
                     </button>
                   )
                 })}
               </div>
 
-              <div className="setup-bar">
+              <div className="play-panel">
                 <span className={`gicon ${tintOf(selected)}`}>
-                  <GameIcon game={selected} size={20} />
+                  <GameIcon game={selected} size={22} />
                 </span>
-                <div className="setup-info">
-                  <div className="setup-title">{gameLabel(selected)} selected</div>
-                  <div className="setup-sub">{subline}</div>
+                <div className="play-info">
+                  <div className="play-title">{gameLabel(selected)} selected</div>
+                  <div className="play-sub">{subline}</div>
                 </div>
-                <div className="setup-actions">
+                <div className="play-actions">
                   <button className="btn btn-green btn-sm" onClick={quickMatch} disabled={busy}>
                     {busy ? <span className="spinner sm" /> : <><Zap /> Quick match</>}
                   </button>
