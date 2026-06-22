@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
+import { MOCK_AUTH_ENABLED, mockSession, mockProfile } from '../lib/devAuth.js'
 
 const AuthContext = createContext(null)
 
@@ -30,9 +31,11 @@ async function fetchProfile(userId) {
 }
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // DEV-ONLY: when mock auth is enabled, boot straight into a fake signed-in
+  // state and skip every real Supabase auth call. See src/lib/devAuth.js.
+  const [session, setSession] = useState(MOCK_AUTH_ENABLED ? mockSession : null)
+  const [profile, setProfile] = useState(MOCK_AUTH_ENABLED ? mockProfile : null)
+  const [loading, setLoading] = useState(!MOCK_AUTH_ENABLED)
 
   const loadProfile = useCallback(async (user) => {
     if (!user) {
@@ -73,6 +76,15 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    // DEV-ONLY: mock auth already seeded session + profile; don't touch Supabase.
+    if (MOCK_AUTH_ENABLED) {
+      console.warn(
+        '[auth] DEV mock auth is ACTIVE — signed in as a fake user. ' +
+          'This is gated to dev builds and must never be enabled in production.',
+      )
+      return
+    }
+
     let active = true
 
     supabase.auth.getSession().then(({ data }) => {
@@ -104,6 +116,12 @@ export function AuthProvider({ children }) {
   }, [loadProfile])
 
   const signInWithDiscord = useCallback(async () => {
+    // DEV-ONLY: re-seed the fake session (e.g. after a mock sign-out).
+    if (MOCK_AUTH_ENABLED) {
+      setSession(mockSession)
+      setProfile(mockProfile)
+      return
+    }
     if (!isSupabaseConfigured) {
       alert('Supabase is not configured yet. See README.md to finish setup.')
       return
@@ -116,12 +134,14 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    // DEV-ONLY: no real session to revoke; just drop the fake one.
+    if (!MOCK_AUTH_ENABLED) await supabase.auth.signOut()
     setProfile(null)
     setSession(null)
   }, [])
 
   const refreshProfile = useCallback(async () => {
+    if (MOCK_AUTH_ENABLED) return
     if (session?.user) await loadProfile(session.user)
   }, [session, loadProfile])
 

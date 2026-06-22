@@ -1,4 +1,6 @@
-export default function TicTacToe({ match, makeMove, disabled }) {
+import { memo } from 'react'
+
+function TicTacToe({ match, makeMove, disabled }) {
   const cells = match.board_state?.cells || Array(9).fill('')
 
   const click = (i) => {
@@ -23,3 +25,5 @@ export default function TicTacToe({ match, makeMove, disabled }) {
     </div>
   )
 }
+
+export default memo(TicTacToe)

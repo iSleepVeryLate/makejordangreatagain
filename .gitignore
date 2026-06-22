@@ -1,9 +1,11 @@
 node_modules
 dist
 dist-ssr
+# Ignore every local/dev env file (.env, .env.local, .env.development, …) so an
+# opt-in like VITE_MOCK_AUTH can never be committed; .env.example stays tracked.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 npm-debug.log*
 .DS_Store
@@ -18,3 +20,5 @@ npm-debug.log*
 .db-conn
 # Supabase personal access token for CLI / function deploys (never commit)
 .supabase-token
+# Supabase CLI scratch dir (regenerated; never commit)
+supabase/.temp/

@@ -6,7 +6,18 @@
   --line:rgba(255,255,255,.09);
   --txt-dim:#9aa0a6; --txt-mid:#c4c8cd;
   --card-line:#eceae4;
+  /* shared scales — keep radii/spacing consistent across surfaces */
+  --r-sm:10px; --r-md:14px; --r-lg:18px;
+  --s-1:6px; --s-2:10px; --s-3:14px; --s-4:18px; --s-5:24px; --s-6:32px;
+  /* rank accents (promoted from one-off rgba so they can be reused) */
+  --gold:#f0b428; --silver:#cdd4db; --bronze:#d98a4f;
+  --focus:var(--green-bright);
 }
+/* Visible keyboard focus everywhere (was missing site-wide). Mouse clicks use
+   :focus-visible heuristics so this only shows for keyboard/AT users. The
+   outline follows each element's own border-radius automatically. */
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+:focus:not(:focus-visible){outline:none}
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;color:#fff;background:var(--ink);line-height:1.65;-webkit-font-smoothing:antialiased}

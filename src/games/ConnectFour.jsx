@@ -1,4 +1,6 @@
-export default function ConnectFour({ match, makeMove, disabled }) {
+import { memo } from 'react'
+
+function ConnectFour({ match, makeMove, disabled }) {
   const grid = match.board_state?.grid || Array(42).fill(0)
 
   // top cell of a column (row 0) being filled means the column is full
@@ -12,10 +14,13 @@ export default function ConnectFour({ match, makeMove, disabled }) {
   return (
     <div className="c4">
       {Array.from({ length: 7 }).map((_, col) => (
-        <div
+        <button
           key={col}
+          type="button"
           className={`c4-col${colFull(col) ? ' full' : ''}${disabled ? ' disabled' : ''}`}
           onClick={() => drop(col)}
+          disabled={disabled || colFull(col)}
+          aria-label={`Drop in column ${col + 1}`}
         >
           {Array.from({ length: 6 }).map((_, row) => {
             const v = grid[row * 7 + col]
@@ -26,8 +31,10 @@ export default function ConnectFour({ match, makeMove, disabled }) {
               />
             )
           })}
-        </div>
+        </button>
       ))}
     </div>
   )
 }
+
+export default memo(ConnectFour)

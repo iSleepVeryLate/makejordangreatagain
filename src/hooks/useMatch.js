@@ -7,11 +7,29 @@ const SEL =
   'p1:profiles!matches_player1_fkey(id,username,global_name,avatar_url), ' +
   'p2:profiles!matches_player2_fkey(id,username,global_name,avatar_url)'
 
-// How often the safety-net poll reconciles the row while a game is in
-// progress. Realtime is the primary transport; this catches anything it
-// drops (missed event, degraded socket, expired token) so a turn-based game
-// can never get permanently stuck on a stale board.
+// Base cadence of the safety-net poll. Realtime is the primary transport; this
+// catches anything it drops (missed event, degraded socket, expired token) so a
+// turn-based game can never get permanently stuck on a stale board. While the
+// socket is healthy we only actually reconcile every Nth tick (see HEARTBEAT).
 const POLL_MS = 5000
+// When realtime is 'live', reconcile this many ticks apart (5s * 3 = 15s) — a
+// quiet heartbeat instead of hammering a full fetch every 5s during normal play.
+const HEARTBEAT = 3
+
+// Has anything the UI cares about actually changed? Move count + last_move_at
+// move together on every move, so this also covers board_state without a deep
+// compare. Lets the poll skip setState when the row is identical (no re-render).
+function rowChanged(prev, next) {
+  if (!prev) return true
+  return (
+    prev.status !== next.status ||
+    prev.current_turn !== next.current_turn ||
+    prev.last_move_at !== next.last_move_at ||
+    prev.move_count !== next.move_count ||
+    prev.winner !== next.winner ||
+    prev.result !== next.result
+  )
+}
 
 // The heart of real-time sync: subscribe to the match row, reconcile on
 // (re)connect, poll as a fallback, and track presence so we know if the
@@ -29,6 +47,12 @@ export function useMatch(matchId) {
   const [connState, setConnState] = useState('connecting')
   const playersRef = useRef({})
   const matchRef = useRef(null)
+  // Mirror connState into a ref so the poll loop can read it without re-subscribing.
+  const connRef = useRef('connecting')
+  const setConn = useCallback((s) => {
+    connRef.current = s
+    setConnState(s)
+  }, [])
 
   const cacheProfiles = useCallback((list) => {
     setPlayers((prev) => {
@@ -73,6 +97,9 @@ export function useMatch(matchId) {
         return
       }
       cacheProfiles([data.p1, data.p2])
+      // Skip the state update when a background reconcile returns an identical
+      // row — avoids a re-render (and any board repaint) every poll tick.
+      if (matchRef.current && silent && !rowChanged(matchRef.current, data)) return
       matchRef.current = data
       setMatch(data)
       if (!silent) setLoading(false)
@@ -97,7 +124,7 @@ export function useMatch(matchId) {
   useEffect(() => {
     if (!matchId) return
     setLoading(true)
-    setConnState('connecting')
+    setConn('connecting')
     matchRef.current = null
     fetchFull()
 
@@ -114,28 +141,39 @@ export function useMatch(matchId) {
 
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        setConnState('live')
+        setConn('live')
         fetchFull({ silent: true }) // reconcile anything missed while connecting
         ch.track({ online_at: new Date().toISOString() })
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         // supabase-js auto-rejoins; surface the gap and lean on the poll meanwhile.
-        setConnState('reconnecting')
+        setConn('reconnecting')
       }
     })
 
-    // Safety-net reconciliation: poll while the game is live, and catch up
-    // immediately whenever the tab regains focus or the network returns.
-    const tick = () => {
+    // Force an immediate reconcile (focus/online events) regardless of cadence.
+    const reconcile = () => {
       if (typeof document !== 'undefined' && document.hidden) return
       const st = matchRef.current?.status
       if (st === 'finished' || st === 'abandoned') return
       fetchFull({ silent: true })
     }
+    // Safety-net poll. When realtime is live we only reconcile on the heartbeat
+    // (~15s) since the socket already delivers moves; when degraded we poll at
+    // the full 5s cadence so a turn-based game never stalls on a stale board.
+    let ticks = 0
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      const st = matchRef.current?.status
+      if (st === 'finished' || st === 'abandoned') return
+      ticks += 1
+      if (connRef.current === 'live' && ticks % HEARTBEAT !== 0) return
+      fetchFull({ silent: true })
+    }
     const interval = setInterval(tick, POLL_MS)
     const onVisible = () => {
-      if (!document.hidden) tick()
+      if (!document.hidden) reconcile()
     }
-    const onOnline = () => tick()
+    const onOnline = () => reconcile()
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', onOnline)
 
@@ -145,7 +183,7 @@ export function useMatch(matchId) {
       window.removeEventListener('online', onOnline)
       supabase.removeChannel(ch)
     }
-  }, [matchId, myId, fetchFull, applyRow])
+  }, [matchId, myId, fetchFull, applyRow, setConn])
 
-  return { match, players, online, loading, error, connState, myId, applyRow, refetch: fetchFull }
+  return { match, players, online, loading, error, connState, myId, applyRow, refetch: fetchFull, matchRef }
 }

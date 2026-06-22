@@ -1,20 +1,20 @@
+import { memo } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { Chess } from 'chess.js'
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
-export default function ChessGame({ match, myId, makeMove, disabled }) {
-  const fen = match.board_state?.fen || START_FEN
-  const isP1 = myId === match.player1
-  const myColor = isP1 ? 'w' : 'b'
-  const orientation = isP1 ? 'white' : 'black'
+// Memoized on primitive props (fen/orientation/myColor/disabled + a stable
+// makeMove). Unrelated parent re-renders (poll, presence, ratings) no longer
+// repaint or re-instantiate the board — only an actual FEN change does.
+function ChessGame({ fen, orientation, myColor, makeMove, disabled }) {
+  const position = fen || START_FEN
 
   const onDrop = (from, to) => {
     if (disabled) return false
     // Local legality check is only for instant UX feedback (snap-back on an
-    // illegal drag). The server re-derives and is the source of truth, so we
-    // send just the coordinates — never the resulting board.
-    const game = new Chess(fen)
+    // illegal drag). The server re-derives and is the source of truth.
+    const game = new Chess(position)
     if (game.turn() !== myColor) return false
 
     let move
@@ -25,14 +25,17 @@ export default function ChessGame({ match, myId, makeMove, disabled }) {
     }
     if (!move) return false
 
-    makeMove({ from, to, promotion: 'q' })
+    // Hand the resulting board up so the parent can commit it optimistically:
+    // the piece stays put through the referee round-trip instead of snapping
+    // back to its origin on any re-render that lands mid-flight.
+    makeMove({ from, to, promotion: 'q', optimisticFen: game.fen() })
     return true
   }
 
   return (
     <div className="chess-wrap">
       <Chessboard
-        position={fen}
+        position={position}
         onPieceDrop={onDrop}
         boardOrientation={orientation}
         arePiecesDraggable={!disabled}
@@ -43,3 +46,5 @@ export default function ChessGame({ match, myId, makeMove, disabled }) {
     </div>
   )
 }
+
+export default memo(ChessGame)

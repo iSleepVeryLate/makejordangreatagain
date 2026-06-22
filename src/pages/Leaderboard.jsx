@@ -49,7 +49,11 @@ export default function Leaderboard() {
           </div>
 
           {loading ? (
-            <div className="page-loader"><div className="spinner" /></div>
+            <div className="lb-skeleton">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="skeleton skel-lb-row" />
+              ))}
+            </div>
           ) : rows.length === 0 ? (
             <div className="empty-state">
               No ranked games of {gameLabel(game)} yet. Be the first — head to the{' '}

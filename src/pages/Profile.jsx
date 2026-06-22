@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { MOCK_AUTH_ENABLED } from '../lib/devAuth.js'
 import { GAMES } from '../games/config.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
@@ -18,6 +19,16 @@ export default function Profile() {
     let active = true
     setLoading(true)
     setNotFound(false)
+    // DEV mock auth: the synthetic user has no DB row, so render the in-context
+    // mock profile for its own page instead of a dead-end "not found".
+    if (MOCK_AUTH_ENABLED && me && id === me.id) {
+      setProfile(me)
+      setStatsByGame({})
+      setLoading(false)
+      return () => {
+        active = false
+      }
+    }
     Promise.all([
       supabase.from('profiles').select('*').eq('id', id).maybeSingle(),
       supabase.from('game_stats').select('*').eq('profile_id', id),
@@ -40,7 +51,22 @@ export default function Profile() {
     return (
       <>
         <AppNav />
-        <div className="page-loader"><div className="spinner" /></div>
+        <main className="app-main">
+          <div className="app-wrap">
+            <div className="profile-head">
+              <div className="skeleton" style={{ width: 76, height: 76, borderRadius: '50%' }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton skel-line" style={{ width: 220, height: 24, marginBottom: 12 }} />
+                <div className="skeleton skel-line" style={{ width: 150 }} />
+              </div>
+            </div>
+            <div className="stat-grid">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="skeleton skel-card" />
+              ))}
+            </div>
+          </div>
+        </main>
       </>
     )
   }

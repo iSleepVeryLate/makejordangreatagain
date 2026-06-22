@@ -4,6 +4,7 @@ import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight } from 'lucid
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOnline } from '../context/PresenceContext.jsx'
+import { useToast } from '../context/ToastContext.jsx'
 import { GAMES, GAME_BY_KEY, gameLabel } from '../games/config.js'
 import { timeAgo } from '../lib/format.js'
 import AppNav from '../components/AppNav.jsx'
@@ -21,6 +22,7 @@ export default function Lobby() {
   const { profile } = useAuth()
   const { onlineUsers, onlineCount } = useOnline()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [selected, setSelected] = useState('tictactoe')
   const [openRooms, setOpenRooms] = useState([])
@@ -152,7 +154,9 @@ export default function Lobby() {
       if (error) throw error
       go(data)
     } catch (e) {
-      setError(e.message || 'Something went wrong.')
+      const msg = e.message || 'Something went wrong.'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setBusy(false)
     }
@@ -164,6 +168,12 @@ export default function Lobby() {
   const joinRoom = (id) => run(() => supabase.rpc('join_by_id', { p_match_id: id }))
 
   const others = onlineUsers.filter((u) => u.id !== myId)
+  // Surface what needs attention: active games (your move first), then rooms
+  // still waiting on an opponent.
+  const sortedMyGames = [...myGames].sort((a, b) => {
+    const rank = (m) => (m.status === 'active' ? (m.current_turn === myId ? 0 : 1) : 2)
+    return rank(a) - rank(b)
+  })
   const liveSel = liveCounts[selected] || 0
   const waitSel = waitingCounts[selected] || 0
   const subline =
@@ -281,7 +291,11 @@ export default function Lobby() {
                   <Trophy size={15} /> Top {gameLabel(selected)}
                 </div>
                 {topPlayers === null ? (
-                  <div className="rail-empty">Loading…</div>
+                  <div className="rail-list">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="skeleton skel-mini" />
+                    ))}
+                  </div>
                 ) : topPlayers.length === 0 ? (
                   <div className="rail-empty">No ranked games yet.</div>
                 ) : (
@@ -309,8 +323,9 @@ export default function Lobby() {
             <section className="hub-section">
               <div className="glabel">Your games</div>
               <div className="rooms">
-                {myGames.map((m) => {
+                {sortedMyGames.map((m) => {
                   const opp = m.player1 === myId ? m.p2 : m.p1
+                  const yourMove = m.status === 'active' && m.current_turn === myId
                   return (
                     <div className="room-row" key={m.id}>
                       <div className="who">
@@ -318,7 +333,10 @@ export default function Lobby() {
                           <GameIcon game={m.game_type} size={16} />
                         </span>
                         <div>
-                          <div className="room-name">{gameLabel(m.game_type)}</div>
+                          <div className="room-name">
+                            {gameLabel(m.game_type)}
+                            {yourMove && <span className="turn-chip">Your move</span>}
+                          </div>
                           <div className="meta">
                             {m.status === 'waiting'
                               ? 'Waiting for an opponent…'
