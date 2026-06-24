@@ -1,8 +1,22 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useCommunityStats } from '../hooks/useCommunityStats.js'
 
-const DISCORD_INVITE = 'https://discord.gg/B32aWFw7Su'
+const DISCORD_INVITE = 'https://discord.gg/makejordangreatagain'
+
+// Exact number with thousands separators (e.g. "181", "1,240"). Returns null
+// when we don't have a value yet so the caller can show a neutral placeholder.
+function formatNum(n) {
+  return typeof n === 'number' ? n.toLocaleString() : null
+}
+
+// Short form for the small avatar badge: "181", "1.2k", "12k".
+function badgeCount(n) {
+  if (typeof n !== 'number') return null
+  if (n < 1000) return String(n)
+  return (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k'
+}
 
 function DiscordIcon({ size = 19 }) {
   return (
@@ -38,6 +52,7 @@ function Brand() {
 export default function Landing() {
   const [open, setOpen] = useState(false)
   const { session } = useAuth()
+  const { memberCount, onlineCount } = useCommunityStats()
   const closeMenu = () => setOpen(false)
 
   return (
@@ -101,7 +116,9 @@ export default function Landing() {
                 <span style={{ background: '#e4002b' }}>M</span>
                 <span style={{ background: '#3b82f6' }}>R</span>
                 <span style={{ background: '#a855f7' }}>S</span>
-                <span style={{ background: '#1a1c20', fontSize: 11, color: '#c4c8cd' }}>+4k</span>
+                <span style={{ background: '#1a1c20', fontSize: 11, color: '#c4c8cd' }}>
+                  +{badgeCount(memberCount) ?? '…'}
+                </span>
               </div>
               <span>Loved by Jordanians at home and abroad</span>
             </div>
@@ -112,7 +129,7 @@ export default function Landing() {
               <span className="d" style={{ background: '#ff5f57' }}></span>
               <span className="d" style={{ background: '#febc2e' }}></span>
               <span className="d" style={{ background: '#28c840' }}></span>
-              <span className="pv-title">discord.gg/jordanstandtall</span>
+              <span className="pv-title">discord.gg/makejordangreatagain</span>
             </div>
             <div className="pv-body">
               <div className="pv-rail">
@@ -155,7 +172,8 @@ export default function Landing() {
 
       <section className="stats">
         <div className="wrap stats-inner">
-          <div className="stat"><div className="num g">4,200+</div><div className="lbl">members</div></div>
+          <div className="stat"><div className="num g">{formatNum(memberCount) ?? '…'}</div><div className="lbl">members</div></div>
+          <div className="stat"><div className="num g">{formatNum(onlineCount) ?? '…'}</div><div className="lbl">online now</div></div>
           <div className="stat"><div className="num">12</div><div className="lbl">governorates represented</div></div>
           <div className="stat"><div className="num">Daily</div><div className="lbl">chats, voice &amp; game nights</div></div>
         </div>

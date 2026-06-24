@@ -90,7 +90,7 @@ h1 .gr{color:var(--green-bright)}h1 .rd{color:#ff3355}
 
 /* ---------- stats ---------- */
 .stats{background:var(--ink-2);border-bottom:1px solid var(--line)}
-.stats-inner{display:grid;grid-template-columns:repeat(3,1fr)}
+.stats-inner{display:grid;grid-template-columns:repeat(4,1fr)}
 .stat{padding:30px 22px;text-align:center;border-right:1px solid var(--line)}
 .stat:last-child{border-right:none}
 .stat .num{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1}
@@ -172,6 +172,8 @@ footer{background:#060607;border-top:1px solid var(--line);padding:44px 0 30px}
   .nav-links.open{display:flex;position:absolute;top:68px;left:0;right:0;flex-direction:column;align-items:flex-start;background:var(--ink-2);padding:20px 28px;gap:20px;border-bottom:1px solid var(--line)}
   .nav-toggle{display:block}
   .grid3,.values-grid{grid-template-columns:1fr}
+  .stats-inner{grid-template-columns:repeat(2,1fr)}
+  .stat:nth-child(2n){border-right:none}
   .stat .num{font-size:28px}
   section.block{padding:60px 0}
   .foot-bottom{flex-direction:column;align-items:flex-start}
