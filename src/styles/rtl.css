@@ -24,3 +24,16 @@
 [dir="rtl"] .eh-num,
 [dir="rtl"] .rq-num,
 [dir="rtl"] .btn-call { direction: ltr; }
+
+/* ---- landing page RTL ---- */
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] .h2 { letter-spacing: 0; }
+/* the Discord preview is a decorative English mock — keep it left-to-right */
+[dir="rtl"] .preview { direction: ltr; text-align: left; }
+/* overlap the trust avatars from the other side */
+[dir="rtl"] .avatars span { margin-left: 0; margin-right: -9px; }
+[dir="rtl"] .avatars span:first-child { margin-right: 0; }
+/* flip the "→" arrow icons inside landing buttons (Discord logo has no .ic class) */
+.landing-root[dir="rtl"] .btn svg.ic { transform: scaleX(-1); }
+[dir="rtl"] .foot-note { text-align: right; }
