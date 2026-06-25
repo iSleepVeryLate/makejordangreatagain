@@ -108,6 +108,38 @@ export function applyMove(board, move) {
   return { board: next, captured, promoted, canContinue }
 }
 
+// Validate and apply a whole move PATH (an array of >=2 square indices) for
+// `side`, returning { board, captured, promoted } on success or { error } on any
+// illegal hop. Used by the server referee to process an entire (possibly multi-
+// jump) turn in one shot. Enforces mandatory capture on the first hop and forced
+// completion of a multi-jump (you may not stop while a further capture exists).
+export function applyPath(board, side, path) {
+  if (!Array.isArray(path) || path.length < 2) return { error: 'Empty move' }
+  if (!path.every((s) => Number.isInteger(s) && s >= 0 && s < board.length)) {
+    return { error: 'Bad square' }
+  }
+  let b = board.slice()
+  let captured = false
+  let promoted = false
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i]
+    const to = path[i + 1]
+    // First hop uses the full legal set (so mandatory capture is enforced); later
+    // hops must continue capturing with the piece that just landed on `from`.
+    const legal = legalMoves(b, side, i === 0 ? null : from)
+    const mv = legal.find((m) => m.from === from && m.to === to)
+    if (!mv) return { error: 'Illegal move' }
+    const res = applyMove(b, mv)
+    b = res.board
+    captured = captured || res.captured
+    promoted = promoted || res.promoted
+    const lastHop = i === path.length - 2
+    if (res.canContinue && lastHop) return { error: 'Must keep jumping' }
+    if (!res.canContinue && !lastHop) return { error: 'Move cannot continue' }
+  }
+  return { board: b, captured, promoted }
+}
+
 // Starting position: 12 men per side on the dark squares of the three rows
 // nearest each player.
 export function initialBoard() {

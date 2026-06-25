@@ -151,17 +151,17 @@ export default function Game() {
     [matchId, applyRow, refetch, matchRef, myId, rpc, toast],
   )
 
-  // Checkers is server-authoritative via the checkers-move Edge Function. Unlike
-  // chess we don't apply optimistically — captures remove pieces, so a hand-rolled
-  // local mutation is error-prone and the round-trip is sub-second. We just send
-  // {from, to}, then reconcile to the authoritative row (or roll back on reject).
+  // Checkers is server-authoritative via the checkers-move Edge Function. The
+  // board plays optimistically and submits a whole turn as a `path` (one request
+  // even for a multi-jump); here we just relay it and reconcile to the
+  // authoritative row, or roll back to `prev` and surface why on rejection.
   // There is no make_move fallback: that RPC rejects checkers by design.
   const makeCheckersMove = useCallback(
     async (move) => {
       setActionError('')
       const prev = matchRef.current
       const { data, error } = await supabase.functions.invoke('checkers-move', {
-        body: { match_id: matchId, from: move.from, to: move.to },
+        body: { match_id: matchId, path: move.path },
       })
       if (!error) {
         applyRow(data)

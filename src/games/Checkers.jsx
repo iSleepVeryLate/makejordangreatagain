@@ -1,27 +1,42 @@
 import { memo, useState, useEffect, useMemo } from 'react'
 import { Crown } from 'lucide-react'
-import { legalMoves, ownerOf, isKing, initialBoard, SIZE } from './checkersRules.js'
+import { legalMoves, applyMove, ownerOf, isKing, initialBoard, SIZE } from './checkersRules.js'
 
-// The board renders the authoritative state from the match row. `checkersRules`
-// is used only to highlight legal sources/targets and to enforce a forced
-// multi-jump in the UI — the `checkers-move` Edge Function is the real referee.
+// The board renders the authoritative state from the match row, but plays moves
+// OPTIMISTICALLY for instant feedback: each click is applied locally with the
+// shared rules engine, and a whole (possibly multi-jump) turn is submitted to the
+// `checkers-move` Edge Function in ONE request when the sequence completes. The
+// server re-derives and confirms — visually a no-op — or rejects and we roll back.
 // myColor is 1 (player1) or 2 (player2); player2's view is rotated 180°.
 function Checkers({ match, makeMove, myColor, disabled }) {
-  const board = match.board_state?.board || initialBoard()
-  const mustJumpFrom = match.board_state?.mustJumpFrom ?? null
+  const serverBoard = match.board_state?.board || initialBoard()
+  const serverLast = match.board_state?.lastMove || null
+  const moveCount = match.move_count
+
+  // Optimistic overlay while the local player builds a move. `optim.path` is the
+  // sequence of squares so far; null means "show the authoritative server board".
+  const [optim, setOptim] = useState(null) // { board, mustJumpFrom, path }
+  const [submitting, setSubmitting] = useState(false)
   const [selected, setSelected] = useState(null)
 
-  // Mid multi-jump, the jumping piece is forced — auto-select it. Otherwise drop
-  // any stale selection when the board becomes non-interactive.
+  // A fresh authoritative row (new move_count) supersedes any overlay.
   useEffect(() => {
-    if (disabled) setSelected(null)
-    else if (mustJumpFrom != null) setSelected(mustJumpFrom)
-  }, [disabled, mustJumpFrom])
+    setOptim(null)
+    setSelected(null)
+  }, [moveCount])
 
-  // Every legal move I have this turn — drives both source and target highlights.
+  const board = optim?.board ?? serverBoard
+  const mustJumpFrom = optim?.mustJumpFrom ?? null
+  const locked = disabled || submitting
+
+  // Mid multi-jump the continuing piece is forced — keep it selected.
+  useEffect(() => {
+    if (mustJumpFrom != null) setSelected(mustJumpFrom)
+  }, [mustJumpFrom])
+
   const myMoves = useMemo(
-    () => (disabled ? [] : legalMoves(board, myColor, mustJumpFrom)),
-    [board, myColor, mustJumpFrom, disabled],
+    () => (locked ? [] : legalMoves(board, myColor, mustJumpFrom)),
+    [board, myColor, mustJumpFrom, locked],
   )
   const movableFrom = useMemo(() => new Set(myMoves.map((m) => m.from)), [myMoves])
   const targets = useMemo(
@@ -29,12 +44,27 @@ function Checkers({ match, makeMove, myColor, disabled }) {
     [myMoves, selected],
   )
 
+  // Show the opponent's last move until I start building my own.
+  const lastMove = optim ? null : serverLast
+
   const clickSquare = (idx) => {
-    if (disabled) return
-    // Land on a highlighted target → submit the move.
+    if (locked) return
+    // Land on a highlighted target → apply locally; continue or submit.
     if (selected != null && targets.has(idx)) {
-      makeMove({ from: selected, to: idx })
-      setSelected(null)
+      const move = myMoves.find((m) => m.from === selected && m.to === idx)
+      const res = applyMove(board, move)
+      const path = (optim?.path ?? [selected]).concat(idx)
+      if (res.canContinue) {
+        setOptim({ board: res.board, mustJumpFrom: idx, path }) // forced: keep jumping locally
+      } else {
+        setOptim({ board: res.board, mustJumpFrom: null, path }) // show final instantly
+        setSelected(null)
+        setSubmitting(true)
+        Promise.resolve(makeMove({ path })).finally(() => {
+          setSubmitting(false)
+          setOptim(null) // defer to authoritative row (success) or roll back (reject)
+        })
+      }
       return
     }
     // Otherwise (re)select one of my movable pieces.
@@ -58,18 +88,22 @@ function Checkers({ match, makeMove, myColor, disabled }) {
         const sel = selected === idx
         const isTarget = targets.has(idx)
         const movable = movableFrom.has(idx) && !sel
+        const isLast = !!lastMove && (lastMove[0] === idx || lastMove[1] === idx)
+        const jumping = sel && mustJumpFrom === idx
         const cls =
           `ck-sq ${dark ? 'dark' : 'light'}` +
           (sel ? ' sel' : '') +
           (isTarget ? ' target' : '') +
-          (movable ? ' movable' : '')
+          (movable ? ' movable' : '') +
+          (isLast ? ' last' : '') +
+          (jumping ? ' jumping' : '')
         return (
           <button
             key={idx}
             type="button"
             className={cls}
             onClick={() => clickSquare(idx)}
-            disabled={disabled || !dark}
+            disabled={locked || !dark}
             aria-label={`row ${r + 1} column ${c + 1}`}
           >
             {owner !== 0 && (

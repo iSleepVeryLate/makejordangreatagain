@@ -8,14 +8,16 @@
 //   multi-jump continuation, kinging) are too involved to referee safely in SQL,
 //   so this Edge Function is the checkers referee: it re-derives the legal moves
 //   from the STORED board with a self-contained engine, validates the submitted
-//   move, applies it, and writes the row with the service role. The client only
-//   ever sends {match_id, from, to} — never a board it made up.
+//   move, applies it, and writes the row with the service role.
 //
-// Move/turn protocol:
-//   The client submits ONE step at a time. On a capture that can continue, the
-//   turn stays with the same player and board_state.mustJumpFrom marks the piece
-//   that must keep jumping; otherwise the turn flips. A reached king row ends the
-//   turn even mid-jump (standard rule).
+// Move protocol:
+//   The client submits an ENTIRE turn as `path` — an array of square indices,
+//   length >= 2 ([from, to] for a simple move/single jump, or [from, mid, ...]
+//   for a multi-jump). The whole sequence is validated and applied atomically and
+//   the turn then passes to the opponent. This makes multi-jumps a single
+//   round-trip (the client plays the chain locally first) and the opponent sees
+//   one clean update. A legacy { from, to } single-step body is still accepted
+//   for backward compatibility during rollout.
 //
 // Deploy:   supabase functions deploy checkers-move
 // (SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected
@@ -113,6 +115,34 @@ function applyMove(board: number[], move: Move) {
   return { board: next, captured, promoted, canContinue }
 }
 
+// Validate + apply an entire turn's path (>=2 squares). Mirrors applyPath() in
+// the shared client rules. Enforces mandatory capture and forced multi-jump
+// completion. Returns the final board or an error string.
+function applyPath(board: number[], side: number, path: number[]):
+  { board: number[]; captured: boolean; promoted: boolean } | { error: string } {
+  if (!Array.isArray(path) || path.length < 2) return { error: 'Empty move' }
+  if (!path.every((s) => Number.isInteger(s) && s >= 0 && s < board.length)) {
+    return { error: 'Bad square' }
+  }
+  let b = board.slice()
+  let captured = false
+  let promoted = false
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i], to = path[i + 1]
+    const legal = legalMoves(b, side, i === 0 ? null : from)
+    const mv = legal.find((m) => m.from === from && m.to === to)
+    if (!mv) return { error: 'Illegal move' }
+    const res = applyMove(b, mv)
+    b = res.board
+    captured = captured || res.captured
+    promoted = promoted || res.promoted
+    const lastHop = i === path.length - 2
+    if (res.canContinue && lastHop) return { error: 'Must keep jumping' }
+    if (!res.canContinue && !lastHop) return { error: 'Move cannot continue' }
+  }
+  return { board: b, captured, promoted }
+}
+
 // ---------- request handler ----------
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -138,11 +168,12 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => null)
     const match_id = body?.match_id
-    const from = body?.from
-    const to = body?.to
-    if (!match_id || typeof from !== 'number' || typeof to !== 'number') {
-      return json({ error: 'Missing move' }, 400)
+    // Preferred: a full-turn path. Legacy: a single { from, to } step.
+    let path: number[] | null = Array.isArray(body?.path) ? body.path : null
+    if (!path && typeof body?.from === 'number' && typeof body?.to === 'number') {
+      path = [body.from, body.to]
     }
+    if (!match_id || !path) return json({ error: 'Missing move' }, 400)
 
     const admin = createClient(url, service)
     const { data: m, error: mErr } = await admin
@@ -161,54 +192,44 @@ Deno.serve(async (req) => {
     const side = isP1 ? 1 : 2
     const board: number[] = Array.isArray(m.board_state?.board) ? m.board_state.board.slice() : []
     if (board.length !== SIZE * SIZE) return json({ error: 'Corrupt board state' }, 500)
-    const mustJumpFrom: number | null = m.board_state?.mustJumpFrom ?? null
     let noProgress: number = Number(m.board_state?.noProgress || 0)
 
-    // Validate the submitted move against the authoritative legal set.
-    const legal = legalMoves(board, side, mustJumpFrom)
-    const chosen = legal.find((mv) => mv.from === from && mv.to === to)
-    if (!chosen) return json({ error: 'Illegal move' }, 400)
+    const applied = applyPath(board, side, path)
+    if ('error' in applied) return json({ error: applied.error }, 400)
 
-    const res = applyMove(board, chosen)
-
-    let current_turn = m.current_turn
-    let newMustJump: number | null = null
-    if (res.canContinue) {
-      current_turn = uid // same player keeps jumping
-      newMustJump = to
-    } else {
-      current_turn = isP1 ? m.player2 : m.player1
-      // No-progress draw counter: reset on a capture or promotion, else increment.
-      noProgress = res.captured || res.promoted ? 0 : noProgress + 1
-    }
+    // The whole turn is processed at once, so the turn always passes now.
+    noProgress = applied.captured || applied.promoted ? 0 : noProgress + 1
 
     let status = m.status
     let winner = m.winner
     let result = m.result
     let finished_at = m.finished_at
+    let current_turn = isP1 ? m.player2 : m.player1
     const now = new Date().toISOString()
 
-    // End-of-game is only evaluated when the turn actually passes to the opponent.
-    if (!res.canContinue) {
-      const opp = opponent(side)
-      if (!hasAnyMove(res.board, opp)) {
-        status = 'finished'
-        winner = uid
-        result = isP1 ? 'p1' : 'p2'
-        finished_at = now
-      } else if (noProgress >= DRAW_PLIES) {
-        status = 'finished'
-        winner = null
-        result = 'draw'
-        finished_at = now
-      }
+    const opp = opponent(side)
+    if (!hasAnyMove(applied.board, opp)) {
+      status = 'finished'
+      winner = uid
+      result = isP1 ? 'p1' : 'p2'
+      finished_at = now
+      current_turn = m.current_turn // leave as-is; game is over
+    } else if (noProgress >= DRAW_PLIES) {
+      status = 'finished'
+      winner = null
+      result = 'draw'
+      finished_at = now
     }
 
-    const board_state = { board: res.board, mustJumpFrom: newMustJump, noProgress }
+    const board_state = {
+      board: applied.board,
+      mustJumpFrom: null,
+      noProgress,
+      lastMove: [path[0], path[path.length - 1]],
+    }
 
     // Optimistic lock on move_count: a duplicate / racing submit (same move_count)
-    // updates zero rows and is rejected. current_turn alone is insufficient here
-    // because multi-jump steps all share the same current_turn.
+    // updates zero rows and is rejected.
     const { data: updated, error: upErr } = await admin
       .from('matches')
       .update({

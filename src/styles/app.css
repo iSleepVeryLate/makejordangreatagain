@@ -253,6 +253,15 @@
 .ck-pc.p1 { background: radial-gradient(circle at 35% 30%, #ff6b81, #e4002b); color: #ffe9b0; }
 .ck-pc.p2 { background: radial-gradient(circle at 35% 30%, #4a4f57, #0c0d10); color: #ffe27a; box-shadow: inset 0 -3px 6px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08), 0 2px 4px rgba(0,0,0,.5); }
 .ck-pc.king { box-shadow: inset 0 0 0 2px rgba(255,226,122,.9), inset 0 -3px 6px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.45); }
+.ck-pc { transition: transform .12s ease; }
+.ck-sq.dark:not(:disabled):hover .ck-pc { transform: scale(1.06); }
+.ck-sq.target:hover { box-shadow: inset 0 0 0 2px rgba(34,194,119,.7); }
+.ck-sq.target:hover .ck-dot { background: var(--green-bright); }
+/* opponent's most recent move (from + to squares) */
+.ck-sq.last::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px rgba(167,118,255,.5); pointer-events: none; }
+/* a piece mid forced multi-jump gently pulses to say "keep going" */
+.ck-sq.jumping .ck-pc { animation: ck-jump 1s ease-in-out infinite; }
+@keyframes ck-jump { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 
 /* chess */
 .chess-wrap { width: 100%; max-width: 480px; }
