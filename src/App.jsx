@@ -12,6 +12,12 @@ const Game = lazy(() => import('./pages/Game.jsx'))
 const Leaderboard = lazy(() => import('./pages/Leaderboard.jsx'))
 const Profile = lazy(() => import('./pages/Profile.jsx'))
 
+// Public resident-resource pages (no auth required).
+const Explore = lazy(() => import('./pages/Explore.jsx'))
+const Tourism = lazy(() => import('./pages/Tourism.jsx'))
+const Services = lazy(() => import('./pages/Services.jsx'))
+const Emergency = lazy(() => import('./pages/Emergency.jsx'))
+
 function MeRedirect() {
   const { profile, loading } = useAuth()
   if (loading) return null
@@ -29,6 +35,12 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* Public resident resources — open to everyone, no login required. */}
+      <Route path="/explore" element={<Explore />} />
+      <Route path="/tourism" element={<Tourism />} />
+      <Route path="/services" element={<Services />} />
+      <Route path="/emergency" element={<Emergency />} />
 
       <Route
         path="/play"

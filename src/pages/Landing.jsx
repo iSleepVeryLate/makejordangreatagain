@@ -74,6 +74,7 @@ export default function Landing() {
           <div className={`nav-links${open ? ' open' : ''}`}>
             <a href="#community" onClick={closeMenu}>Community</a>
             <a href="#features" onClick={closeMenu}>What's inside</a>
+            <Link to="/explore" onClick={closeMenu}>Explore Jordan</Link>
             <Link to="/play" onClick={closeMenu}>Games</Link>
             <a href="#faq" onClick={closeMenu}>FAQ</a>
             {session ? (
@@ -245,6 +246,37 @@ export default function Landing() {
         </div>
       </section>
 
+      <section className="block" id="explore-jordan">
+        <div className="wrap">
+          <div className="eyebrow">More than games</div>
+          <h2 className="h2">A resource for everyone in Jordan</h2>
+          <p className="sub">Open to all, no account needed — where to go, who to call, and what to see across the kingdom.</p>
+          <div className="grid3">
+            <Link className="card" to="/tourism">
+              <div className="icbox a"><svg className="ic" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4 8 4v14M9 21v-6h6v6" /></svg></div>
+              <h3>Tourism & places</h3>
+              <p>Petra, Wadi Rum, the Dead Sea, Jerash and more — browse Jordan's wonders by governorate and category.</p>
+            </Link>
+            <Link className="card" to="/services">
+              <div className="icbox g"><svg className="ic" viewBox="0 0 24 24"><path d="M3 21h18M6 21V8l6-4 6 4v13M10 12h4M10 16h4" /></svg></div>
+              <h3>Government services</h3>
+              <p>Civil status, passports, driving licences, taxes and municipalities — what they do and how to reach them.</p>
+            </Link>
+            <Link className="card" to="/emergency">
+              <div className="icbox r"><svg className="ic" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" /></svg></div>
+              <h3>Emergency numbers</h3>
+              <p>Police, ambulance, civil defense and other key hotlines — saved in one place, one tap to call.</p>
+            </Link>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 40 }}>
+            <Link className="btn btn-green btn-lg" to="/explore">
+              Explore Jordan
+              <svg className="ic" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <section className="block" id="faq">
         <div className="wrap">
           <div className="eyebrow">Good to know</div>
@@ -297,6 +329,12 @@ export default function Landing() {
                 <Link to="/play">Games</Link>
                 <a href="#faq">FAQ</a>
                 <a href={DISCORD_INVITE} target="_blank" rel="noopener">Join Discord</a>
+              </div>
+              <div className="foot-col">
+                <h5>Resources</h5>
+                <Link to="/tourism">Tourism</Link>
+                <Link to="/services">Government services</Link>
+                <Link to="/emergency">Emergency numbers</Link>
               </div>
               <div className="foot-col">
                 <h5>Play</h5>

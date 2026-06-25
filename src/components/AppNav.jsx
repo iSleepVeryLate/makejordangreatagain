@@ -13,6 +13,7 @@ export default function AppNav() {
           <div className="appnav-links">
             <NavLink to="/play">Games</NavLink>
             <NavLink to="/leaderboard">Leaderboard</NavLink>
+            <NavLink to="/explore">Explore</NavLink>
           </div>
           {profile && (
             <NavLink className="user-chip" to={`/profile/${profile.id}`}>
