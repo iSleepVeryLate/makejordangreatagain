@@ -530,3 +530,127 @@
 
 /* RTL: flip the timer-bar fill origin so it drains naturally in Arabic rooms */
 [dir="rtl"] .draw-timer-bar span { background: linear-gradient(270deg, var(--green-bright), #f0b428); }
+
+/* =====================================================================
+   Jordan Monopoly
+   ===================================================================== */
+.btn-xs { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+.icon-btn { background: none; border: 0; color: var(--txt-dim); cursor: pointer; padding: 4px; border-radius: 8px; display: inline-flex; }
+.icon-btn:hover { color: #fff; background: rgba(255,255,255,.06); }
+
+.mono-main { padding-top: 14px; }
+.mono-wrap { max-width: 1280px; margin: 0 auto; padding: 0 18px; }
+.mono-token-emoji { font-size: 16px; }
+
+/* lobby token picker */
+.mono-token-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mono-token-btn { width: 44px; height: 44px; font-size: 20px; border-radius: 12px; border: 2px solid var(--line); background: var(--ink-3); cursor: pointer; transition: transform .12s ease, border-color .12s ease; }
+.mono-token-btn:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--tok); }
+.mono-token-btn.mine { border-color: var(--tok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tok) 30%, transparent); }
+.mono-token-btn:disabled { opacity: .32; cursor: not-allowed; }
+
+/* layout: players strip / board / side */
+.mono-game { display: grid; grid-template-columns: minmax(0,1fr) 300px; grid-template-rows: auto 1fr; gap: 16px; align-items: start; }
+.mono-players-strip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+.mono-pchip { display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 7px; background: var(--ink-2); border: 1px solid var(--line); border-radius: 14px; border-left: 3px solid var(--tok); min-width: 0; }
+.mono-pchip.turn { box-shadow: 0 0 0 2px var(--green); }
+.mono-pchip.bankrupt { opacity: .42; filter: grayscale(.7); }
+.mono-pchip.me .mono-pchip-name { color: var(--green-bright); }
+.mono-pchip-emoji { font-size: 15px; }
+.mono-pchip-info { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.mono-pchip-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+.mono-pchip-cash { font-size: 12px; color: var(--txt-dim); display: inline-flex; align-items: center; gap: 3px; }
+.mono-pchip-jail { font-size: 14px; }
+
+.mono-stage { grid-column: 1; }
+.mono-side { grid-column: 2; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 78px; }
+.mono-leave { align-self: flex-start; }
+
+/* the board ring */
+.mono-board { position: relative; width: 100%; max-width: 760px; margin: 0 auto; aspect-ratio: 1; display: grid; grid-template-columns: 1.5fr repeat(9, 1fr) 1.5fr; grid-template-rows: 1.5fr repeat(9, 1fr) 1.5fr; gap: 3px; background: var(--ink-3); border: 1px solid var(--line); border-radius: 16px; padding: 6px; }
+.mono-tile { position: relative; background: var(--ink-2); border: 1px solid var(--line); border-radius: 6px; padding: 0; overflow: hidden; display: flex; flex-direction: column; cursor: default; color: var(--txt-mid); min-width: 0; text-align: center; }
+.mono-tile.corner { background: #16181d; }
+.mono-tile-bar { display: block; height: 16%; min-height: 8px; width: 100%; }
+.mono-tile-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 2px 1px; }
+.mono-tile-ic { color: var(--green-bright); display: flex; }
+.mono-tile-name { font-size: 8.5px; line-height: 1.05; font-weight: 600; max-height: 3.2em; overflow: hidden; }
+.mono-tile-price { font-size: 8px; color: var(--txt-dim); }
+.mono-tile-owner { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(0,0,0,.4); }
+.mono-tile-mortgaged { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--red); background: rgba(0,0,0,.35); }
+.mono-tile-houses { position: absolute; top: 1px; left: 0; right: 0; display: flex; justify-content: center; gap: 2px; }
+.mono-tile-houses .house { width: 5px; height: 5px; background: #43b581; border-radius: 1px; }
+.mono-tile-houses .hotel { width: 12px; height: 6px; background: var(--red); border-radius: 1px; }
+.mono-tile-tokens { position: absolute; bottom: 2px; left: 0; right: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 1px; }
+.mono-token-dot { font-size: 11px; line-height: 1; filter: drop-shadow(0 0 2px var(--tok)); transition: transform .25s ease; }
+
+/* board centre slot */
+.mono-center { grid-row: 2 / 11; grid-column: 2 / 11; display: flex; align-items: center; justify-content: center; padding: 10px; }
+.mono-center-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 320px; text-align: center; }
+.mono-title-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--txt-dim); }
+.mono-turn-banner { font-size: 15px; font-weight: 700; padding: 6px 14px; border-radius: 999px; background: var(--ink-3); border: 1px solid var(--line); }
+.mono-turn-banner.you { background: rgba(24,163,97,.16); color: var(--green-bright); border-color: rgba(34,194,119,.4); }
+.mono-dice { display: flex; gap: 10px; }
+.mono-die { font-size: 46px; line-height: 1; color: #fff; }
+.mono-die.rolling { animation: mono-tumble .5s ease infinite; }
+@keyframes mono-tumble { 50% { transform: rotate(18deg) scale(1.08); } }
+.mono-timer { width: 100%; margin: 0; }
+.mono-card-pop { background: var(--ink-3); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; animation: mono-pop .25s ease both; }
+.mono-card-pop p { font-size: 13px; margin-top: 2px; }
+@keyframes mono-pop { from { transform: scale(.9); opacity: 0; } }
+.mono-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+
+.mono-jail-actions, .mono-debt, .mono-auction-act, .mono-buy-btns, .mono-trade-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+.mono-jail-tag { background: rgba(228,0,43,.16); color: #ff7a8a; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.mono-owe { color: #ff7a8a; font-size: 13px; font-weight: 600; }
+
+/* deed card */
+.mono-buy { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.mono-deed { width: 150px; background: #fff; color: #111; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px -8px rgba(0,0,0,.6); }
+.mono-deed-head { padding: 8px; font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: .5px; }
+.mono-deed-rent { list-style: none; padding: 6px 10px; margin: 0; font-size: 11px; }
+.mono-deed-rent li { display: flex; justify-content: space-between; padding: 1px 0; }
+.mono-deed-foot { padding: 6px 10px; font-size: 11px; border-top: 1px solid #ddd; color: #333; }
+
+/* auction / trade panels */
+.mono-auction, .mono-trade-review { display: flex; flex-direction: column; gap: 6px; align-items: center; width: 100%; }
+.mono-auction-bid { font-size: 18px; font-weight: 800; color: var(--green-bright); }
+.mono-auction-act input, .mono-select { background: var(--ink-3); border: 1px solid var(--line); border-radius: 8px; color: #fff; padding: 6px 8px; font-size: 13px; width: 80px; }
+.mono-select { width: 100%; margin: 4px 0 8px; }
+.mono-trade-line { font-size: 13px; }
+
+/* side log */
+.mono-log-panel { padding: 14px; }
+.mono-log { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; margin-top: 8px; }
+.mono-log-row { font-size: 12.5px; color: var(--txt-mid); padding: 3px 6px; border-radius: 6px; background: rgba(255,255,255,.02); }
+
+/* modals */
+.mono-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 80; padding: 16px; }
+.mono-modal { background: var(--ink-2); border: 1px solid var(--line); border-radius: 18px; padding: 20px; width: 100%; max-width: 460px; max-height: 86vh; overflow-y: auto; animation: mono-pop .2s ease both; }
+.mono-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.mono-modal-head h3 { display: inline-flex; align-items: center; gap: 8px; }
+.mono-manage-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.mono-manage-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--ink-3); border-radius: 10px; }
+.mono-manage-bar { width: 6px; align-self: stretch; border-radius: 3px; }
+.mono-manage-name { flex: 1; font-size: 13px; min-width: 0; }
+.mono-manage-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+.mono-trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+.mono-trade-tiles { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.mono-trade-tile { text-align: left; font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--ink-3); color: var(--txt-mid); cursor: pointer; }
+.mono-trade-tile.on { border-color: var(--green); color: var(--green-bright); background: rgba(24,163,97,.12); }
+
+/* finished */
+.mono-finish { text-align: center; gap: 6px; }
+.mono-winner-name { font-size: 20px; font-weight: 800; color: var(--green-bright); }
+.mono-final-list { display: flex; flex-direction: column; gap: 6px; margin: 16px auto 0; max-width: 360px; width: 100%; }
+
+@media (max-width: 980px) {
+  .mono-game { grid-template-columns: 1fr; }
+  .mono-stage { grid-column: 1; }
+  .mono-side { grid-column: 1; position: static; flex-direction: row; flex-wrap: wrap; }
+  .mono-log-panel { flex: 1; min-width: 220px; }
+}
+@media (max-width: 560px) {
+  .mono-tile-name { font-size: 6.5px; }
+  .mono-die { font-size: 34px; }
+  .mono-center-inner { max-width: 100%; gap: 6px; }
+}

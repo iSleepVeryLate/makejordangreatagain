@@ -18,6 +18,10 @@ const Profile = lazy(() => import('./pages/Profile.jsx'))
 const DrawHome = lazy(() => import('./pages/DrawHome.jsx'))
 const DrawRoom = lazy(() => import('./pages/DrawRoom.jsx'))
 
+// Jordan Monopoly — N-player board game (own room model, server-authoritative).
+const MonopolyHome = lazy(() => import('./pages/MonopolyHome.jsx'))
+const MonopolyRoom = lazy(() => import('./pages/MonopolyRoom.jsx'))
+
 // Public resident-resource pages (no auth required).
 const Explore = lazy(() => import('./pages/Explore.jsx'))
 const Tourism = lazy(() => import('./pages/Tourism.jsx'))
@@ -86,6 +90,22 @@ export default function App() {
         element={
           <RequireAuth>
             <DrawRoom />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/monopoly"
+        element={
+          <RequireAuth>
+            <MonopolyHome />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/monopoly/:roomId"
+        element={
+          <RequireAuth>
+            <MonopolyRoom />
           </RequireAuth>
         }
       />
