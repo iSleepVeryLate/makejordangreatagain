@@ -13,6 +13,10 @@ const Game = lazy(() => import('./pages/Game.jsx'))
 const Leaderboard = lazy(() => import('./pages/Leaderboard.jsx'))
 const Profile = lazy(() => import('./pages/Profile.jsx'))
 
+// Draw & Guess — the N-player party game (its own room model, not `matches`).
+const DrawHome = lazy(() => import('./pages/DrawHome.jsx'))
+const DrawRoom = lazy(() => import('./pages/DrawRoom.jsx'))
+
 // Public resident-resource pages (no auth required).
 const Explore = lazy(() => import('./pages/Explore.jsx'))
 const Tourism = lazy(() => import('./pages/Tourism.jsx'))
@@ -57,6 +61,22 @@ export default function App() {
         element={
           <RequireAuth>
             <Game />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/draw"
+        element={
+          <RequireAuth>
+            <DrawHome />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/draw/:roomId"
+        element={
+          <RequireAuth>
+            <DrawRoom />
           </RequireAuth>
         }
       />
