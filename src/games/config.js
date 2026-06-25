@@ -35,6 +35,14 @@ export const GAMES = [
     tint: 'r',
     hint: '20 questions',
   },
+  {
+    key: 'checkers',
+    label: 'Checkers (Dama)',
+    emoji: '🔴',
+    desc: 'The cafe classic — jump, capture, crown your kings.',
+    tint: 'v',
+    hint: '~8 min',
+  },
 ]
 
 export const GAME_BY_KEY = Object.fromEntries(GAMES.map((g) => [g.key, g]))

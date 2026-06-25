@@ -103,6 +103,7 @@
 .gcard.s { --tint-glow: rgba(56,140,255,.18); }
 .gcard.a { --tint-glow: rgba(240,180,40,.16); }
 .gcard.r { --tint-glow: rgba(228,0,43,.16); }
+.gcard.v { --tint-glow: rgba(167,118,255,.18); }
 
 .gcard-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .gcard h3 { font-size: 17px; font-weight: 700; letter-spacing: -.2px; color: #fff; margin-bottom: 6px; }
@@ -126,6 +127,7 @@
 .gicon.s { background: rgba(56,140,255,.16); color: #6ba6ff; box-shadow: inset 0 0 0 1px rgba(56,140,255,.2); }
 .gicon.a { background: rgba(240,180,40,.16); color: #f3bd3f; box-shadow: inset 0 0 0 1px rgba(240,180,40,.22); }
 .gicon.r { background: rgba(228,0,43,.16); color: #ff6981; box-shadow: inset 0 0 0 1px rgba(228,0,43,.24); }
+.gicon.v { background: rgba(167,118,255,.16); color: #b79bff; box-shadow: inset 0 0 0 1px rgba(167,118,255,.24); }
 
 /* ---- play panel (primary action zone) ---- */
 .play-panel { display: flex; align-items: center; gap: 16px; background: linear-gradient(180deg, rgba(24,163,97,.1), rgba(24,163,97,.02)), var(--ink-2); border: 1px solid rgba(34,194,119,.22); border-radius: 18px; padding: 18px 20px; }
@@ -237,6 +239,21 @@
 .c4-col.full { cursor: default; }
 .c4-col.disabled { cursor: default; }
 
+/* checkers (Dama) */
+.checkers { display: grid; grid-template-columns: repeat(8, 1fr); width: min(92vw, 460px); aspect-ratio: 1; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 20px 48px -28px rgba(0,0,0,.85); }
+.ck-sq { position: relative; appearance: none; -webkit-appearance: none; border: none; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; font: inherit; cursor: default; }
+.ck-sq.light { background: #2a2d33; }
+.ck-sq.dark { background: #15171b; cursor: pointer; }
+.ck-sq.dark:disabled { cursor: default; }
+.ck-sq.movable:not(:disabled) { box-shadow: inset 0 0 0 2px rgba(34,194,119,.4); }
+.ck-sq.sel { box-shadow: inset 0 0 0 3px var(--green-bright); }
+.ck-sq.target { cursor: pointer; }
+.ck-dot { position: absolute; width: 26%; height: 26%; border-radius: 50%; background: rgba(34,194,119,.5); pointer-events: none; }
+.ck-pc { width: 72%; height: 72%; border-radius: 50%; display: flex; align-items: center; justify-content: center; animation: pop-in .18s ease both; box-shadow: inset 0 -3px 6px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.45); }
+.ck-pc.p1 { background: radial-gradient(circle at 35% 30%, #ff6b81, #e4002b); color: #ffe9b0; }
+.ck-pc.p2 { background: radial-gradient(circle at 35% 30%, #4a4f57, #0c0d10); color: #ffe27a; box-shadow: inset 0 -3px 6px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08), 0 2px 4px rgba(0,0,0,.5); }
+.ck-pc.king { box-shadow: inset 0 0 0 2px rgba(255,226,122,.9), inset 0 -3px 6px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.45); }
+
 /* chess */
 .chess-wrap { width: 100%; max-width: 480px; }
 
@@ -312,6 +329,7 @@
 .game-grid .gcard:nth-child(2), .rooms .room-row:nth-child(2) { animation-delay: .05s; }
 .game-grid .gcard:nth-child(3), .rooms .room-row:nth-child(3) { animation-delay: .1s; }
 .game-grid .gcard:nth-child(4), .rooms .room-row:nth-child(4) { animation-delay: .15s; }
+.game-grid .gcard:nth-child(5) { animation-delay: .2s; }
 .rooms .room-row:nth-child(n+5) { animation-delay: .2s; }
 
 .status-banner { animation: banner-in .3s ease both; }

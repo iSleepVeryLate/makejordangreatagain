@@ -61,8 +61,8 @@ export default function Profile() {
               </div>
             </div>
             <div className="stat-grid">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="skeleton skel-card" />
+              {GAMES.map((g) => (
+                <div key={g.key} className="skeleton skel-card" />
               ))}
             </div>
           </div>

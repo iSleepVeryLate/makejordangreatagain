@@ -9,8 +9,9 @@ import Avatar from '../components/Avatar.jsx'
 import Confetti from '../components/Confetti.jsx'
 
 // Seconds a player must be idle before the opponent can claim the win, mirrored
-// from claim_timeout() in migration 0003 (chess 180s, everything else 60s).
-const TIMEOUT_MS = (gameType) => (gameType === 'chess' ? 180000 : 60000)
+// from claim_timeout() (chess 180s, checkers 120s, everything else 60s).
+const TIMEOUT_MS = (gameType) =>
+  gameType === 'chess' ? 180000 : gameType === 'checkers' ? 120000 : 60000
 const fmtClock = (ms) => {
   const s = Math.max(0, Math.ceil(ms / 1000))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -22,6 +23,7 @@ const TicTacToe = lazy(() => import('../games/TicTacToe.jsx'))
 const ConnectFour = lazy(() => import('../games/ConnectFour.jsx'))
 const ChessGame = lazy(() => import('../games/ChessGame.jsx'))
 const Trivia = lazy(() => import('../games/Trivia.jsx'))
+const Checkers = lazy(() => import('../games/Checkers.jsx'))
 
 function Seat({ profile, label, isTurn, isOnline, isYou, rating }) {
   return (
@@ -147,6 +149,47 @@ export default function Game() {
       return fallback
     },
     [matchId, applyRow, refetch, matchRef, myId, rpc, toast],
+  )
+
+  // Checkers is server-authoritative via the checkers-move Edge Function. Unlike
+  // chess we don't apply optimistically — captures remove pieces, so a hand-rolled
+  // local mutation is error-prone and the round-trip is sub-second. We just send
+  // {from, to}, then reconcile to the authoritative row (or roll back on reject).
+  // There is no make_move fallback: that RPC rejects checkers by design.
+  const makeCheckersMove = useCallback(
+    async (move) => {
+      setActionError('')
+      const prev = matchRef.current
+      const { data, error } = await supabase.functions.invoke('checkers-move', {
+        body: { match_id: matchId, from: move.from, to: move.to },
+      })
+      if (!error) {
+        applyRow(data)
+        return data
+      }
+      // FunctionsHttpError → the function ran and rejected the move (illegal /
+      // not your turn). Surface why; the board is unchanged so nothing to undo.
+      if (error.context && typeof error.context.json === 'function') {
+        let msg = 'Move rejected.'
+        try {
+          msg = (await error.context.json())?.error || msg
+        } catch {
+          /* non-JSON body */
+        }
+        if (prev) applyRow(prev)
+        else refetch?.()
+        setActionError(msg)
+        toast(msg, 'error')
+        return null
+      }
+      // Couldn't reach the function at all.
+      const msg = 'Could not reach the game server. Please try again.'
+      setActionError(msg)
+      toast(msg, 'error')
+      refetch?.()
+      return null
+    },
+    [matchId, applyRow, refetch, matchRef, toast],
   )
 
   const resign = async () => {
@@ -323,6 +366,14 @@ export default function Game() {
                 )}
                 {match.game_type === 'trivia' && (
                   <Trivia match={match} myId={myId} answerTrivia={answerTrivia} />
+                )}
+                {match.game_type === 'checkers' && (
+                  <Checkers
+                    match={match}
+                    makeMove={makeCheckersMove}
+                    myColor={isP1 ? 1 : 2}
+                    disabled={boardDisabled}
+                  />
                 )}
               </Suspense>
 
