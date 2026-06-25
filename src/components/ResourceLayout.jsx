@@ -7,6 +7,8 @@ import Avatar from './Avatar.jsx'
 // /emergency). Unlike AppNav this is auth-aware but does NOT require a session:
 // signed-in members see their profile chip, everyone else gets a "Sign in"
 // button. Reuses the .appnav styling from app.css.
+const DISCORD_INVITE = 'https://discord.gg/makejordangreatagain'
+
 const LINKS = [
   { to: '/explore', label: 'Explore' },
   { to: '/tourism', label: 'Tourism' },
@@ -50,6 +52,10 @@ export default function ResourceLayout({ children }) {
           <span className="foot-note">
             An independent, non-political community space. Information is provided for convenience;
             please verify official details before relying on them.
+          </span>
+          <span className="res-foot-verify">
+            Listings verified June 2026 ·{' '}
+            <a href={DISCORD_INVITE} target="_blank" rel="noopener">Spot something out of date? Tell us</a>
           </span>
         </div>
       </footer>

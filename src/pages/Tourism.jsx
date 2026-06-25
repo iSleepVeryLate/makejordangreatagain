@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import ResourceLayout from '../components/ResourceLayout.jsx'
+import Seo from '../components/Seo.jsx'
 import { useResource } from '../hooks/useResource.js'
 import { GOVERNORATES, TOURISM_CATEGORIES, tourismCat } from '../data/jordan.js'
 
@@ -21,6 +22,11 @@ export default function Tourism() {
 
   return (
     <ResourceLayout>
+      <Seo
+        title="Tourism & Places to Visit in Jordan"
+        description="Petra, Wadi Rum, the Dead Sea, Jerash and more across all 12 governorates — with entry fees, best seasons and map links."
+        path="/tourism"
+      />
       <div className="section-head">
         <h1>Tourism & places to visit</h1>
         <p>Discover Jordan’s archaeological wonders, nature reserves and seaside escapes.</p>

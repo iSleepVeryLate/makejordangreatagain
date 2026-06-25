@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="g1" cx="18%" cy="12%" r="60%">
+      <stop offset="0" stop-color="#18a361" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#18a361" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="92%" cy="96%" r="55%">
+      <stop offset="0" stop-color="#e4002b" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#e4002b" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="flag"><rect width="150" height="110" rx="14"/></clipPath>
+  </defs>
+  <rect width="1200" height="630" fill="#0a0a0b"/>
+  <rect width="1200" height="630" fill="url(#g1)"/>
+  <rect width="1200" height="630" fill="url(#g2)"/>
+  <g transform="translate(90,86)" clip-path="url(#flag)">
+    <rect width="150" height="36.66" fill="#111111"/>
+    <rect y="36.66" width="150" height="36.67" fill="#ffffff"/>
+    <rect y="73.33" width="150" height="36.67" fill="#18a361"/>
+    <path d="M0 0 L75 55 L0 110 Z" fill="#e4002b"/>
+    <path transform="translate(15,45) scale(0.8)" d="M12 2l2.6 6.3 6.8.5-5.2 4.4 1.7 6.6L12 16.8 6.1 20.3l1.7-6.6L2.6 8.8l6.8-.5z" fill="#ffffff"/>
+  </g>
+  <text x="90" y="262" font-family="'Plus Jakarta Sans',system-ui,sans-serif" font-size="78" font-weight="800" fill="#ffffff" letter-spacing="-2">Jordan Stand Tall</text>
+  <text x="92" y="328" font-family="'Plus Jakarta Sans',system-ui,sans-serif" font-size="35" font-weight="600" fill="#22c277">A resource for everyone in Jordan</text>
+  <text x="92" y="386" font-family="system-ui,sans-serif" font-size="28" fill="#c4c8cd">Tourism · Government services · Emergency numbers · Games</text>
+  <text x="92" y="566" font-family="system-ui,sans-serif" font-size="25" font-weight="600" fill="#9aa0a6">www.makejordangreatagain.com</text>
+</svg>

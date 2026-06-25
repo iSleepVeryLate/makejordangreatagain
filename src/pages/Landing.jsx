@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useCommunityStats } from '../hooks/useCommunityStats.js'
+import Seo from '../components/Seo.jsx'
 
 const DISCORD_INVITE = 'https://discord.gg/makejordangreatagain'
 
@@ -57,6 +58,10 @@ export default function Landing() {
 
   return (
     <>
+      <Seo
+        description="A free resource for the people and residents of Jordan: tourism spots, government services, emergency numbers, and a friendly community with games. A community, not a campaign."
+        path="/"
+      />
       <nav>
         <div className="wrap nav-inner">
           <Link className="brand" to="/" onClick={closeMenu}>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import ResourceLayout from '../components/ResourceLayout.jsx'
+import Seo from '../components/Seo.jsx'
 import { useResource } from '../hooks/useResource.js'
 
 const SECTIONS = [
@@ -26,6 +27,11 @@ export default function Explore() {
 
   return (
     <ResourceLayout>
+      <Seo
+        title="Explore Jordan — Resources for Residents"
+        description="A free directory for everyone in Jordan: tourism spots, government offices and services, and emergency numbers. No account needed."
+        path="/explore"
+      />
       <div className="res-hero">
         <span className="res-eyebrow">A resource for residents</span>
         <h1>Everything you need, in one place</h1>

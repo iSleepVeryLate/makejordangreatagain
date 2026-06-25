@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import ResourceLayout from '../components/ResourceLayout.jsx'
+import Seo from '../components/Seo.jsx'
 import { useResource } from '../hooks/useResource.js'
 import { SERVICE_CATEGORIES, serviceCat } from '../data/jordan.js'
 
@@ -19,6 +20,11 @@ export default function Services() {
 
   return (
     <ResourceLayout>
+      <Seo
+        title="Government Offices & Services in Jordan"
+        description="Civil status, passports, driving licences, taxes, social security and municipalities — official phone numbers, hours and websites."
+        path="/services"
+      />
       <div className="section-head">
         <h1>Government offices & services</h1>
         <p>Key departments and what they handle — with hours, phone numbers and official websites.</p>

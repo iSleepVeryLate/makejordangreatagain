@@ -1,4 +1,5 @@
 import ResourceLayout from '../components/ResourceLayout.jsx'
+import Seo from '../components/Seo.jsx'
 import { useResource } from '../hooks/useResource.js'
 
 export default function Emergency() {
@@ -6,6 +7,11 @@ export default function Emergency() {
 
   return (
     <ResourceLayout>
+      <Seo
+        title="Emergency & Useful Numbers in Jordan"
+        description="Police, ambulance and civil defence (911), plus electricity, water and other essential hotlines for Jordan — tap to call."
+        path="/emergency"
+      />
       <div className="section-head">
         <h1>Emergency & useful numbers</h1>
         <p>Tap any number to call. In a life-threatening emergency, dial 911.</p>
