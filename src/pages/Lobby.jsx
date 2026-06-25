@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight } from 'lucide-react'
+import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight, Palette } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOnline } from '../context/PresenceContext.jsx'
@@ -264,6 +264,19 @@ export default function Lobby() {
                 </div>
               </div>
               {error && <p className="err-text" style={{ marginTop: 14 }}>{error}</p>}
+
+              <button className="party-card" onClick={() => navigate('/draw')}>
+                <span className="gicon v"><Palette size={22} /></span>
+                <div className="party-info">
+                  <div className="party-title">
+                    Draw &amp; Guess <span className="party-new">PARTY</span>
+                  </div>
+                  <div className="party-sub">
+                    The whole group plays at once — one draws, everyone races to guess. Up to 12 players.
+                  </div>
+                </div>
+                <span className="party-go">Play <ArrowRight size={15} /></span>
+              </button>
             </div>
 
             <aside className="hub-rail">
