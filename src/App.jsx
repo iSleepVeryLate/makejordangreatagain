@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { RequireAuth, useAuth } from './context/AuthContext.jsx'
 import { MOCK_AUTH_ENABLED } from './lib/devAuth.js'
 import OfflineBanner from './components/OfflineBanner.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 // Route-level code splitting: each page ships as its own chunk.
 const Landing = lazy(() => import('./pages/Landing.jsx'))
@@ -30,6 +31,13 @@ function MeRedirect() {
   return <Navigate to={`/profile/${profile.id}`} replace />
 }
 
+// Resets the boundary when the path changes, so a render error on one page
+// doesn't strand the whole app — navigating elsewhere recovers without a reload.
+function RoutedErrorBoundary({ children }) {
+  const location = useLocation()
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
+}
+
 export default function App() {
   return (
     <Suspense fallback={<div className="page-loader"><div className="spinner" /></div>}>
@@ -37,6 +45,7 @@ export default function App() {
     {MOCK_AUTH_ENABLED && (
       <div className="mock-auth-badge" role="status">⚠ DEV MOCK AUTH — not a real session</div>
     )}
+    <RoutedErrorBoundary>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
@@ -100,6 +109,7 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </RoutedErrorBoundary>
     </Suspense>
   )
 }

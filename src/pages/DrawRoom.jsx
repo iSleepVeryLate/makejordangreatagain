@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Copy, Check, Play, LogOut, Crown, Trophy, RotateCcw } from 'lucide-react'
+import { Copy, Check, Play, LogOut, Crown, Trophy, RotateCcw, Palette } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
