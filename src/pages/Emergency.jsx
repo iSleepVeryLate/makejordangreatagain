@@ -1,9 +1,12 @@
 import ResourceLayout from '../components/ResourceLayout.jsx'
 import Seo from '../components/Seo.jsx'
 import { useResource } from '../hooks/useResource.js'
+import { useLang } from '../context/LanguageContext.jsx'
 
 export default function Emergency() {
   const { rows, loading } = useResource('emergency_numbers')
+  const { t, lang } = useLang()
+  const L = (en, ar) => (lang === 'ar' && ar ? ar : en)
 
   return (
     <ResourceLayout>
@@ -13,14 +16,14 @@ export default function Emergency() {
         path="/emergency"
       />
       <div className="section-head">
-        <h1>Emergency & useful numbers</h1>
-        <p>Tap any number to call. In a life-threatening emergency, dial 911.</p>
+        <h1>{t('emergency.title')}</h1>
+        <p>{t('emergency.subtitle')}</p>
       </div>
 
       <a className="emergency-hero" href="tel:911">
         <div className="eh-left">
-          <div className="eh-label">Unified emergency</div>
-          <div className="eh-sub">Police · Ambulance · Civil Defense</div>
+          <div className="eh-label">{t('emergency.unified')}</div>
+          <div className="eh-sub">{t('emergency.unifiedSub')}</div>
         </div>
         <div className="eh-num">911</div>
       </a>
@@ -36,8 +39,10 @@ export default function Emergency() {
           {rows.map((n) => (
             <a key={n.id} className="num-card" href={`tel:${n.number.replace(/\s/g, '')}`}>
               <div className="num-info">
-                <div className="num-label">{n.label}</div>
-                {n.description && <div className="num-desc">{n.description}</div>}
+                <div className="num-label">{L(n.label, n.label_ar)}</div>
+                {L(n.description, n.description_ar) && (
+                  <div className="num-desc">{L(n.description, n.description_ar)}</div>
+                )}
               </div>
               <div className="num-val">{n.number}</div>
             </a>

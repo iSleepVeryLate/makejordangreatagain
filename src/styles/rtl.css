@@ -1,0 +1,26 @@
+/* Arabic / RTL styles. Scoped to [dir="rtl"], which is set ONLY on the
+   ResourceLayout wrapper — so the English landing and game pages are never
+   affected, even when the user has chosen Arabic. */
+
+[dir="rtl"] { font-family: 'Cairo', 'Plus Jakarta Sans', system-ui, sans-serif; }
+
+/* Latin letter-spacing looks wrong on Arabic glyphs — relax it on headings. */
+[dir="rtl"] .res-hero h1,
+[dir="rtl"] .section-head h1,
+[dir="rtl"] .res-card h3,
+[dir="rtl"] .res-item h3,
+[dir="rtl"] .svc-name-row h3 { letter-spacing: 0; }
+
+/* mirror directional "go / open" arrows */
+[dir="rtl"] .res-card-go svg,
+[dir="rtl"] .res-link svg { transform: scaleX(-1); }
+[dir="rtl"] .res-card:hover .res-card-go svg { transform: scaleX(-1) translateX(3px); }
+
+/* mirror the one asymmetric pill padding */
+[dir="rtl"] .user-chip { padding: 5px 12px 5px 6px; }
+
+/* keep numbers / phone numbers rendering left-to-right inside RTL text */
+[dir="rtl"] .num-val,
+[dir="rtl"] .eh-num,
+[dir="rtl"] .rq-num,
+[dir="rtl"] .btn-call { direction: ltr; }

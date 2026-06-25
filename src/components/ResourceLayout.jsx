@@ -1,42 +1,45 @@
 import { NavLink, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useLang } from '../context/LanguageContext.jsx'
 import BrandMark from './BrandMark.jsx'
 import Avatar from './Avatar.jsx'
+import LangToggle from './LangToggle.jsx'
 
 // Shared shell for the public resource pages (/explore, /tourism, /services,
-// /emergency). Unlike AppNav this is auth-aware but does NOT require a session:
-// signed-in members see their profile chip, everyone else gets a "Sign in"
-// button. Reuses the .appnav styling from app.css.
+// /emergency). Auth-aware but never requires a session. The wrapper carries the
+// `dir`/`lang` for the active language, so RTL is scoped to these pages only.
 const DISCORD_INVITE = 'https://discord.gg/makejordangreatagain'
 
 const LINKS = [
-  { to: '/explore', label: 'Explore' },
-  { to: '/tourism', label: 'Tourism' },
-  { to: '/services', label: 'Services' },
-  { to: '/emergency', label: 'Emergency' },
-  { to: '/play', label: 'Games' },
+  { to: '/explore', key: 'nav.explore' },
+  { to: '/tourism', key: 'nav.tourism' },
+  { to: '/services', key: 'nav.services' },
+  { to: '/emergency', key: 'nav.emergency' },
+  { to: '/play', key: 'nav.games' },
 ]
 
 export default function ResourceLayout({ children }) {
   const { session, profile } = useAuth()
+  const { t, dir, lang } = useLang()
   return (
-    <>
+    <div className="res-root" dir={dir} lang={lang}>
       <nav className="appnav">
         <div className="app-wrap appnav-inner">
           <BrandMark to="/" />
           <div className="appnav-right">
             <div className="appnav-links res-links">
               {LINKS.map((l) => (
-                <NavLink key={l.to} to={l.to}>{l.label}</NavLink>
+                <NavLink key={l.to} to={l.to}>{t(l.key)}</NavLink>
               ))}
             </div>
+            <LangToggle />
             {session && profile ? (
               <NavLink className="user-chip" to={`/profile/${profile.id}`}>
                 <Avatar profile={profile} />
                 <span className="uname">{profile.global_name || profile.username}</span>
               </NavLink>
             ) : (
-              <Link className="btn btn-discord btn-sm" to="/login">Sign in</Link>
+              <Link className="btn btn-discord btn-sm" to="/login">{t('nav.signin')}</Link>
             )}
           </div>
         </div>
@@ -48,17 +51,14 @@ export default function ResourceLayout({ children }) {
 
       <footer className="res-footer">
         <div className="app-wrap res-foot-inner">
-          <span>Jordan Stand Tall — a community resource for residents of Jordan.</span>
-          <span className="foot-note">
-            An independent, non-political community space. Information is provided for convenience;
-            please verify official details before relying on them.
-          </span>
+          <span>{t('foot.tagline')}</span>
+          <span className="foot-note">{t('foot.note')}</span>
           <span className="res-foot-verify">
-            Listings verified June 2026 ·{' '}
-            <a href={DISCORD_INVITE} target="_blank" rel="noopener">Spot something out of date? Tell us</a>
+            {t('foot.verify')}{' '}
+            <a href={DISCORD_INVITE} target="_blank" rel="noopener">{t('foot.report')}</a>
           </span>
         </div>
       </footer>
-    </>
+    </div>
   )
 }

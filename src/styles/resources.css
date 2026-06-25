@@ -14,6 +14,12 @@
 .res-foot-verify a { color: var(--green-bright); font-weight: 600; }
 .res-foot-verify a:hover { text-decoration: underline; }
 
+/* language toggle (resource nav) */
+.lang-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--txt-mid); font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease; flex-shrink: 0; }
+.lang-toggle:hover { color: #fff; border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.07); }
+.lang-toggle svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; flex-shrink: 0; }
+@media (max-width: 560px) { .lang-toggle span { display: none; } }
+
 /* nav links: let the 5 resource links scroll horizontally on narrow screens
    instead of overflowing (AppNav only ever had 2). */
 .res-links { overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
