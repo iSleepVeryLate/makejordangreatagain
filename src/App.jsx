@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { RequireAuth, useAuth } from './context/AuthContext.jsx'
 import { MOCK_AUTH_ENABLED } from './lib/devAuth.js'
+import OfflineBanner from './components/OfflineBanner.jsx'
 
 // Route-level code splitting: each page ships as its own chunk.
 const Landing = lazy(() => import('./pages/Landing.jsx'))
@@ -28,6 +29,7 @@ function MeRedirect() {
 export default function App() {
   return (
     <Suspense fallback={<div className="page-loader"><div className="spinner" /></div>}>
+    <OfflineBanner />
     {MOCK_AUTH_ENABLED && (
       <div className="mock-auth-badge" role="status">⚠ DEV MOCK AUTH — not a real session</div>
     )}

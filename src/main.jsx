@@ -5,6 +5,7 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { PresenceProvider } from './context/PresenceContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
+import { registerSW } from './lib/registerSW.js'
 import './styles/landing.css'
 import './styles/app.css'
 import './styles/resources.css'
@@ -22,3 +23,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>,
 )
+
+registerSW()

@@ -364,6 +364,10 @@
 /* DEV-only mock-auth indicator (never present in a production build) */
 .mock-auth-badge { position: fixed; left: 14px; bottom: 14px; z-index: 300; font-size: 11.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: #ffd166; background: rgba(40,30,5,.92); border: 1px solid rgba(240,180,40,.5); padding: 7px 12px; border-radius: 999px; box-shadow: 0 10px 30px -12px rgba(0,0,0,.8); pointer-events: none; }
 
+/* offline indicator (shown by the service worker's saved-content fallback) */
+.offline-banner { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 300; display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; color: #ffd166; background: rgba(40,30,5,.96); border: 1px solid rgba(240,180,40,.5); padding: 9px 16px; border-radius: 999px; box-shadow: 0 12px 32px -12px rgba(0,0,0,.85); backdrop-filter: blur(8px); }
+.offline-banner svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
 /* respect reduced motion: kill entrances, celebration, and shimmer */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
