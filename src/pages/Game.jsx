@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { useMatch } from '../hooks/useMatch.js'
 import { useToast } from '../context/ToastContext.jsx'
-import { gameLabel } from '../games/config.js'
+import { useLang } from '../context/LanguageContext.jsx'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
 import Confetti from '../components/Confetti.jsx'
@@ -26,17 +26,21 @@ const Trivia = lazy(() => import('../games/Trivia.jsx'))
 const Checkers = lazy(() => import('../games/Checkers.jsx'))
 
 function Seat({ profile, label, isTurn, isOnline, isYou, rating }) {
+  const { t } = useLang()
   return (
     <div className={`seat${isTurn ? ' turn' : ''}`}>
       <Avatar profile={profile} size="md" />
       <div className="info">
         <div className="nm">
           {profile?.global_name || profile?.username || label}{' '}
-          {isYou && <span className="you-badge">you</span>}
+          {isYou && <span className="you-badge">{t('app.game.you')}</span>}
         </div>
-        <div className="rt">{rating != null ? `${rating} rating` : ' '}</div>
+        <div className="rt">{rating != null ? t('app.game.rating', { n: rating }) : ' '}</div>
       </div>
-      <span className={isOnline ? 'dot-online' : 'dot-offline'} title={isOnline ? 'online' : 'offline'} />
+      <span
+        className={isOnline ? 'dot-online' : 'dot-offline'}
+        title={isOnline ? t('app.game.online') : t('app.game.offline')}
+      />
     </div>
   )
 }
@@ -45,6 +49,8 @@ export default function Game() {
   const { matchId } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { t } = useLang()
+  const gl = (key) => t(`game.${key}.label`)
   const { match, players, online, loading, error, connState, myId, applyRow, refetch, matchRef } = useMatch(matchId)
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -64,10 +70,10 @@ export default function Game() {
   useEffect(() => {
     const status = match?.status
     if (prevStatusRef.current === 'waiting' && status === 'active') {
-      toast('Opponent joined — game on!', 'success')
+      toast(t('app.game.opponentJoined'), 'success')
     }
     if (status) prevStatusRef.current = status
-  }, [match?.status, toast])
+  }, [match?.status, toast, t])
 
   // fetch both players' ratings for this game type (display only)
   useEffect(() => {
@@ -129,7 +135,7 @@ export default function Game() {
       // FunctionsHttpError → the function ran and rejected the move (illegal /
       // not your turn). Roll back the optimistic move and surface why.
       if (error.context && typeof error.context.json === 'function') {
-        let msg = 'Move rejected.'
+        let msg = t('app.game.moveRejected')
         try {
           msg = (await error.context.json())?.error || msg
         } catch {
@@ -148,7 +154,7 @@ export default function Game() {
       if (!fallback && prev) applyRow(prev) // RPC also failed → undo optimistic move
       return fallback
     },
-    [matchId, applyRow, refetch, matchRef, myId, rpc, toast],
+    [matchId, applyRow, refetch, matchRef, myId, rpc, toast, t],
   )
 
   // Checkers is server-authoritative via the checkers-move Edge Function. The
@@ -170,7 +176,7 @@ export default function Game() {
       // FunctionsHttpError → the function ran and rejected the move (illegal /
       // not your turn). Surface why; the board is unchanged so nothing to undo.
       if (error.context && typeof error.context.json === 'function') {
-        let msg = 'Move rejected.'
+        let msg = t('app.game.moveRejected')
         try {
           msg = (await error.context.json())?.error || msg
         } catch {
@@ -183,17 +189,17 @@ export default function Game() {
         return null
       }
       // Couldn't reach the function at all.
-      const msg = 'Could not reach the game server. Please try again.'
+      const msg = t('app.game.serverUnreachable')
       setActionError(msg)
       toast(msg, 'error')
       refetch?.()
       return null
     },
-    [matchId, applyRow, refetch, matchRef, toast],
+    [matchId, applyRow, refetch, matchRef, toast, t],
   )
 
   const resign = async () => {
-    if (!confirm('Resign this game?')) return
+    if (!confirm(t('app.game.resignConfirm'))) return
     setBusy(true)
     const data = await rpc('resign', { p_match_id: matchId })
     setBusy(false)
@@ -204,16 +210,16 @@ export default function Game() {
     setBusy(true)
     const data = await rpc('claim_timeout', { p_match_id: matchId })
     setBusy(false)
-    if (data?.winner === myId) toast('Win claimed — your opponent timed out.', 'success')
+    if (data?.winner === myId) toast(t('app.game.winClaimed'), 'success')
   }
 
   const copyInvite = useCallback(() => {
     const url = `${window.location.origin}/play/${matchId}`
     navigator.clipboard?.writeText(url)
     setCopied(true)
-    toast('Invite link copied', 'success')
+    toast(t('app.game.inviteCopied'), 'success')
     setTimeout(() => setCopied(false), 1500)
-  }, [matchId, toast])
+  }, [matchId, toast, t])
 
   // One-click rematch: spin up a fresh open room of the same game and jump to it.
   const newGame = async () => {
@@ -225,7 +231,7 @@ export default function Game() {
     })
     setBusy(false)
     if (error) {
-      toast(error.message || 'Could not start a new game.', 'error')
+      toast(error.message || t('app.game.couldntStart'), 'error')
       return
     }
     if (data?.id) navigate(`/play/${data.id}`)
@@ -247,9 +253,9 @@ export default function Game() {
         <main className="app-main">
           <div className="app-wrap center">
             <div className="empty-state">
-              {error || 'Match not found.'}
+              {!error || error === 'not_found' ? t('app.game.matchNotFound') : error}
               <div style={{ marginTop: 18 }}>
-                <Link className="btn btn-green btn-sm" to="/play">Back to game hub</Link>
+                <Link className="btn btn-green btn-sm" to="/play">{t('app.game.backToHub')}</Link>
               </div>
             </div>
           </div>
@@ -276,15 +282,15 @@ export default function Game() {
           <div className="app-wrap">
             <div className="board-panel waiting-room">
               <div className="spinner" style={{ margin: '0 auto 20px' }} />
-              <h2 style={{ fontSize: 24, marginBottom: 8 }}>Waiting for an opponent…</h2>
-              <p className="muted">{gameLabel(match.game_type)} · share this link to invite someone:</p>
+              <h2 style={{ fontSize: 24, marginBottom: 8 }}>{t('app.hub.waitingOpponent')}</h2>
+              <p className="muted">{gl(match.game_type)} · {t('app.game.shareInvite')}</p>
               <div className="code">{inviteUrl}</div>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 8 }}>
                 <button className="btn btn-line btn-sm" onClick={copyInvite}>
-                  {copied ? 'Copied ✓' : 'Copy link'}
+                  {copied ? t('app.game.copied') : t('app.game.copyLink')}
                 </button>
                 <button className="btn btn-line btn-sm" onClick={resign} disabled={busy}>
-                  Cancel room
+                  {t('app.game.cancelRoom')}
                 </button>
               </div>
             </div>
@@ -298,19 +304,19 @@ export default function Game() {
   let banner = null
   if (finished) {
     if (match.status === 'abandoned') {
-      banner = <div className="status-banner draw">This game was cancelled.</div>
+      banner = <div className="status-banner draw">{t('app.game.cancelled')}</div>
     } else if (match.result === 'draw') {
-      banner = <div className="status-banner draw">It's a draw! 🤝</div>
+      banner = <div className="status-banner draw">{t('app.game.draw')}</div>
     } else if (match.winner === myId) {
-      banner = <div className="status-banner win">🎉 You won! Rating updated.</div>
+      banner = <div className="status-banner win">{t('app.game.youWon')}</div>
     } else {
-      banner = <div className="status-banner lose">You lost this one. Rematch?</div>
+      banner = <div className="status-banner lose">{t('app.game.youLost')}</div>
     }
   } else if (isTurnGame) {
     banner = isMyTurn ? (
-      <div className="status-banner your-turn">Your move</div>
+      <div className="status-banner your-turn">{t('app.hub.yourMove')}</div>
     ) : (
-      <div className="status-banner wait">Waiting for opponent's move…</div>
+      <div className="status-banner wait">{t('app.game.waitingMove')}</div>
     )
   }
 
@@ -324,8 +330,8 @@ export default function Game() {
   const canClaim = claimEligible && claimRemainMs <= 0
   const claimLabel =
     claimEligible && claimRemainMs > 0
-      ? `Claim win in ${fmtClock(claimRemainMs)}`
-      : 'Claim win (opponent away)'
+      ? t('app.game.claimIn', { clock: fmtClock(claimRemainMs) })
+      : t('app.game.claimNow')
 
   return (
     <>
@@ -333,8 +339,8 @@ export default function Game() {
       <main className="app-main">
         <div className="app-wrap">
           <div className="section-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1 style={{ fontSize: 24 }}>{gameLabel(match.game_type)}</h1>
-            <Link className="btn btn-line btn-sm" to="/play">← Game hub</Link>
+            <h1 style={{ fontSize: 24 }}>{gl(match.game_type)}</h1>
+            <Link className="btn btn-line btn-sm back-hub" to="/play">{t('app.game.backHub')}</Link>
           </div>
 
           <div className="game-layout">
@@ -343,7 +349,7 @@ export default function Game() {
               <div className="banner-region" aria-live="polite">
                 {connState === 'reconnecting' && !finished && (
                   <div className="status-banner wait reconnecting">
-                    <span className="spinner sm" /> Reconnecting… your moves are safe.
+                    <span className="spinner sm" /> {t('app.game.reconnecting')}
                   </div>
                 )}
                 {banner}
@@ -379,18 +385,18 @@ export default function Game() {
 
               {finished && (
                 <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-                  <button className="btn btn-green" onClick={newGame} disabled={busy}>New game</button>
-                  <Link className="btn btn-line" to="/play">Back to hub</Link>
+                  <button className="btn btn-green" onClick={newGame} disabled={busy}>{t('app.game.newGame')}</button>
+                  <Link className="btn btn-line" to="/play">{t('app.game.backToHubShort')}</Link>
                 </div>
               )}
             </div>
 
             <div className="side-panel">
               <div className="panel">
-                <h4>Players</h4>
+                <h4>{t('app.game.players')}</h4>
                 <Seat
                   profile={p1}
-                  label="Player 1"
+                  label={t('app.game.player1')}
                   isTurn={match.current_turn === match.player1 && !finished}
                   isOnline={online.includes(match.player1)}
                   isYou={isP1}
@@ -398,7 +404,7 @@ export default function Game() {
                 />
                 <Seat
                   profile={p2}
-                  label="Player 2"
+                  label={t('app.game.player2')}
                   isTurn={match.current_turn === match.player2 && !finished}
                   isOnline={online.includes(match.player2)}
                   isYou={!isP1}
@@ -408,11 +414,10 @@ export default function Game() {
 
               {!finished && (
                 <div className="panel">
-                  <h4>Actions</h4>
+                  <h4>{t('app.game.actions')}</h4>
                   {oppId && !online.includes(oppId) && (
                     <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
-                      Your opponent looks offline. If they don't move, you can claim the win after
-                      a short wait.
+                      {t('app.game.oppOffline')}
                     </p>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -424,7 +429,7 @@ export default function Game() {
                       {claimLabel}
                     </button>
                     <button className="btn btn-line btn-sm" onClick={resign} disabled={busy}>
-                      Resign
+                      {t('app.game.resign')}
                     </button>
                   </div>
                 </div>

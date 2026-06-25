@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useLang } from '../context/LanguageContext.jsx'
 import { MOCK_AUTH_ENABLED } from '../lib/devAuth.js'
 import { GAMES } from '../games/config.js'
 import AppNav from '../components/AppNav.jsx'
@@ -10,6 +11,8 @@ import Avatar from '../components/Avatar.jsx'
 export default function Profile() {
   const { id } = useParams()
   const { profile: me } = useAuth()
+  const { t, lang } = useLang()
+  const gl = (key) => t(`game.${key}.label`)
   const [profile, setProfile] = useState(null)
   const [statsByGame, setStatsByGame] = useState({})
   const [loading, setLoading] = useState(true)
@@ -78,9 +81,9 @@ export default function Profile() {
         <main className="app-main">
           <div className="app-wrap center">
             <div className="empty-state">
-              That player doesn't exist.
+              {t('app.profile.notExist')}
               <div style={{ marginTop: 18 }}>
-                <Link className="btn btn-green btn-sm" to="/leaderboard">View leaderboard</Link>
+                <Link className="btn btn-green btn-sm" to="/leaderboard">{t('app.profile.viewLeaderboard')}</Link>
               </div>
             </div>
           </div>
@@ -90,7 +93,9 @@ export default function Profile() {
   }
 
   const isMe = me?.id === profile.id
-  const joined = profile.created_at ? new Date(profile.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long' }) : null
+  const joined = profile.created_at
+    ? new Date(profile.created_at).toLocaleDateString(lang === 'ar' ? 'ar-JO' : undefined, { year: 'numeric', month: 'long' })
+    : null
 
   return (
     <>
@@ -102,11 +107,11 @@ export default function Profile() {
             <div>
               <div className="pname">
                 {profile.global_name || profile.username}
-                {isMe && <span className="you-badge" style={{ marginLeft: 10, verticalAlign: 'middle' }}>you</span>}
+                {isMe && <span className="you-badge" style={{ marginInlineStart: 10, verticalAlign: 'middle' }}>{t('app.profile.you')}</span>}
               </div>
               <div className="pmeta">
                 @{profile.username}
-                {joined ? ` · member since ${joined}` : ''}
+                {joined ? ` · ${t('app.profile.memberSince', { date: joined })}` : ''}
               </div>
             </div>
           </div>
@@ -116,13 +121,13 @@ export default function Profile() {
               const s = statsByGame[g.key] || { rating: 1000, wins: 0, losses: 0, draws: 0, games_played: 0 }
               return (
                 <div className="stat-card" key={g.key}>
-                  <div className="gt">{g.emoji} {g.label}</div>
+                  <div className="gt">{g.emoji} {gl(g.key)}</div>
                   <div className="rating">{s.rating}</div>
-                  <div className="rating-lbl">rating · {s.games_played ?? (s.wins + s.losses + s.draws)} played</div>
+                  <div className="rating-lbl">{t('app.profile.ratingPlayed', { n: s.games_played ?? (s.wins + s.losses + s.draws) })}</div>
                   <div className="wld">
-                    <span><b>{s.wins}</b> W</span>
-                    <span><b>{s.losses}</b> L</span>
-                    <span><b>{s.draws}</b> D</span>
+                    <span><b>{s.wins}</b> {t('app.profile.win')}</span>
+                    <span><b>{s.losses}</b> {t('app.profile.loss')}</span>
+                    <span><b>{s.draws}</b> {t('app.profile.draw')}</span>
                   </div>
                 </div>
               )
@@ -131,7 +136,7 @@ export default function Profile() {
 
           {isMe && (
             <div style={{ marginTop: 30 }}>
-              <Link className="btn btn-green" to="/play">Play a game</Link>
+              <Link className="btn btn-green" to="/play">{t('app.profile.playGame')}</Link>
             </div>
           )}
         </div>

@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight, Palette } from 'lucide-react'
+import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight, Palette, Landmark } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOnline } from '../context/PresenceContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
-import { GAMES, GAME_BY_KEY, gameLabel } from '../games/config.js'
+import { useLang } from '../context/LanguageContext.jsx'
+import { GAMES, GAME_BY_KEY } from '../games/config.js'
 import { timeAgo } from '../lib/format.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
@@ -16,13 +17,17 @@ const P1 = 'p1:profiles!matches_player1_fkey(id,username,global_name,avatar_url)
 const P2 = 'p2:profiles!matches_player2_fkey(id,username,global_name,avatar_url)'
 
 const tintOf = (key) => GAME_BY_KEY[key]?.tint || 'g'
-const plural = (n) => (n === 1 ? '' : 's')
 
 export default function Lobby() {
   const { profile } = useAuth()
   const { onlineUsers, onlineCount } = useOnline()
   const navigate = useNavigate()
   const toast = useToast()
+  const { t } = useLang()
+  // Translated game label/description/hint by key.
+  const gl = (key) => t(`game.${key}.label`)
+  const gdesc = (key) => t(`game.${key}.desc`)
+  const ghint = (key) => t(`game.${key}.hint`)
 
   const [selected, setSelected] = useState('tictactoe')
   const [openRooms, setOpenRooms] = useState([])
@@ -154,7 +159,7 @@ export default function Lobby() {
       if (error) throw error
       go(data)
     } catch (e) {
-      const msg = e.message || 'Something went wrong.'
+      const msg = e.message || t('app.common.somethingWrong')
       setError(msg)
       toast(msg, 'error')
     } finally {
@@ -178,10 +183,10 @@ export default function Lobby() {
   const waitSel = waitingCounts[selected] || 0
   const subline =
     liveSel > 0
-      ? `${liveSel} game${plural(liveSel)} live now`
+      ? t('app.hub.sublineLive', { n: liveSel })
       : waitSel > 0
-        ? `${waitSel} open room${plural(waitSel)} waiting`
-        : 'Be the first to start one.'
+        ? t('app.hub.sublineWaiting', { n: waitSel })
+        : t('app.hub.sublineNone')
 
   return (
     <>
@@ -190,18 +195,18 @@ export default function Lobby() {
         <div className="app-wrap">
           <div className="hub-head">
             <div>
-              <h1>Game hub</h1>
-              <p>Pick a game and challenge a fellow Jordanian. Wins earn you rating points.</p>
+              <h1>{t('app.hub.title')}</h1>
+              <p>{t('app.hub.subtitle')}</p>
             </div>
             <div className={`live-pill${onlineCount > 0 ? ' on' : ''}`}>
               <span className="pulse" />
-              {onlineCount > 0 ? `${onlineCount} player${plural(onlineCount)} online` : 'Connecting…'}
+              {onlineCount > 0 ? t('app.hub.online', { n: onlineCount }) : t('app.hub.connecting')}
             </div>
           </div>
 
           <div className="hub-layout">
             <div className="hub-main">
-              <div className="glabel">Choose a game</div>
+              <div className="glabel">{t('app.hub.chooseGame')}</div>
               <div className="game-grid">
                 {GAMES.map((g) => {
                   const live = liveCounts[g.key] || 0
@@ -220,18 +225,18 @@ export default function Lobby() {
                         {live > 0 ? (
                           <span className="card-badge live">
                             <span className="ld" />
-                            {live} live
+                            {t('app.hub.live', { n: live })}
                           </span>
                         ) : waiting > 0 ? (
-                          <span className="card-badge wait">{waiting} waiting</span>
+                          <span className="card-badge wait">{t('app.hub.waiting', { n: waiting })}</span>
                         ) : (
-                          <span className="card-badge dur">{g.hint}</span>
+                          <span className="card-badge dur">{ghint(g.key)}</span>
                         )}
                       </div>
-                      <h3>{g.label}</h3>
-                      <p>{g.desc}</p>
+                      <h3>{gl(g.key)}</h3>
+                      <p>{gdesc(g.key)}</p>
                       <div className="gcard-foot">
-                        <span className="select-hint">{isSel ? 'Selected' : 'Tap to select'}</span>
+                        <span className="select-hint">{isSel ? t('app.hub.selected') : t('app.hub.tapSelect')}</span>
                         {isSel ? (
                           <Check className="arrow" size={16} strokeWidth={2.6} />
                         ) : (
@@ -248,18 +253,18 @@ export default function Lobby() {
                   <GameIcon game={selected} size={22} />
                 </span>
                 <div className="play-info">
-                  <div className="play-title">{gameLabel(selected)} selected</div>
+                  <div className="play-title">{t('app.hub.gameSelected', { game: gl(selected) })}</div>
                   <div className="play-sub">{subline}</div>
                 </div>
                 <div className="play-actions">
                   <button className="btn btn-green btn-sm" onClick={quickMatch} disabled={busy}>
-                    {busy ? <span className="spinner sm" /> : <><Zap /> Quick match</>}
+                    {busy ? <span className="spinner sm" /> : <><Zap /> {t('app.hub.quickMatch')}</>}
                   </button>
                   <button className="btn btn-line btn-sm" onClick={() => createRoom(false)} disabled={busy}>
-                    <Plus /> Open room
+                    <Plus /> {t('app.hub.openRoom')}
                   </button>
                   <button className="btn btn-line btn-sm" onClick={() => createRoom(true)} disabled={busy}>
-                    <Link2 /> Invite
+                    <Link2 /> {t('app.hub.invite')}
                   </button>
                 </div>
               </div>
@@ -269,23 +274,36 @@ export default function Lobby() {
                 <span className="gicon v"><Palette size={22} /></span>
                 <div className="party-info">
                   <div className="party-title">
-                    Draw &amp; Guess <span className="party-new">PARTY</span>
+                    {t('draw.title')} <span className="party-new">{t('app.hub.partyTag')}</span>
                   </div>
                   <div className="party-sub">
-                    The whole group plays at once — one draws, everyone races to guess. Up to 12 players.
+                    {t('app.hub.partySub')}
                   </div>
                 </div>
-                <span className="party-go">Play <ArrowRight size={15} /></span>
+                <span className="party-go">{t('app.hub.partyPlay')} <ArrowRight size={15} /></span>
+              </button>
+
+              <button className="party-card" onClick={() => navigate('/monopoly')}>
+                <span className="gicon a"><Landmark size={22} /></span>
+                <div className="party-info">
+                  <div className="party-title">
+                    {t('mono.title')} <span className="party-new">{t('app.hub.boardTag')}</span>
+                  </div>
+                  <div className="party-sub">
+                    {t('app.hub.monopolySub')}
+                  </div>
+                </div>
+                <span className="party-go">{t('app.hub.partyPlay')} <ArrowRight size={15} /></span>
               </button>
             </div>
 
             <aside className="hub-rail">
               <div className="rail-card">
                 <div className="rail-h">
-                  <Users size={15} /> Online now <span className="rail-count">{onlineCount}</span>
+                  <Users size={15} /> {t('app.hub.onlineNow')} <span className="rail-count">{onlineCount}</span>
                 </div>
                 {others.length === 0 ? (
-                  <div className="rail-empty">Just you for now.</div>
+                  <div className="rail-empty">{t('app.hub.justYou')}</div>
                 ) : (
                   <div className="rail-list">
                     {others.slice(0, 8).map((u) => (
@@ -301,7 +319,7 @@ export default function Lobby() {
 
               <div className="rail-card">
                 <div className="rail-h">
-                  <Trophy size={15} /> Top {gameLabel(selected)}
+                  <Trophy size={15} /> {t('app.hub.topPlayers', { game: gl(selected) })}
                 </div>
                 {topPlayers === null ? (
                   <div className="rail-list">
@@ -310,7 +328,7 @@ export default function Lobby() {
                     ))}
                   </div>
                 ) : topPlayers.length === 0 ? (
-                  <div className="rail-empty">No ranked games yet.</div>
+                  <div className="rail-empty">{t('app.hub.noRanked')}</div>
                 ) : (
                   <div className="rail-list">
                     {topPlayers.map((p) => (
@@ -334,7 +352,7 @@ export default function Lobby() {
 
           {myGames.length > 0 && (
             <section className="hub-section">
-              <div className="glabel">Your games</div>
+              <div className="glabel">{t('app.hub.yourGames')}</div>
               <div className="rooms">
                 {sortedMyGames.map((m) => {
                   const opp = m.player1 === myId ? m.p2 : m.p1
@@ -347,18 +365,18 @@ export default function Lobby() {
                         </span>
                         <div>
                           <div className="room-name">
-                            {gameLabel(m.game_type)}
-                            {yourMove && <span className="turn-chip">Your move</span>}
+                            {gl(m.game_type)}
+                            {yourMove && <span className="turn-chip">{t('app.hub.yourMove')}</span>}
                           </div>
                           <div className="meta">
                             {m.status === 'waiting'
-                              ? 'Waiting for an opponent…'
-                              : `vs ${opp?.global_name || opp?.username || 'opponent'}`}
+                              ? t('app.hub.waitingOpponent')
+                              : t('app.hub.vs', { name: opp?.global_name || opp?.username || t('app.hub.opponent') })}
                           </div>
                         </div>
                       </div>
                       <button className="btn btn-green btn-sm" onClick={() => go(m)}>
-                        {m.status === 'waiting' ? 'Open room' : 'Resume'}
+                        {m.status === 'waiting' ? t('app.hub.openRoom') : t('app.hub.resume')}
                       </button>
                     </div>
                   )
@@ -368,15 +386,15 @@ export default function Lobby() {
           )}
 
           <section className="hub-section">
-            <div className="glabel">Open rooms</div>
+            <div className="glabel">{t('app.hub.openRooms')}</div>
             {openRooms.length === 0 ? (
               <div className="empty-state">
-                No open rooms right now. Hit <strong>Quick match</strong> or open one — others can join you.
+                {t('app.hub.noOpenRoomsPre')}<strong>{t('app.hub.quickMatch')}</strong>{t('app.hub.noOpenRoomsPost')}
               </div>
             ) : (
               <div className="rooms">
                 {openRooms.map((m) => {
-                  const name = m.creator?.global_name || m.creator?.username || 'A Jordanian'
+                  const name = m.creator?.global_name || m.creator?.username || t('app.hub.aJordanian')
                   const rating = ratings[`${m.creator?.id}:${m.game_type}`]
                   return (
                     <div className="room-row" key={m.id}>
@@ -387,14 +405,14 @@ export default function Lobby() {
                             {name}
                             {rating != null && <span className="rating-badge">{rating}</span>}
                           </div>
-                          <div className="meta">wants to play {gameLabel(m.game_type)}</div>
+                          <div className="meta">{t('app.hub.wantsToPlay', { game: gl(m.game_type) })}</div>
                         </div>
                       </div>
                       <div className="room-right">
-                        <span className="tag">{gameLabel(m.game_type)}</span>
+                        <span className="tag">{gl(m.game_type)}</span>
                         <span className="room-ago">{timeAgo(m.created_at)}</span>
                         <button className="btn btn-green btn-sm" onClick={() => joinRoom(m.id)} disabled={busy}>
-                          Join
+                          {t('app.hub.join')}
                         </button>
                       </div>
                     </div>

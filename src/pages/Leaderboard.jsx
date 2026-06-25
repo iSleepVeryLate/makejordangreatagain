@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
-import { GAMES, gameLabel } from '../games/config.js'
+import { useLang } from '../context/LanguageContext.jsx'
+import { GAMES } from '../games/config.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
 
 export default function Leaderboard() {
   const { profile } = useAuth()
+  const { t } = useLang()
+  const gl = (key) => t(`game.${key}.label`)
   const [game, setGame] = useState('tictactoe')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -32,8 +35,8 @@ export default function Leaderboard() {
       <main className="app-main">
         <div className="app-wrap">
           <div className="section-head">
-            <h1>Leaderboard</h1>
-            <p>Top players across the community. Win games to climb the ranks.</p>
+            <h1>{t('app.lb.title')}</h1>
+            <p>{t('app.lb.subtitle')}</p>
           </div>
 
           <div className="lb-tabs">
@@ -43,7 +46,7 @@ export default function Leaderboard() {
                 className={`lb-tab${game === g.key ? ' active' : ''}`}
                 onClick={() => setGame(g.key)}
               >
-                {g.emoji} {g.label}
+                {g.emoji} {gl(g.key)}
               </button>
             ))}
           </div>
@@ -56,20 +59,21 @@ export default function Leaderboard() {
             </div>
           ) : rows.length === 0 ? (
             <div className="empty-state">
-              No ranked games of {gameLabel(game)} yet. Be the first — head to the{' '}
-              <Link to="/play" style={{ color: 'var(--green-bright)' }}>game hub</Link>!
+              {t('app.lb.noRankedPre', { game: gl(game) })}
+              <Link to="/play" style={{ color: 'var(--green-bright)' }}>{t('app.lb.gameHubLink')}</Link>
+              {t('app.lb.noRankedPost')}
             </div>
           ) : (
             <table className="lb-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Player</th>
-                  <th className="num-cell">Rating</th>
-                  <th className="num-cell">W</th>
-                  <th className="num-cell">L</th>
-                  <th className="num-cell">D</th>
-                  <th className="num-cell">Played</th>
+                  <th>{t('app.lb.thPlayer')}</th>
+                  <th className="num-cell">{t('app.lb.thRating')}</th>
+                  <th className="num-cell">{t('app.lb.thW')}</th>
+                  <th className="num-cell">{t('app.lb.thL')}</th>
+                  <th className="num-cell">{t('app.lb.thD')}</th>
+                  <th className="num-cell">{t('app.lb.thPlayed')}</th>
                 </tr>
               </thead>
               <tbody>

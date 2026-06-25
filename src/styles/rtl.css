@@ -1,8 +1,19 @@
-/* Arabic / RTL styles. Scoped to [dir="rtl"], which is set ONLY on the
-   ResourceLayout wrapper — so the English landing and game pages are never
-   affected, even when the user has chosen Arabic. */
+/* Arabic / RTL styles. `dir="rtl"` is set on <html> when Arabic is chosen, so
+   the WHOLE app (landing, resources, game hub, profile, leaderboard, every
+   game) flips. Rules are class-scoped so each surface only flips its own bits. */
 
-[dir="rtl"] { font-family: 'Cairo', 'Plus Jakarta Sans', system-ui, sans-serif; }
+/* Also target body: landing.css sets `body { font-family: Plus Jakarta Sans }`
+   explicitly, which would otherwise beat an inherited value from <html>. */
+[dir="rtl"],
+[dir="rtl"] body { font-family: 'Cairo', 'Plus Jakarta Sans', system-ui, sans-serif; }
+
+/* Form controls (buttons, inputs) don't inherit font-family by default, so the
+   game-card buttons and CTAs would render Arabic in the UA fallback font.
+   Make them inherit the Cairo body font in RTL. */
+[dir="rtl"] button,
+[dir="rtl"] input,
+[dir="rtl"] select,
+[dir="rtl"] textarea { font-family: inherit; }
 
 /* Latin letter-spacing looks wrong on Arabic glyphs — relax it on headings. */
 [dir="rtl"] .res-hero h1,
@@ -37,3 +48,42 @@
 /* flip the "→" arrow icons inside landing buttons (Discord logo has no .ic class) */
 .landing-root[dir="rtl"] .btn svg.ic { transform: scaleX(-1); }
 [dir="rtl"] .foot-note { text-align: right; }
+
+/* ===== signed-in app (game hub, game page, profile, leaderboard) ===== */
+
+/* headings carry tight Latin letter-spacing — relax it for Arabic glyphs */
+[dir="rtl"] .hub-head h1,
+[dir="rtl"] .section-head h1,
+[dir="rtl"] .gcard h3,
+[dir="rtl"] .trivia-q,
+[dir="rtl"] .pname { letter-spacing: 0; }
+
+/* left-aligned blocks should follow the reading direction */
+[dir="rtl"] .gcard,
+[dir="rtl"] .party-card,
+[dir="rtl"] .choice-btn,
+[dir="rtl"] .lb-table th,
+[dir="rtl"] .config-warn { text-align: right; }
+
+/* counters/auto-margins that were pinned to the physical left */
+[dir="rtl"] .rail-count { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .you-badge { margin-left: 0 !important; margin-right: 10px; }
+
+/* mirror directional arrows in the hub / party / game-card buttons */
+[dir="rtl"] .party-go svg,
+[dir="rtl"] .gcard-foot .arrow { transform: scaleX(-1); }
+[dir="rtl"] .gcard:hover .gcard-foot .arrow { transform: scaleX(-1) translateX(3px); }
+
+/* ratings, clocks and the room code read left-to-right even inside Arabic */
+[dir="rtl"] .rating-badge,
+[dir="rtl"] .rating,
+[dir="rtl"] .mini-rating,
+[dir="rtl"] .code { direction: ltr; }
+/* numeric leaderboard columns stay left-to-right and right-aligned */
+[dir="rtl"] .lb-table td.num-cell { direction: ltr; }
+
+/* toasts slide in from the reading edge (left in RTL) */
+[dir="rtl"] .toaster { right: auto; left: 20px; }
+@media (max-width: 480px) {
+  [dir="rtl"] .toaster { left: 12px; right: 12px; }
+}

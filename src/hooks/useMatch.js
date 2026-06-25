@@ -91,7 +91,8 @@ export function useMatch(matchId) {
       }
       if (!data) {
         if (!silent) {
-          setError('Match not found')
+          // Stable code (not a user-facing string) so the page can localize it.
+          setError('not_found')
           setLoading(false)
         }
         return

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
+import { useLang } from '../context/LanguageContext.jsx'
 
 export default function Trivia({ match, myId, answerTrivia }) {
+  const { t } = useLang()
   const bs = match.board_state || {}
   const round = bs.round || 0
   const total = bs.total || 0
@@ -40,12 +42,12 @@ export default function Trivia({ match, myId, answerTrivia }) {
   if (match.status !== 'active') {
     return (
       <div className="trivia trivia-final">
-        <div className="trivia-final-h">Final score</div>
+        <div className="trivia-final-h">{t('app.trivia.finalScore')}</div>
         <div className="trivia-score big">
-          <span style={{ color: 'var(--green-bright)' }}>You · {scores[myId] || 0}</span>
-          <span style={{ color: 'var(--txt-mid)' }}>Opponent · {scores[oppId] || 0}</span>
+          <span style={{ color: 'var(--green-bright)' }}>{t('app.trivia.you')} · {scores[myId] || 0}</span>
+          <span style={{ color: 'var(--txt-mid)' }}>{t('app.trivia.opponent')} · {scores[oppId] || 0}</span>
         </div>
-        <div className="trivia-final-note">{total} question{total === 1 ? '' : 's'}</div>
+        <div className="trivia-final-note">{t('app.trivia.questions', { n: total })}</div>
       </div>
     )
   }
@@ -67,12 +69,12 @@ export default function Trivia({ match, myId, answerTrivia }) {
   return (
     <div className="trivia">
       <div className="trivia-progress">
-        <span>Question {round + 1} of {total}</span>
+        <span>{t('app.trivia.questionOf', { n: round + 1, total })}</span>
         <span style={{ textTransform: 'capitalize' }}>{question.category}</span>
       </div>
       <div className="trivia-score">
-        <span style={{ color: 'var(--green-bright)' }}>You · {myScore}</span>
-        <span style={{ color: 'var(--txt-mid)' }}>Opponent · {oppScore}</span>
+        <span style={{ color: 'var(--green-bright)' }}>{t('app.trivia.you')} · {myScore}</span>
+        <span style={{ color: 'var(--txt-mid)' }}>{t('app.trivia.opponent')} · {oppScore}</span>
       </div>
       <div className="trivia-q">{question.question}</div>
       <div className="trivia-choices">
@@ -97,7 +99,7 @@ export default function Trivia({ match, myId, answerTrivia }) {
       </div>
       {iAnswered && (
         <div className="trivia-wait">
-          {iAnswered.correct ? '✅ Correct!' : '❌ Not quite.'} Waiting for your opponent to answer…
+          {iAnswered.correct ? t('app.trivia.correct') : t('app.trivia.wrong')} {t('app.trivia.waitingAnswer')}
         </div>
       )}
     </div>
