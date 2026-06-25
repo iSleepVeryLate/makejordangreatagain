@@ -18,7 +18,7 @@ export default function MonopolyRoom() {
   const { profile } = useAuth()
   const { t, dir } = useLang()
   const hook = useMonopolyRoom(roomId)
-  const { room, players, online, loading, error, connState, myId } = hook
+  const { room, players, online, loading, error, connState, myId, pickToken } = hook
 
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -46,9 +46,9 @@ export default function MonopolyRoom() {
     setTimeout(() => setCopied(false), 1500)
   }, [roomId, toast, t])
 
-  const pickToken = async (tk) => {
-    const { error: err } = await supabase.rpc('monopoly_set_token', { p_room: roomId, p_token: tk })
-    if (err) toast(err.message || t('mono.tokenTaken'), 'error')
+  const choose = async (tk) => {
+    const res = await pickToken(tk)
+    if (res?.error) toast(res.error || t('mono.tokenTaken'), 'error')
   }
 
   const start = async () => {
@@ -136,7 +136,7 @@ export default function MonopolyRoom() {
                           className={`mono-token-btn${mine ? ' mine' : ''}`}
                           style={{ '--tok': meta.color }}
                           disabled={taken}
-                          onClick={() => pickToken(tk)}
+                          onClick={() => choose(tk)}
                           aria-label={tk}
                           title={tk}
                         >

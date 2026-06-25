@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { Dice5, LogOut, Trophy, RotateCcw, Home, Banknote, Handshake, X, Crown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import Avatar from '../components/Avatar.jsx'
 import Confetti from '../components/Confetti.jsx'
 import MonopolyBoard from './MonopolyBoard.jsx'
+import TurnTimer from './TurnTimer.jsx'
 import { BOARD, COLOR_GROUPS, tileName, JAIL_FINE } from './monopolyBoard.js'
 import { tokenMeta } from './monopolyTokens.js'
 
@@ -16,20 +17,19 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const toast = useToast()
   const { room, players, properties, sendAction } = hook
   const [busy, setBusy] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
+  const [rolling, setRolling] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [tradeOpen, setTradeOpen] = useState(false)
-
-  useEffect(() => {
-    const i = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(i)
-  }, [])
 
   const playerById = useMemo(() => Object.fromEntries(players.map((p) => [p.profile_id, p])), [players])
   const playerColor = useMemo(
     () => Object.fromEntries(players.map((p) => [p.profile_id, tokenMeta(p.token).color])), [players])
-  const propByTile = useMemo(() => Object.fromEntries(properties.map((p) => [p.tile_index, p])), [properties])
   const lang = dir === 'rtl' ? 'ar' : 'en'
+
+  // Newest-first log, computed only when the log actually changes (not on every
+  // unrelated re-render). `i` is the entry's original index — stable as long as
+  // the ring buffer hasn't trimmed; good enough for 40 non-interactive rows.
+  const reversedLog = useMemo(() => (room?.log || []).map((e, i) => ({ e, i })).reverse(), [room?.log])
 
   const turnId = room?.turn_order?.[room?.current_seat]
   const isMyTurn = turnId === myId
@@ -47,6 +47,15 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     if (res?.error) toast(res.error, 'error')
     return res
   }, [sendAction, toast])
+
+  // Roll wrapper: only roll actions should tumble the dice (a build/mortgage
+  // shouldn't). Wraps `act` so buttons still gate on `busy`.
+  const rollDice = useCallback(async (action) => {
+    setRolling(true)
+    const res = await act(action)
+    setRolling(false)
+    return res
+  }, [act])
 
   // ---------------- FINISHED ----------------
   if (room?.status === 'finished') {
@@ -85,11 +94,11 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
   if (!room || room.status !== 'playing') return <div className="page-loader"><div className="spinner" /></div>
 
-  const remaining = room.phase_ends_at ? Math.max(0, (new Date(room.phase_ends_at).getTime() - now) / 1000) : 0
-  const pct = Math.min(100, (remaining / room.turn_seconds) * 100)
-
   // ---------------- center action area ----------------
-  function CenterControls() {
+  // A plain render function (NOT a nested component) so its subtree keeps its
+  // identity across parent re-renders — otherwise the dice/auction/buy panels
+  // would remount and their local state (e.g. the auction bid) would reset.
+  const renderCenter = () => {
     const turnName = name(turnId)
     return (
       <div className="mono-center-inner">
@@ -100,12 +109,12 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         </div>
 
         <div className="mono-dice" aria-label="dice">
-          <span className={`mono-die${busy ? ' rolling' : ''}`}>{dice ? DICE[dice[0]] : '⚀'}</span>
-          <span className={`mono-die${busy ? ' rolling' : ''}`}>{dice ? DICE[dice[1]] : '⚀'}</span>
+          <span key={`d0-${dice ? dice[0] : 'x'}`} className={`mono-die${rolling ? ' rolling' : ''}`}>{dice ? DICE[dice[0]] : '⚀'}</span>
+          <span key={`d1-${dice ? dice[1] : 'x'}`} className={`mono-die${rolling ? ' rolling' : ''}`}>{dice ? DICE[dice[1]] : '⚀'}</span>
         </div>
 
         {room.phase_ends_at && (
-          <div className="draw-timer-bar mono-timer"><span style={{ width: `${pct}%` }} /></div>
+          <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} />
         )}
 
         {room.last_card && (
@@ -118,7 +127,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           {phase === 'roll' && isMyTurn && (
             <>
               {(dice === null || isDoubles) ? (
-                <button className="btn btn-green" disabled={busy} onClick={() => act('roll')}>
+                <button className="btn btn-green" disabled={busy} onClick={() => rollDice('roll')}>
                   <Dice5 size={16} /> {busy ? t('mono.rolling') : t('mono.roll')}{isDoubles && dice ? ' ↻' : ''}
                 </button>
               ) : (
@@ -142,7 +151,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               <span className="mono-jail-tag">{t('mono.inJail')}</span>
               <button className="btn btn-line btn-sm" disabled={busy || (me?.cash || 0) < JAIL_FINE} onClick={() => act('pay_jail_fine')}>{t('mono.payFine')}</button>
               {me?.goojf_cards > 0 && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => act('use_jail_card')}>{t('mono.useCard')}</button>}
-              <button className="btn btn-green btn-sm" disabled={busy} onClick={() => act('roll_for_jail')}>{t('mono.rollJail')}</button>
+              <button className="btn btn-green btn-sm" disabled={busy} onClick={() => rollDice('roll_for_jail')}>{t('mono.rollJail')}</button>
             </div>
           )}
           {phase === 'jail' && !isMyTurn && <p className="muted">{name(turnId)} · {t('mono.inJail')}</p>}
@@ -178,25 +187,14 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   return (
     <div className="mono-game" dir={dir}>
       <div className="mono-players-strip">
-        {players.map((p) => {
-          const isTurn = p.profile_id === turnId
-          return (
-            <div className={`mono-pchip${isTurn ? ' turn' : ''}${p.bankrupt ? ' bankrupt' : ''}${p.profile_id === myId ? ' me' : ''}`} key={p.profile_id} style={{ '--tok': tokenMeta(p.token).color }}>
-              <Avatar profile={p.profile} size="sm" />
-              <span className="mono-pchip-emoji">{tokenMeta(p.token).emoji}</span>
-              <div className="mono-pchip-info">
-                <span className="mono-pchip-name">{profName(p)}</span>
-                <span className="mono-pchip-cash"><Banknote size={11} /> {p.cash}</span>
-              </div>
-              {p.in_jail && <span className="mono-pchip-jail">⛓</span>}
-            </div>
-          )
-        })}
+        {players.map((p) => (
+          <PlayerChip key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isMe={p.profile_id === myId} />
+        ))}
       </div>
 
       <div className="mono-stage">
-        <MonopolyBoard players={players} properties={properties} lang={lang} playerColor={playerColor} onTile={null}>
-          <CenterControls />
+        <MonopolyBoard players={players} properties={properties} lang={lang} playerColor={playerColor} activeTile={playerById[turnId]?.position} onTile={null}>
+          {renderCenter()}
         </MonopolyBoard>
       </div>
 
@@ -204,8 +202,8 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         <div className="panel mono-log-panel">
           <span className="glabel">{t('mono.log')}</span>
           <div className="mono-log">
-            {[...(room.log || [])].reverse().map((e, i) => (
-              <div className="mono-log-row" key={i}>{formatLog(e, name, lang, t)}</div>
+            {reversedLog.map(({ e, i }) => (
+              <div className="mono-log-row" key={`${e.k}-${e.by ?? ''}-${i}`}>{formatLog(e, name, lang, t)}</div>
             ))}
           </div>
         </div>
@@ -219,6 +217,24 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 }
 
 // ---------------- sub-panels ----------------
+// Memoized so a single player's cash/jail change (or any parent re-render) only
+// re-renders that one chip, not the whole strip. Props are primitives + a stable
+// row reference, so the memo actually holds.
+const PlayerChip = memo(function PlayerChip({ p, isTurn, isMe }) {
+  const meta = tokenMeta(p.token)
+  return (
+    <div className={`mono-pchip${isTurn ? ' turn' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`} style={{ '--tok': meta.color }}>
+      <Avatar profile={p.profile} size="sm" />
+      <span className="mono-pchip-emoji">{meta.emoji}</span>
+      <div className="mono-pchip-info">
+        <span className="mono-pchip-name">{profName(p)}</span>
+        <span className="mono-pchip-cash"><Banknote size={11} /> {p.cash}</span>
+      </div>
+      {p.in_jail && <span className="mono-pchip-jail">⛓</span>}
+    </div>
+  )
+})
+
 function BuyPanel({ pend, lang, t, busy, cash, onBuy, onDecline }) {
   const tile = BOARD[pend.tile]
   return (
@@ -298,7 +314,10 @@ function Deed({ tile, lang }) {
 }
 
 function ManageModal({ room, me, properties, lang, t, busy, act, onClose }) {
-  const mine = properties.filter((p) => p.owner === me?.profile_id).sort((a, b) => a.tile_index - b.tile_index)
+  const mine = useMemo(
+    () => properties.filter((p) => p.owner === me?.profile_id).sort((a, b) => a.tile_index - b.tile_index),
+    [properties, me?.profile_id],
+  )
   return (
     <div className="mono-modal-overlay" onClick={onClose}>
       <div className="mono-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t('mono.manage')}>
@@ -329,14 +348,14 @@ function ManageModal({ room, me, properties, lang, t, busy, act, onClose }) {
 }
 
 function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, onClose }) {
-  const others = players.filter((p) => p.profile_id !== myId && !p.bankrupt)
+  const others = useMemo(() => players.filter((p) => p.profile_id !== myId && !p.bankrupt), [players, myId])
   const [to, setTo] = useState(others[0]?.profile_id || '')
   const [giveTiles, setGiveTiles] = useState([])
   const [wantTiles, setWantTiles] = useState([])
   const [giveCash, setGiveCash] = useState(0)
   const [wantCash, setWantCash] = useState(0)
-  const myProps = properties.filter((p) => p.owner === myId)
-  const theirProps = properties.filter((p) => p.owner === to)
+  const myProps = useMemo(() => properties.filter((p) => p.owner === myId), [properties, myId])
+  const theirProps = useMemo(() => properties.filter((p) => p.owner === to), [properties, to])
   const toggle = (arr, set, i) => set(arr.includes(i) ? arr.filter((x) => x !== i) : [...arr, i])
 
   const submit = async () => {

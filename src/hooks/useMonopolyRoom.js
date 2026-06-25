@@ -42,6 +42,20 @@ export function useMonopolyRoom(roomId) {
   const onlineRef = useRef([])
   const connRef = useRef('connecting')
   const advancedForRef = useRef(null) // phase_ends_at we've already pumped
+  const pickSeqRef = useRef(0) // monotonic id of the latest token pick
+  const pendingTokenRef = useRef(null) // optimistic token held until the server echoes it
+
+  // Re-apply the optimistically-chosen token on top of any incoming player
+  // snapshot (realtime echo, debounced refetch, or the 4s poll) so a write that
+  // hasn't propagated yet can't momentarily revert my pick. Clears itself once
+  // the authoritative snapshot already carries the chosen token.
+  const withPending = useCallback((rows) => {
+    const pend = pendingTokenRef.current
+    if (!pend || !myId || !Array.isArray(rows)) return rows
+    const mine = rows.find((r) => r.profile_id === myId)
+    if (mine && mine.token === pend) { pendingTokenRef.current = null; return rows }
+    return rows.map((r) => (r.profile_id === myId ? { ...r, token: pend } : r))
+  }, [myId])
 
   const setConn = useCallback((s) => {
     connRef.current = s
@@ -67,11 +81,12 @@ export function useMonopolyRoom(roomId) {
     if (!Array.isArray(rows)) return
     setPlayers((prev) => {
       const byId = new Map(prev.map((p) => [p.profile_id, p]))
-      const next = rows.map((r) => ({ ...(byId.get(r.profile_id) || {}), ...r }))
+      const merged = rows.map((r) => ({ ...(byId.get(r.profile_id) || {}), ...r }))
+      const next = withPending(merged)
       playersRef.current = next
       return next
     })
-  }, [])
+  }, [withPending])
 
   const applyProperties = useCallback((rows) => {
     if (Array.isArray(rows)) setProperties(rows)
@@ -84,10 +99,11 @@ export function useMonopolyRoom(roomId) {
       .eq('room_id', roomId)
       .order('seat', { ascending: true })
     if (data) {
-      playersRef.current = data
-      setPlayers(data)
+      const next = withPending(data)
+      playersRef.current = next
+      setPlayers(next)
     }
-  }, [roomId])
+  }, [roomId, withPending])
 
   const fetchProperties = useCallback(async () => {
     const { data } = await supabase
@@ -123,6 +139,35 @@ export function useMonopolyRoom(roomId) {
   const refetch = useCallback(async () => {
     await Promise.all([fetchRoom({ silent: true }), fetchPlayers(), fetchProperties()])
   }, [fetchRoom, fetchPlayers, fetchProperties])
+
+  // Optimistic lobby token pick: flip my token locally at 0ms, then persist.
+  // A monotonic seq tags each pick so a slow/failed earlier RPC can't revert a
+  // newer choice (last-write-wins). `pendingTokenRef` keeps the choice sticky
+  // against in-flight refetches until the server snapshot confirms it.
+  const pickToken = useCallback(async (token) => {
+    if (!myId) return {}
+    const seq = ++pickSeqRef.current
+    const prevToken = playersRef.current.find((p) => p.profile_id === myId)?.token ?? null
+    if (token === prevToken) return {}
+    pendingTokenRef.current = token
+    setPlayers((prev) => {
+      const next = prev.map((p) => (p.profile_id === myId ? { ...p, token } : p))
+      playersRef.current = next
+      return next
+    })
+    const { error: err } = await supabase.rpc('monopoly_set_token', { p_room: roomId, p_token: token })
+    if (seq !== pickSeqRef.current) return {} // superseded by a newer pick — ignore this result
+    if (err) {
+      pendingTokenRef.current = null
+      setPlayers((prev) => {
+        const next = prev.map((p) => (p.profile_id === myId ? { ...p, token: prevToken } : p))
+        playersRef.current = next
+        return next
+      })
+      return { error: err.message }
+    }
+    return {} // keep the optimistic overlay until the authoritative snapshot echoes it
+  }, [myId, roomId])
 
   // Send a gameplay action through the Edge Function and apply the returned
   // snapshot instantly (no waiting for the realtime echo). A `conflict` snapshot
@@ -250,6 +295,6 @@ export function useMonopolyRoom(roomId) {
 
   return {
     room, players, properties, online, loading, error, connState, myId,
-    applyRoom, refetch, sendAction,
+    applyRoom, refetch, sendAction, pickToken,
   }
 }

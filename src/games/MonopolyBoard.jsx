@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { BOARD, COLOR_GROUPS, tileName } from './monopolyBoard.js'
-import { tokenMeta } from './monopolyTokens.js'
+import TokenLayer from './TokenLayer.jsx'
 import { Landmark, Train, Lightbulb, Droplet, HelpCircle, Package, Car, Gem } from 'lucide-react'
 
 // 11×11 CSS grid. The 40 tiles sit on the perimeter; the centre (rows/cols 2-10)
@@ -25,12 +25,12 @@ function TileIcon({ t }) {
   return null
 }
 
-const Tile = memo(function Tile({ t, prop, lang, occupants, ownerColor, onClick }) {
+const Tile = memo(function Tile({ t, prop, lang, ownerColor, active, onClick }) {
   const owned = prop && prop.owner
   const houses = prop?.houses || 0
   return (
     <button
-      className={`mono-tile mono-tile-${t.type}${isCorner(t.i) ? ' corner' : ''}${owned ? ' owned' : ''}`}
+      className={`mono-tile mono-tile-${t.type}${isCorner(t.i) ? ' corner' : ''}${owned ? ' owned' : ''}${active ? ' active' : ''}`}
       style={gridPos(t.i)}
       onClick={() => onClick && onClick(t.i)}
       aria-label={tileName(t, lang)}
@@ -56,28 +56,13 @@ const Tile = memo(function Tile({ t, prop, lang, occupants, ownerColor, onClick 
           {houses === 5 ? <span className="hotel" /> : Array.from({ length: houses }).map((_, k) => <span key={k} className="house" />)}
         </span>
       )}
-
-      {occupants.length > 0 && (
-        <span className="mono-tile-tokens" aria-hidden>
-          {occupants.map((o, k) => (
-            <span key={o.profile_id} className="mono-token-dot" style={{ '--tok': tokenMeta(o.token).color, '--k': k }} title={o.token}>
-              {tokenMeta(o.token).emoji}
-            </span>
-          ))}
-        </span>
-      )}
     </button>
   )
 })
 
-function MonopolyBoard({ players, properties, lang, playerColor, onTile, children }) {
+function MonopolyBoard({ players, properties, lang, playerColor, activeTile, onTile, children }) {
   const propByTile = {}
   for (const p of properties) propByTile[p.tile_index] = p
-  const occByTile = {}
-  for (const pl of players) {
-    if (pl.bankrupt) continue
-    ;(occByTile[pl.position] = occByTile[pl.position] || []).push(pl)
-  }
   return (
     <div className="mono-board" role="group" aria-label="Monopoly board">
       {BOARD.map((t) => (
@@ -86,11 +71,12 @@ function MonopolyBoard({ players, properties, lang, playerColor, onTile, childre
           t={t}
           prop={propByTile[t.i]}
           lang={lang}
-          occupants={occByTile[t.i] || []}
           ownerColor={propByTile[t.i]?.owner ? playerColor[propByTile[t.i].owner] : undefined}
+          active={t.i === activeTile}
           onClick={onTile}
         />
       ))}
+      <TokenLayer players={players} />
       <div className="mono-center">{children}</div>
     </div>
   )
