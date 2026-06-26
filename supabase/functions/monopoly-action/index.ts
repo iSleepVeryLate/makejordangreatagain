@@ -69,7 +69,12 @@ Deno.serve(async (req) => {
 
     if ('error' in result) {
       console.log(JSON.stringify({ fn: 'monopoly-action', action, room: roomId, uid, outcome: 'error', error: result.error, ms: Date.now() - t0 }))
-      return json({ error: result.error }, 400)
+      // Expected, user-correctable rule rejection (e.g. "Not your turn", "Not enough
+      // cash") — NOT an HTTP error. A 4xx here makes the browser print a red console
+      // line in every player's tab during normal play. Return 200 with a `rejected`
+      // flag plus the current snapshot so the client can show the reason AND resync
+      // any state that had drifted (the action losing tells us the client was stale).
+      return json({ rejected: true, error: result.error, room: state.room, players: state.players, properties: state.properties })
     }
     if ('noop' in result) {
       // nothing to do (e.g. a tick before the deadline) — return current state, no write
@@ -83,7 +88,11 @@ Deno.serve(async (req) => {
     if (commitErr) return json({ error: commitErr.message }, 500)
     if (snap?.conflict) {
       console.log(JSON.stringify({ fn: 'monopoly-action', action, room: roomId, uid, outcome: 'conflict', ms: Date.now() - t0 }))
-      return json(snap, 409)
+      // A racing / duplicate submit lost the optimistic seq check — entirely normal
+      // in multiplayer (the 1s timer pump + several clients). Return 200 with the
+      // snapshot (it carries conflict:true); the client reconciles silently rather
+      // than showing a spurious error toast and logging a red 409.
+      return json(snap)
     }
     console.log(JSON.stringify({ fn: 'monopoly-action', action, room: roomId, uid, outcome: 'ok', ms: Date.now() - t0 }))
     return json(snap)

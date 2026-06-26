@@ -11,7 +11,7 @@
  * Safe by design: online users always get fresh HTML, and any unhandled or
  * failed request falls through to the network/normal browser behaviour.
  */
-const VERSION = 'v1'
+const VERSION = 'v2'
 const SHELL_CACHE = `jst-shell-${VERSION}`
 const ASSET_CACHE = `jst-assets-${VERSION}`
 const DATA_CACHE = `jst-data-${VERSION}`
@@ -38,15 +38,28 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+// A cache lookup that can never reject (a corrupt CacheStorage shouldn't take the
+// whole fetch handler down). Always resolves to a Response or undefined.
+function safeMatch(request) {
+  return caches.match(request).catch(() => undefined)
+}
+
+// A last-resort Response so event.respondWith() is never handed undefined or a
+// rejected promise (either one shows up as "FetchEvent … network error").
+function offlineResponse() {
+  return new Response('', { status: 504, statusText: 'Offline' })
+}
+
 function staleWhileRevalidate(request, cacheName) {
   return caches.open(cacheName).then((cache) =>
     cache.match(request).then((cached) => {
       const network = fetch(request)
         .then((res) => {
-          if (res && res.ok) cache.put(request, res.clone())
+          if (res && res.ok) cache.put(request, res.clone()).catch(() => {})
           return res
         })
-        .catch(() => cached)
+        // offline with nothing cached → a benign 504, never a rejected promise
+        .catch(() => cached || offlineResponse())
       return cached || network
     }),
   )
@@ -67,31 +80,46 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
 
   // HTML navigations → network-first, fall back to the cached app shell offline.
+  // The fallback chain ALWAYS resolves to a Response (cached shell → root → a tiny
+  // inline offline page) so a deep link like /monopoly/:id can never reject.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((res) => {
           const copy = res.clone()
-          caches.open(SHELL_CACHE).then((c) => c.put('/index.html', copy))
+          caches.open(SHELL_CACHE).then((c) => c.put('/index.html', copy)).catch(() => {})
           return res
         })
-        .catch(() => caches.match('/index.html').then((r) => r || caches.match('/'))),
+        .catch(async () => {
+          const shell = (await safeMatch('/index.html')) || (await safeMatch('/'))
+          return (
+            shell ||
+            new Response(
+              '<!doctype html><meta charset="utf-8"><title>Offline</title><body style="font-family:system-ui;padding:2rem">Offline — reconnect to keep playing.</body>',
+              { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+            )
+          )
+        }),
     )
     return
   }
 
-  // Same-origin static assets (hashed JS/CSS/images) → cache-first.
+  // Same-origin static assets (hashed JS/CSS/images) → cache-first. A failed fetch
+  // (offline, network reset, CORS) resolves to the cached copy if any, else a benign
+  // 504 — never a rejected promise (that was the "Failed to fetch at sw.js" error).
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ||
-        fetch(request).then((res) => {
-          if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
-            const copy = res.clone()
-            caches.open(ASSET_CACHE).then((c) => c.put(request, copy))
-          }
-          return res
-        }),
-    ),
+    safeMatch(request)
+      .then(
+        (cached) =>
+          cached ||
+          fetch(request).then((res) => {
+            if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
+              const copy = res.clone()
+              caches.open(ASSET_CACHE).then((c) => c.put(request, copy)).catch(() => {})
+            }
+            return res
+          }),
+      )
+      .catch(() => offlineResponse()),
   )
 })

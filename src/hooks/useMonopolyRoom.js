@@ -178,20 +178,35 @@ export function useMonopolyRoom(roomId) {
         body: { room_id: roomId, action, ...args },
       })
       if (err) {
-        // The function returns 4xx/5xx with a JSON { error } body for rule errors.
-        let msg = err.message || 'Action failed'
+        // Only genuine faults reach here now — 401 (auth), 404 (missing room),
+        // 500 (server). Expected rule rejections and races come back as 200 with a
+        // flag (handled below). Surface a specific message if the body carries one,
+        // else a friendly generic, and refetch to recover from any transient drop.
+        let msg = ''
         try {
           const body = await err.context?.json?.()
           if (body?.error) msg = body.error
         } catch { /* ignore */ }
-        return { error: msg }
+        refetch()
+        return { error: msg || 'Connection problem — reconnecting…' }
       }
+      // A racing / duplicate submit (someone else's action won the seq race):
+      // reconcile silently from the snapshot, never surface as an error.
       if (data?.conflict) {
         refetch()
-        if (data.room) applyRoom(data.room)
-        if (data.players) applyPlayers(data.players)
-        if (data.properties) applyProperties(data.properties)
+        applyRoom(data.room)
+        applyPlayers(data.players)
+        applyProperties(data.properties)
         return { conflict: true }
+      }
+      // An expected rule rejection ("Not your turn", "Not enough cash", …): resync
+      // from the returned snapshot so a stale UI self-corrects, then bubble the
+      // reason up so the caller can toast it.
+      if (data?.rejected) {
+        applyRoom(data.room)
+        applyPlayers(data.players)
+        applyProperties(data.properties)
+        return { error: data.error || 'That move isn’t allowed' }
       }
       if (data?.room) applyRoom(data.room)
       if (data?.players) applyPlayers(data.players)
@@ -270,9 +285,6 @@ export function useMonopolyRoom(roomId) {
     const driver = setInterval(() => {
       const r = roomRef.current
       if (!r || r.status !== 'playing' || !r.phase_ends_at) return
-      if (r.phase === 'resolve') {
-        // resolve is a brief animation window anyone can advance; otherwise gated
-      }
       if (Date.now() < new Date(r.phase_ends_at).getTime()) return
       if (advancedForRef.current === r.phase_ends_at) return
       if (!isPumper()) return
