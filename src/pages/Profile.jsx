@@ -7,6 +7,7 @@ import { MOCK_AUTH_ENABLED } from '../lib/devAuth.js'
 import { GAMES } from '../games/config.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
+import ChallengeButton from '../components/ChallengeButton.jsx'
 
 export default function Profile() {
   const { id } = useParams()
@@ -114,6 +115,11 @@ export default function Profile() {
                 {joined ? ` · ${t('app.profile.memberSince', { date: joined })}` : ''}
               </div>
             </div>
+            {!isMe && (
+              <div className="profile-actions">
+                <ChallengeButton toId={profile.id} variant="full" />
+              </div>
+            )}
           </div>
 
           <div className="stat-grid">

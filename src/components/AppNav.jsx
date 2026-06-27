@@ -4,6 +4,7 @@ import { useLang } from '../context/LanguageContext.jsx'
 import BrandMark from './BrandMark.jsx'
 import Avatar from './Avatar.jsx'
 import LangToggle from './LangToggle.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 export default function AppNav() {
   const { profile, signOut } = useAuth()
@@ -19,6 +20,7 @@ export default function AppNav() {
             <NavLink to="/explore">{t('app.nav.explore')}</NavLink>
           </div>
           <LangToggle />
+          {profile && <NotificationBell />}
           {profile && (
             <NavLink className="user-chip" to={`/profile/${profile.id}`}>
               <Avatar profile={profile} />

@@ -11,6 +11,7 @@ import { timeAgo } from '../lib/format.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
 import GameIcon from '../components/GameIcon.jsx'
+import ChallengeButton from '../components/ChallengeButton.jsx'
 
 const CREATOR = 'creator:profiles!matches_player1_fkey(id,username,global_name,avatar_url)'
 const P1 = 'p1:profiles!matches_player1_fkey(id,username,global_name,avatar_url)'
@@ -310,6 +311,7 @@ export default function Lobby() {
                       <div className="online-row" key={u.id}>
                         <Avatar profile={u} />
                         <span className="online-name">{u.global_name || u.username}</span>
+                        <ChallengeButton toId={u.id} variant="icon" />
                         <span className="online-dot" />
                       </div>
                     ))}

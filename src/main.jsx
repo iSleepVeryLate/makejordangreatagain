@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import { PresenceProvider } from './context/PresenceContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
 import { LanguageProvider } from './context/LanguageContext.jsx'
+import { NotificationsProvider } from './context/NotificationsContext.jsx'
 import { registerSW } from './lib/registerSW.js'
 import './styles/landing.css'
 import './styles/app.css'
@@ -19,7 +20,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <PresenceProvider>
           <ToastProvider>
             <LanguageProvider>
-              <App />
+              <NotificationsProvider>
+                <App />
+              </NotificationsProvider>
             </LanguageProvider>
           </ToastProvider>
         </PresenceProvider>
