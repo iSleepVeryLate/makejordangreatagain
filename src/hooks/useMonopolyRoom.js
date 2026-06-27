@@ -16,14 +16,22 @@ import { useAuth } from '../context/AuthContext.jsx'
 //      This kills flicker/rollback when realtime or the poll delivers out of order
 //      (the acting client has already applied the newer snapshot locally).
 //
-//   3. A SINGLE-PUMPER timer driver: a 1s tick fires the deadline 'tick' action,
-//      but only from ONE client (the current player if present, else the lowest-
-//      seat present member) so a full table doesn't stampede the Edge Function.
-//      A small jittered backstop covers the pumper disconnecting.
+//   3. A TIERED, self-healing timer driver: a 1s tick fires the deadline 'tick'
+//      action. The elected pumper (current player if present, else the lowest-seat
+//      present member) fires the instant the deadline passes, so a healthy table
+//      never stampedes the Edge Function. But if that pumper's interval is frozen
+//      (a backgrounded / mobile tab still reading as "present"), ANY present, non-
+//      bankrupt client takes over once the deadline is overdue by a seat-staggered
+//      grace margin — so the whole table can never stall on one idle player. A
+//      duplicate tick is a harmless seq-conflict, swallowed silently in sendAction.
 
 const PLAYER_SEL = '*, profile:profiles(id,username,global_name,avatar_url)'
 const POLL_MS = 4000
 const HEARTBEAT = 3 // when 'live', only reconcile every 3rd tick (~12s)
+// Backstop window: how long after the deadline a non-elected client may take over
+// pumping, staggered by seat so they don't all fire the same tick.
+const BACKSTOP_BASE_MS = 2500
+const BACKSTOP_STAGGER_MS = 600
 
 export function useMonopolyRoom(roomId) {
   const { profile } = useAuth()
@@ -248,6 +256,29 @@ export function useMonopolyRoom(roomId) {
     return ordered.length > 0 && ordered[0].profile_id === myId
   }, [myId])
 
+  // Fire the deadline 'tick' at most once per phase_ends_at from this client. The
+  // elected pumper fires immediately; any other present, non-bankrupt client fires
+  // once the deadline is overdue by a seat-staggered grace margin (the self-healing
+  // backstop), so a frozen/backgrounded pumper can never stall the table. Safe to
+  // call from both the 1s interval and on tab-focus, since advancedForRef + the
+  // server seq-check make a duplicate tick idempotent.
+  const pumpIfDue = useCallback(() => {
+    const r = roomRef.current
+    if (!r || r.status !== 'playing' || !r.phase_ends_at) return
+    const overdue = Date.now() - new Date(r.phase_ends_at).getTime()
+    if (overdue < 0) return
+    if (advancedForRef.current === r.phase_ends_at) return
+    if (!isPumper()) {
+      // Backstop path: only present, non-bankrupt members, after the grace window.
+      const me = playersRef.current.find((p) => p.profile_id === myId)
+      if (!me || me.bankrupt || !onlineRef.current.includes(myId)) return
+      const grace = BACKSTOP_BASE_MS + (me.seat || 0) * BACKSTOP_STAGGER_MS
+      if (overdue < grace) return
+    }
+    advancedForRef.current = r.phase_ends_at
+    sendAction('tick')
+  }, [isPumper, myId, sendAction])
+
   useEffect(() => {
     if (!roomId) return
     setLoading(true)
@@ -309,18 +340,12 @@ export function useMonopolyRoom(roomId) {
       if (!(connRef.current === 'live' && ticks % HEARTBEAT !== 0)) refetch()
     }, POLL_MS)
 
-    // 1s single-pumper deadline driver
-    const driver = setInterval(() => {
-      const r = roomRef.current
-      if (!r || r.status !== 'playing' || !r.phase_ends_at) return
-      if (Date.now() < new Date(r.phase_ends_at).getTime()) return
-      if (advancedForRef.current === r.phase_ends_at) return
-      if (!isPumper()) return
-      advancedForRef.current = r.phase_ends_at
-      sendAction('tick')
-    }, 1000)
+    // 1s tiered deadline driver (elected pumper + self-healing backstop)
+    const driver = setInterval(pumpIfDue, 1000)
 
-    const onVisible = () => { if (!document.hidden) refetch() }
+    // A returning tab re-evaluates the deadline at once (its interval may have been
+    // throttled to a crawl while hidden) and reconciles any missed state.
+    const onVisible = () => { if (!document.hidden) { refetch(); pumpIfDue() } }
     document.addEventListener('visibilitychange', onVisible)
 
     return () => {
@@ -333,7 +358,7 @@ export function useMonopolyRoom(roomId) {
       channelRef.current = null
       supabase.removeChannel(ch)
     }
-  }, [roomId, myId, fetchRoom, fetchPlayers, fetchProperties, refetch, applyRoom, setConn, isPumper, sendAction])
+  }, [roomId, myId, fetchRoom, fetchPlayers, fetchProperties, refetch, applyRoom, setConn, pumpIfDue])
 
   return {
     room, players, properties, online, loading, error, connState, myId, rollingBy,

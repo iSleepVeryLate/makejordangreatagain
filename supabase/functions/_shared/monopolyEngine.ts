@@ -342,13 +342,21 @@ function resolveCard(w: W, id: string, deck: 'chance' | 'chest', diceTotal: numb
   return false
 }
 
-// After a non-blocking landing, decide whether the player rolls again or must end.
+// After a non-blocking landing the player keeps the turn in the 'roll' phase.
+// Whether the client offers "Roll again" (doubles) or "End turn" is derived purely
+// on the client from `dice` — the server phase is identical either way.
 function afterMove(w: W, paused: boolean) {
   if (paused) return
-  const d = w.room.dice
-  const doubles = Array.isArray(d) && d[0] === d[1]
-  if (doubles) { w.room.phase = 'roll'; w.deadline() } // bonus roll
-  else { w.room.phase = 'roll'; w.deadline() }          // stays your turn; UI offers End Turn
+  w.room.phase = 'roll'
+  w.deadline()
+}
+
+// Timeout-only: let the property go unbought with NO auction (the gentle path).
+// A *manual* "Decline" still routes through startAuction via doDecline — only an
+// idle timeout forfeits the buy silently so the game never surprises a player.
+function skipPurchase(w: W) {
+  w.room.pending_purchase = null
+  afterMove(w, false)
 }
 
 // =====================================================================
@@ -760,12 +768,22 @@ function doTick(w: W) {
   const cur = w.current()
   switch (w.room.phase) {
     case 'roll': {
-      const d = w.room.dice
-      if (cur && Array.isArray(d) && d[0] !== d[1]) return doEndTurn(w, cur.profile_id)
-      return cur ? doRoll(w, cur.profile_id) : { noop: true } as const
+      if (!cur) return { noop: true } as const
+      // Gentle timeout: if they haven't rolled yet, roll once so play progresses;
+      // otherwise just end the turn. We never chain a doubles re-roll on a timeout —
+      // that could send a player to jail on a third double they never chose to roll.
+      if (w.room.dice === null) return doRoll(w, cur.profile_id)
+      endTurn(w)
+      return ok(w.patch())
     }
     case 'jail': return cur ? doRollForJail(w, cur.profile_id) : { noop: true } as const
-    case 'buy_decision': return cur ? doDecline(w, cur.profile_id) : { noop: true } as const
+    // Gentle timeout: forfeit the buy with NO auction (vs a manual decline, which
+    // auctions). The property stays bank-owned and the player keeps their turn.
+    case 'buy_decision': {
+      if (!cur) return { noop: true } as const
+      skipPurchase(w)
+      return ok(w.patch())
+    }
     case 'auction': {
       const a = w.room.pending_auction as { active: string[]; on_clock: number } | null
       if (a && a.active[a.on_clock]) return doAuctionPass(w, a.active[a.on_clock])

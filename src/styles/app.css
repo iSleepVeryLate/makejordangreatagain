@@ -581,6 +581,8 @@
 .mono-pcard { flex: 1; min-width: 150px; display: flex; align-items: center; gap: 11px; background: linear-gradient(165deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--mg-tile-line); border-radius: 15px; padding: 9px 13px; position: relative; overflow: hidden; }
 .mono-pcard.turn { border-color: rgba(212,175,55,.55); box-shadow: 0 0 0 1px rgba(212,175,55,.3), 0 10px 26px -14px rgba(212,175,55,.5); }
 .mono-pcard.turn::before { content: ""; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 3px; background: var(--mg-gold); }
+.mono-pcard.next { border-color: rgba(255,255,255,.16); }
+.mono-pcard-next { position: absolute; top: 6px; inset-inline-end: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--txt-dim); background: rgba(255,255,255,.07); border-radius: 999px; padding: 2px 7px; }
 .mono-pcard.bankrupt { opacity: .42; filter: grayscale(.7); }
 .mono-pcard-av { width: 40px; height: 40px; border-radius: 50%; background: var(--tok); display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; box-shadow: 0 4px 12px -3px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.25); }
 .mono-pcard-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
@@ -595,41 +597,42 @@
 .mono-side { grid-column: 2; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 78px; }
 .mono-leave { align-self: flex-start; }
 
-/* the board ring — felt + hairline gold, fractional tracks (scales fluidly) */
-.mono-board { position: relative; width: 100%; max-width: 720px; margin: 0 auto; aspect-ratio: 1; container-type: inline-size; display: grid; grid-template-columns: 1.42fr repeat(9, 1fr) 1.42fr; grid-template-rows: 1.42fr repeat(9, 1fr) 1.42fr; gap: 4px; background: linear-gradient(145deg, #111813, #0a0f0c); border: 1.5px solid rgba(212,175,55,.2); border-radius: 16px; padding: 8px; box-shadow: inset 0 0 40px rgba(0,0,0,.6); }
-.mono-board-watermark { position: absolute; inset: 0; margin: auto; width: max-content; height: max-content; font-size: 64px; font-weight: 800; letter-spacing: 10px; color: rgba(255,255,255,.025); transform: rotate(-12deg); pointer-events: none; user-select: none; z-index: 0; }
+/* the board ring — a dark felt frame holding light, deed-like tiles (scales fluidly) */
+.mono-board { position: relative; width: 100%; max-width: 760px; margin: 0 auto; aspect-ratio: 1; container-type: inline-size; display: grid; grid-template-columns: 1.42fr repeat(9, 1fr) 1.42fr; grid-template-rows: 1.42fr repeat(9, 1fr) 1.42fr; gap: 3px; background: linear-gradient(145deg, #16201a, #0c130f); border: 1.5px solid rgba(212,175,55,.34); border-radius: 16px; padding: 9px; box-shadow: inset 0 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.4); }
+.mono-board-watermark { display: none; }
 
-.mono-tile { position: relative; background: linear-gradient(180deg, var(--mg-tile-1), var(--mg-tile-2)); border: 1px solid var(--mg-tile-line); border-radius: 6px; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--txt-mid); min-width: 0; text-align: center; transition: box-shadow .15s ease; }
-.mono-tile:hover { box-shadow: 0 0 0 1px rgba(212,175,55,.4); }
-.mono-tile.corner { background: linear-gradient(145deg, #222a24, #171d19); }
-.mono-tile.active { box-shadow: 0 0 0 2px var(--mg-gold), 0 0 18px -2px rgba(212,175,55,.6); z-index: 3; }
-.mono-tile-band { position: absolute; z-index: 1; }
-.mono-tile-band.top { top: 0; left: 0; right: 0; height: 21%; }
-.mono-tile-band.bottom { bottom: 0; left: 0; right: 0; height: 21%; }
-.mono-tile-band.left { left: 0; top: 0; bottom: 0; width: 21%; }
-.mono-tile-band.right { right: 0; top: 0; bottom: 0; width: 21%; }
+/* light parchment tile faces with dark ink — legible like a real Monopoly deed */
+.mono-tile { position: relative; background: linear-gradient(180deg, #f6f1e4, #e7dfca); border: 1px solid #cdc3a6; border-radius: 5px; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1c1a14; min-width: 0; text-align: center; transition: box-shadow .15s ease, transform .1s ease; }
+.mono-tile:hover { box-shadow: 0 0 0 2px rgba(212,175,55,.7); z-index: 3; }
+.mono-tile.corner { background: linear-gradient(145deg, #f8f3e7, #ebe2cd); }
+.mono-tile.active { box-shadow: 0 0 0 2px var(--mg-gold), 0 0 16px -1px rgba(212,175,55,.75); z-index: 4; }
+.mono-tile-band { position: absolute; z-index: 1; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.mono-tile-band.top { top: 0; left: 0; right: 0; height: 27%; border-bottom: 1px solid rgba(0,0,0,.28); }
+.mono-tile-band.bottom { bottom: 0; left: 0; right: 0; height: 27%; border-top: 1px solid rgba(0,0,0,.28); }
+.mono-tile-band.left { left: 0; top: 0; bottom: 0; width: 27%; border-right: 1px solid rgba(0,0,0,.28); }
+.mono-tile-band.right { right: 0; top: 0; bottom: 0; width: 27%; border-left: 1px solid rgba(0,0,0,.28); }
 .mono-tile-body { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 100%; height: 100%; padding: 2px; }
-.mono-tile-body.pad-top { padding-top: 23%; }
-.mono-tile-body.pad-bottom { padding-bottom: 23%; }
-.mono-tile-body.pad-left { padding-left: 23%; }
-.mono-tile-body.pad-right { padding-right: 23%; }
-.mono-tile-ic { color: #5fd39a; display: flex; margin-bottom: 1px; }
-.mono-tile-name { font-size: clamp(7px, 1.55cqw, 11px); line-height: 1.12; font-weight: 600; color: #dfe4df; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.mono-tile-price { font-size: clamp(6.5px, 1.3cqw, 10px); color: var(--mg-gold-2); font-weight: 600; margin-top: 1px; }
-.mono-tile-own { position: absolute; inset: 0; border: 2px solid var(--ow); border-radius: 6px; pointer-events: none; z-index: 3; }
+.mono-tile-body.pad-top { padding-top: 30%; }
+.mono-tile-body.pad-bottom { padding-bottom: 30%; }
+.mono-tile-body.pad-left { padding-left: 30%; }
+.mono-tile-body.pad-right { padding-right: 30%; }
+.mono-tile-ic { color: #2a6f47; display: flex; margin-bottom: 1px; }
+.mono-tile-name { font-size: clamp(8px, 1.7cqw, 12px); line-height: 1.1; font-weight: 700; color: #201d15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mono-tile-price { font-size: clamp(7px, 1.4cqw, 11px); color: #6a5c30; font-weight: 700; margin-top: 1px; }
+.mono-tile-own { position: absolute; inset: 0; border: 3px solid var(--ow); border-radius: 5px; pointer-events: none; z-index: 3; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
 .mono-tile-houses { position: absolute; z-index: 4; display: flex; gap: 2px; }
-.mono-tile-houses.top { top: 23%; left: 0; right: 0; justify-content: center; }
-.mono-tile-houses.bottom { bottom: 23%; left: 0; right: 0; justify-content: center; }
-.mono-tile-houses.left { left: 23%; top: 0; bottom: 0; flex-direction: column; justify-content: center; }
-.mono-tile-houses.right { right: 23%; top: 0; bottom: 0; flex-direction: column; justify-content: center; }
-.mono-tile-houses i { width: 6px; height: 6px; border-radius: 1.5px; background: linear-gradient(180deg, #6ee7a6, #2faa6a); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
-.mono-tile-houses i.hotel { width: 15px; background: linear-gradient(180deg, #ff7a6b, #d23b32); }
-.mono-tile-mortgaged { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: clamp(12px, 3cqw, 20px); color: var(--red); background: repeating-linear-gradient(45deg, rgba(0,0,0,.5), rgba(0,0,0,.5) 4px, rgba(0,0,0,.22) 4px, rgba(0,0,0,.22) 8px); z-index: 5; }
+.mono-tile-houses.top { top: 28%; left: 0; right: 0; justify-content: center; }
+.mono-tile-houses.bottom { bottom: 28%; left: 0; right: 0; justify-content: center; }
+.mono-tile-houses.left { left: 28%; top: 0; bottom: 0; flex-direction: column; justify-content: center; }
+.mono-tile-houses.right { right: 28%; top: 0; bottom: 0; flex-direction: column; justify-content: center; }
+.mono-tile-houses i { width: 6px; height: 6px; border-radius: 1.5px; background: linear-gradient(180deg, #36c46f, #1f8048); box-shadow: 0 1px 2px rgba(0,0,0,.45); }
+.mono-tile-houses i.hotel { width: 15px; background: linear-gradient(180deg, #ff6a55, #cc2f24); }
+.mono-tile-mortgaged { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: clamp(12px, 3cqw, 20px); color: #b3261e; background: repeating-linear-gradient(45deg, rgba(40,30,10,.16), rgba(40,30,10,.16) 4px, rgba(40,30,10,.05) 4px, rgba(40,30,10,.05) 8px); z-index: 5; }
 
 /* corner tiles (icon + label + sublabel) */
-.mono-corner-ic { color: var(--mg-gold); display: flex; margin-bottom: 2px; }
-.mono-corner-main { font-size: clamp(8px, 1.7cqw, 12px); font-weight: 700; color: #e6e9e4; letter-spacing: .3px; text-transform: uppercase; line-height: 1.05; }
-.mono-corner-sub { font-size: clamp(6px, 1.2cqw, 9px); color: #9aa39b; margin-top: 1px; }
+.mono-corner-ic { color: #b3801a; display: flex; margin-bottom: 2px; }
+.mono-corner-main { font-size: clamp(8px, 1.7cqw, 12px); font-weight: 800; color: #201d15; letter-spacing: .3px; text-transform: uppercase; line-height: 1.05; }
+.mono-corner-sub { font-size: clamp(6px, 1.2cqw, 9px); color: #6b6052; margin-top: 1px; }
 
 /* token chips — read RENDERED position from the animator; hop + active glow */
 .mono-token-layer { position: absolute; inset: 8px; pointer-events: none; z-index: 6; }
@@ -650,10 +653,12 @@
 .mono-center { grid-row: 2 / 11; grid-column: 2 / 11; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 8px; background: radial-gradient(110% 110% at 50% 30%, rgba(212,175,55,.06), transparent 60%); border-radius: 12px; }
 .mono-center-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 300px; text-align: center; }
 .mono-title-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mg-gold-2); }
-.mono-turn-banner { font-size: 14px; font-weight: 600; color: #1a1206; background: linear-gradient(160deg, var(--mg-gold-bright), #caa233); padding: 6px 18px; border-radius: 999px; box-shadow: 0 6px 16px -6px rgba(212,175,55,.6); }
-.mono-turn-banner.you { background: linear-gradient(160deg, #34d98a, #18a361); color: #06160e; }
+.mono-turn-banner { font-size: 15px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: #1a1206; background: linear-gradient(160deg, var(--mg-gold-bright), #caa233); padding: 7px 20px; border-radius: 999px; box-shadow: 0 6px 16px -6px rgba(212,175,55,.6); }
+.mono-turn-banner.you { background: linear-gradient(160deg, #34d98a, #18a361); color: #06160e; box-shadow: 0 8px 22px -8px rgba(52,217,138,.7); animation: mono-pop .25s ease both; }
 .mono-turn-banner.rolling { animation: mono-pulse 1s ease-in-out infinite; }
 .mono-rolling-tag { font-size: 12px; color: #5fd39a; display: inline-flex; align-items: center; gap: 6px; }
+/* phase-aware "what's happening" line shown to everyone who isn't the active player */
+.mono-wait-status { font-size: 12.5px; color: var(--txt-mid); display: inline-flex; align-items: center; gap: 7px; padding: 4px 13px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--mg-line); max-width: 270px; text-align: center; }
 
 /* 3D dice (CSS cube) */
 .mono-dice { display: flex; gap: 18px; perspective: 600px; }

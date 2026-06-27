@@ -56,6 +56,9 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const [tradeOpen, setTradeOpen] = useState(false)
   const [deedTile, setDeedTile] = useState(null)
   const rootRef = useRef(null)
+  const busyRef = useRef(false) // synchronous in-flight lock so a double-click can't double-submit
+
+  const money = useCallback((n) => t('mono.amount', { amount: n }), [t])
 
   const playerById = useMemo(() => Object.fromEntries(players.map((p) => [p.profile_id, p])), [players])
   const playerColor = useMemo(
@@ -76,12 +79,28 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
   const name = useCallback((id) => profName(playerById[id]), [playerById])
 
+  // The next non-bankrupt player in seat order — surfaced as "up next" so whose
+  // turn it is (and who follows) reads at a glance from the player rail.
+  const nextTurnId = useMemo(() => {
+    const order = room?.turn_order
+    if (!Array.isArray(order) || order.length === 0) return null
+    for (let k = 1; k <= order.length; k++) {
+      const id = order[(room.current_seat + k) % order.length]
+      const p = playerById[id]
+      if (p && !p.bankrupt && id !== turnId) return id
+    }
+    return null
+  }, [room?.turn_order, room?.current_seat, playerById, turnId])
+
   // Mirror remote roll-start presence into the dice tumble.
   useEffect(() => { if (rollingBy) animator.setRolling(true) }, [rollingBy, animator])
 
   const act = useCallback(async (action, args = {}) => {
+    if (busyRef.current) return { busy: true } // already sending — ignore the extra click
+    busyRef.current = true
     setBusy(true)
     const res = await sendAction(action, args)
+    busyRef.current = false
     setBusy(false)
     if (res?.error) toast(res.error, 'error')
     return res
@@ -90,6 +109,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   // Roll wrapper: tumble the dice locally AND broadcast roll-start so remote
   // players see it before the Edge round-trip lands. Both are best-effort cosmetic.
   const rollDice = useCallback(async (action) => {
+    if (busyRef.current) return undefined // don't tumble/broadcast a roll we won't send
     setRolling(true)
     animator.setRolling(true)
     broadcast?.('roll', { by: myId })
@@ -126,7 +146,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               <span className="draw-rank">{i + 1}</span>
               <span className="mono-token-emoji">{tokenMeta(p.token).emoji}</span>
               <span className="draw-pname">{name(p.profile_id)}{p.bankrupt ? ` · ${t('mono.bankrupt')}` : ''}</span>
-              <span className="draw-score-num">{p.cash} JOD</span>
+              <span className="draw-score-num">{money(p.cash)}</span>
             </div>
           ))}
         </div>
@@ -148,7 +168,19 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   // ---------------- center action area ----------------
   const renderCenter = () => {
     const turnName = name(turnId)
-    const rollingName = rollingId ? (rollingId === myId ? t('mono.rolling') : t('mono.isRolling', { name: name(rollingId) })) : null
+    const tileLabel = (i) => (i != null ? tileName(BOARD[i], lang) : '')
+    // What everyone who is NOT the active player sees: one clear, phase-aware line
+    // so the table always knows what's happening and whose move it is.
+    let statusLine = null
+    if (!isMyTurn) {
+      if (rollingId && rollingId !== myId) statusLine = t('mono.statusRolling', { name: name(rollingId) })
+      else if (phase === 'roll') statusLine = t('mono.statusThinking', { name: turnName })
+      else if (phase === 'buy_decision') statusLine = t('mono.statusBuying', { name: turnName, tile: tileLabel(room.pending_purchase?.tile) })
+      else if (phase === 'auction') statusLine = t('mono.statusAuction', { tile: tileLabel(room.pending_auction?.tile) })
+      else if (phase === 'jail') statusLine = t('mono.statusJail', { name: turnName })
+      else if (phase === 'trade_review') statusLine = t('mono.statusTrade', { name: name(room.pending_trade?.to) })
+      else if (phase === 'awaiting_debt') statusLine = t('mono.statusDebt', { name: name(room.pending_debt?.debtor) })
+    }
     return (
       <div className="mono-center-inner" dir={dir}>
         <div className="mono-title-badge"><Home size={14} /> {t('mono.title')}</div>
@@ -159,14 +191,15 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
         <DiceBox store={animator} />
 
-        {rollingName && <div className="mono-rolling-tag"><span className="mono-roll-dot" />{rollingName}</div>}
+        {isMyTurn && rolling && <div className="mono-rolling-tag"><span className="mono-roll-dot" />{t('mono.rolling')}</div>}
+        {statusLine && <div className="mono-wait-status"><span className="mono-roll-dot" />{statusLine}</div>}
 
         {room.phase_ends_at && (
           <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} />
         )}
 
         {room.last_card && (
-          <div className="mono-card-pop"><span className="glabel">{room.last_card.deck === 'chance' ? 'Chance' : 'Chest'}</span>
+          <div className="mono-card-pop"><span className="glabel">{room.last_card.deck === 'chance' ? t('mono.chance') : t('mono.chest')}</span>
             <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p></div>
         )}
 
@@ -175,7 +208,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             <>
               {(dice === null || isDoubles) ? (
                 <button className="btn btn-gold" disabled={busy} onClick={() => rollDice('roll')}>
-                  <Dice5 size={16} /> {busy ? t('mono.rolling') : t('mono.roll')}{isDoubles && dice ? ' ↻' : ''}
+                  <Dice5 size={16} /> {busy ? t('mono.rolling') : (isDoubles && dice ? t('mono.rollAgain') : t('mono.roll'))}
                 </button>
               ) : (
                 <button className="btn btn-gold" disabled={busy} onClick={() => act('end_turn')}>{t('mono.endTurn')}</button>
@@ -186,11 +219,8 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           )}
 
           {phase === 'buy_decision' && isMyTurn && room.pending_purchase && (
-            <BuyPanel pend={room.pending_purchase} lang={lang} t={t} busy={busy} cash={me?.cash || 0}
+            <BuyPanel pend={room.pending_purchase} lang={lang} t={t} money={money} busy={busy} cash={me?.cash || 0}
               onBuy={() => act('buy_property')} onDecline={() => act('decline_buy')} />
-          )}
-          {phase === 'buy_decision' && !isMyTurn && (
-            <p className="muted">{name(turnId)} · {tileName(BOARD[room.pending_purchase?.tile], lang)}</p>
           )}
 
           {phase === 'jail' && isMyTurn && (
@@ -201,29 +231,22 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               <button className="btn btn-gold btn-sm" disabled={busy} onClick={() => rollDice('roll_for_jail')}>{t('mono.rollJail')}</button>
             </div>
           )}
-          {phase === 'jail' && !isMyTurn && <p className="muted">{name(turnId)} · {t('mono.inJail')}</p>}
 
           {phase === 'auction' && (
-            <AuctionPanel room={room} myId={myId} name={name} lang={lang} t={t} busy={busy}
+            <AuctionPanel room={room} myId={myId} name={name} lang={lang} t={t} money={money} busy={busy}
               onBid={(amt) => act('auction_bid', { amount: amt })} onPass={() => act('auction_pass')} />
           )}
 
           {phase === 'trade_review' && room.pending_trade && (
-            <TradePanel tr={room.pending_trade} myId={myId} name={name} lang={lang} t={t} busy={busy}
+            <TradePanel tr={room.pending_trade} myId={myId} name={name} lang={lang} t={t} money={money} busy={busy}
               onAccept={() => act('accept_trade')} onReject={() => act('reject_trade')} onCancel={() => act('cancel_trade')} />
           )}
 
-          {phase === 'awaiting_debt' && room.pending_debt && (
+          {phase === 'awaiting_debt' && room.pending_debt && room.pending_debt.debtor === myId && (
             <div className="mono-debt">
-              {room.pending_debt.debtor === myId ? (
-                <>
-                  <p className="mono-owe">{t('mono.youOwe', { amount: room.pending_debt.amount })}</p>
-                  <button className="btn btn-line btn-sm" onClick={() => setManageOpen(true)}>{t('mono.manage')}</button>
-                  <button className="btn btn-red btn-sm" disabled={busy} onClick={() => act('declare_bankruptcy')}>{t('mono.declareBankrupt')}</button>
-                </>
-              ) : (
-                <p className="muted">{name(room.pending_debt.debtor)} · {t('mono.waiting')}</p>
-              )}
+              <p className="mono-owe">{t('mono.youOweShort', { amount: room.pending_debt.amount })}</p>
+              <button className="btn btn-line btn-sm" onClick={() => setManageOpen(true)}>{t('mono.manage')}</button>
+              <button className="btn btn-red btn-sm" disabled={busy} onClick={() => act('declare_bankruptcy')}>{t('mono.declareBankrupt')}</button>
             </div>
           )}
         </div>
@@ -256,7 +279,9 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
       <div className="mono-players-strip">
         {players.map((p) => (
-          <PlayerCard key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isMe={p.profile_id === myId} rolling={p.profile_id === rollingId} rollText={t('mono.rolling')} />
+          <PlayerCard key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isNext={p.profile_id === nextTurnId}
+            isMe={p.profile_id === myId} rolling={p.profile_id === rollingId}
+            rollText={t('mono.rolling')} nextText={t('mono.next')} money={money} />
         ))}
       </div>
 
@@ -280,33 +305,34 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
       {manageOpen && <ManageModal room={room} me={me} properties={properties} lang={lang} t={t} busy={busy} act={act} onClose={() => setManageOpen(false)} />}
       {tradeOpen && <TradeModal room={room} me={me} players={players} properties={properties} lang={lang} t={t} myId={myId} name={name} busy={busy} act={act} onClose={() => setTradeOpen(false)} />}
-      {deedTile !== null && <DeedPopover tileIndex={deedTile} properties={properties} lang={lang} t={t} name={name} onClose={() => setDeedTile(null)} />}
+      {deedTile !== null && <DeedPopover tileIndex={deedTile} properties={properties} lang={lang} t={t} money={money} name={name} onClose={() => setDeedTile(null)} />}
     </div>
   )
 }
 
 // ---------------- sub-panels ----------------
-const PlayerCard = memo(function PlayerCard({ p, isTurn, isMe, rolling, rollText }) {
+const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, rollText, nextText, money }) {
   const meta = tokenMeta(p.token)
   return (
-    <div className={`mono-pcard${isTurn ? ' turn' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`} style={{ '--tok': meta.color }}>
+    <div className={`mono-pcard${isTurn ? ' turn' : ''}${isNext ? ' next' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`} style={{ '--tok': meta.color }}>
       <div className="mono-pcard-av">{meta.emoji}</div>
       <div className="mono-pcard-info">
         <span className="mono-pcard-name">{profName(p)}</span>
         {rolling
           ? <span className="mono-pcard-roll"><span className="mono-roll-dot" />{rollText}</span>
-          : <span className="mono-pcard-cash"><Banknote size={12} /> {p.cash}</span>}
+          : <span className="mono-pcard-cash"><Banknote size={12} /> {money ? money(p.cash) : p.cash}</span>}
       </div>
+      {isNext && !isTurn && !p.bankrupt && <span className="mono-pcard-next">{nextText}</span>}
       {p.in_jail && <span className="mono-pcard-jail">⛓</span>}
     </div>
   )
 })
 
-function BuyPanel({ pend, lang, t, busy, cash, onBuy, onDecline }) {
+function BuyPanel({ pend, lang, t, money, busy, cash, onBuy, onDecline }) {
   const tile = BOARD[pend.tile]
   return (
     <div className="mono-buy">
-      <Deed tile={tile} lang={lang} />
+      <Deed tile={tile} lang={lang} t={t} money={money} />
       <div className="mono-buy-btns">
         <button className="btn btn-gold btn-sm" disabled={busy || cash < pend.price} onClick={onBuy}>{t('mono.buy', { price: pend.price })}</button>
         <button className="btn btn-line btn-sm" disabled={busy} onClick={onDecline}>{t('mono.decline')}</button>
@@ -315,7 +341,7 @@ function BuyPanel({ pend, lang, t, busy, cash, onBuy, onDecline }) {
   )
 }
 
-function AuctionPanel({ room, myId, name, lang, t, busy, onBid, onPass }) {
+function AuctionPanel({ room, myId, name, lang, t, money, busy, onBid, onPass }) {
   const a = room.pending_auction
   const [amt, setAmt] = useState((a?.high_bid || 0) + 10)
   if (!a) return null
@@ -324,7 +350,7 @@ function AuctionPanel({ room, myId, name, lang, t, busy, onBid, onPass }) {
   return (
     <div className="mono-auction">
       <span className="glabel">{t('mono.auction')} · {tileName(BOARD[a.tile], lang)}</span>
-      <p className="mono-auction-bid">{a.high_bidder ? `${name(a.high_bidder)} · ${a.high_bid} JOD` : '—'}</p>
+      <p className="mono-auction-bid">{a.high_bidder ? `${name(a.high_bidder)} · ${money(a.high_bid)}` : '—'}</p>
       {mine ? (
         <div className="mono-auction-act">
           <input type="number" min={(a.high_bid || 0) + 1} value={amt} onChange={(e) => setAmt(Number(e.target.value))} />
@@ -338,9 +364,9 @@ function AuctionPanel({ room, myId, name, lang, t, busy, onBid, onPass }) {
   )
 }
 
-function TradePanel({ tr, myId, name, lang, t, busy, onAccept, onReject, onCancel }) {
+function TradePanel({ tr, myId, name, lang, t, money, busy, onAccept, onReject, onCancel }) {
   const side = (s) => [
-    s.cash ? `${s.cash} JOD` : null,
+    s.cash ? money(s.cash) : null,
     ...s.tiles.map((i) => tileName(BOARD[i], lang)),
     s.goojf ? `${s.goojf}× 🔑` : null,
   ].filter(Boolean).join(', ') || '—'
@@ -360,28 +386,29 @@ function TradePanel({ tr, myId, name, lang, t, busy, onAccept, onReject, onCance
   )
 }
 
-function Deed({ tile, lang }) {
+function Deed({ tile, lang, t, money }) {
   const color = tile.color ? COLOR_GROUPS[tile.color]?.hex : '#444'
+  const m = money || ((n) => `${n}`)
   return (
     <div className="mono-deed">
       <div className="mono-deed-head" style={{ background: color }}>{tileName(tile, lang)}</div>
       {tile.rent && (
         <ul className="mono-deed-rent">
-          <li>Rent <b>{tile.rent[0]}</b></li>
-          <li>+1 🏠 <b>{tile.rent[1]}</b></li>
-          <li>+2 🏠 <b>{tile.rent[2]}</b></li>
-          <li>+3 🏠 <b>{tile.rent[3]}</b></li>
-          <li>+4 🏠 <b>{tile.rent[4]}</b></li>
-          <li>🏨 <b>{tile.rent[5]}</b></li>
+          <li><span>{t('mono.deedRentBase')}</span><b>{tile.rent[0]}</b></li>
+          <li><span>{t('mono.deedRentHouses', { n: 1 })}</span><b>{tile.rent[1]}</b></li>
+          <li><span>{t('mono.deedRentHouses', { n: 2 })}</span><b>{tile.rent[2]}</b></li>
+          <li><span>{t('mono.deedRentHouses', { n: 3 })}</span><b>{tile.rent[3]}</b></li>
+          <li><span>{t('mono.deedRentHouses', { n: 4 })}</span><b>{tile.rent[4]}</b></li>
+          <li><span>{t('mono.deedRentHotel')}</span><b>{tile.rent[5]}</b></li>
         </ul>
       )}
-      <div className="mono-deed-foot">{tile.price ? `${tile.price} JOD` : ''}{tile.house ? ` · 🏠 ${tile.house}` : ''}</div>
+      <div className="mono-deed-foot">{tile.price ? m(tile.price) : ''}{tile.house ? ` · ${t('mono.deedHouseCost', { cost: tile.house })}` : ''}</div>
     </div>
   )
 }
 
 // Read-only deed card popover (tap a tile). Closes on outside-click / Esc.
-function DeedPopover({ tileIndex, properties, lang, t, name, onClose }) {
+function DeedPopover({ tileIndex, properties, lang, t, money, name, onClose }) {
   const tile = BOARD[tileIndex]
   const prop = properties.find((p) => p.tile_index === tileIndex)
   const owner = prop?.owner ? name(prop.owner) : null
@@ -393,7 +420,7 @@ function DeedPopover({ tileIndex, properties, lang, t, name, onClose }) {
   return (
     <div className="mono-modal-overlay" onClick={onClose}>
       <div className="mono-deed-pop" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={tileName(tile, lang)}>
-        <Deed tile={tile} lang={lang} />
+        <Deed tile={tile} lang={lang} t={t} money={money} />
         <div className="mono-deed-pop-meta">
           <span>{t('mono.deedOwner')}: <b>{owner || t('mono.deedUnowned')}</b></span>
           {prop?.houses > 0 && <span>{prop.houses === 5 ? '🏨' : '🏠'.repeat(prop.houses)}</span>}
@@ -469,8 +496,8 @@ function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, o
         </select>
         <div className="mono-trade-cols">
           <div>
-            <span className="glabel">You give</span>
-            <input type="number" min={0} max={me?.cash} value={giveCash} onChange={(e) => setGiveCash(e.target.value)} placeholder="JOD" className="mono-select" />
+            <span className="glabel">{t('mono.tradeYouGive')}</span>
+            <input type="number" min={0} max={me?.cash} value={giveCash} onChange={(e) => setGiveCash(e.target.value)} placeholder={t('mono.currency')} className="mono-select" />
             <div className="mono-trade-tiles">
               {myProps.map((p) => (
                 <button key={p.tile_index} className={`mono-trade-tile${giveTiles.includes(p.tile_index) ? ' on' : ''}`} onClick={() => toggle(giveTiles, setGiveTiles, p.tile_index)}>{tileName(BOARD[p.tile_index], lang)}</button>
@@ -478,8 +505,8 @@ function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, o
             </div>
           </div>
           <div>
-            <span className="glabel">You want</span>
-            <input type="number" min={0} value={wantCash} onChange={(e) => setWantCash(e.target.value)} placeholder="JOD" className="mono-select" />
+            <span className="glabel">{t('mono.tradeYouWant')}</span>
+            <input type="number" min={0} value={wantCash} onChange={(e) => setWantCash(e.target.value)} placeholder={t('mono.currency')} className="mono-select" />
             <div className="mono-trade-tiles">
               {theirProps.map((p) => (
                 <button key={p.tile_index} className={`mono-trade-tile${wantTiles.includes(p.tile_index) ? ' on' : ''}`} onClick={() => toggle(wantTiles, setWantTiles, p.tile_index)}>{tileName(BOARD[p.tile_index], lang)}</button>
@@ -500,7 +527,7 @@ function formatLog(e, name, lang, t) {
     case 'start': return '🎲 ' + t('mono.title')
     case 'roll': return `🎲 ${who}: ${e.d?.[0]} + ${e.d?.[1]}`
     case 'buy': return `🏠 ${who} → ${tileName(BOARD[e.tile], lang)} (${e.price})`
-    case 'rent': return `💸 ${who} → ${name(e.to)} ${e.amount} JOD`
+    case 'rent': return `💸 ${who} → ${name(e.to)} ${t('mono.amount', { amount: e.amount })}`
     case 'tax': return `🧾 ${who} −${e.amount}`
     case 'pass_go': return `✅ ${who} +200 (GO)`
     case 'card': return `🎴 ${who}: ${e.text?.[lang] || e.text?.en}`

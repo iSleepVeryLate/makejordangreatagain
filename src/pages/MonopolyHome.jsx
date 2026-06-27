@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import AppNav from '../components/AppNav.jsx'
 
-const TIME_OPTS = [30, 45, 60]
+const TIME_OPTS = [45, 60, 90]
 const CASH_OPTS = [1500, 2500]
 const PLAYER_OPTS = [4, 6, 8]
 
@@ -15,7 +15,7 @@ export default function MonopolyHome() {
   const toast = useToast()
   const { t, dir } = useLang()
 
-  const [seconds, setSeconds] = useState(45)
+  const [seconds, setSeconds] = useState(60)
   const [cash, setCash] = useState(1500)
   const [maxPlayers, setMaxPlayers] = useState(8)
   const [code, setCode] = useState('')

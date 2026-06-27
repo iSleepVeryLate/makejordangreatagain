@@ -516,6 +516,33 @@ export const STRINGS = {
   'mono.deedMortgaged': { en: 'Mortgaged', ar: 'مرهون' },
   'mono.close': { en: 'Close', ar: 'إغلاق' },
 
+  // ----- Enterprise pass: clearer turn states, deck/deed labels, currency -----
+  'mono.currency': { en: 'JOD', ar: 'دينار' },
+  'mono.amount': { en: '{amount} JOD', ar: '{amount} دينار' },
+  'mono.chance': { en: 'Chance', ar: 'فرصة' },
+  'mono.chest': { en: 'Community Chest', ar: 'صندوق المجتمع' },
+  'mono.rollAgain': { en: 'Roll again · doubles', ar: 'ارمِ ثانيةً · زوجي' },
+  'mono.waitingFor': { en: 'Waiting for {name}', ar: 'بانتظار {name}' },
+  'mono.youOweShort': { en: 'You owe {amount} JOD', ar: 'عليك {amount} دينار' },
+  // per-phase descriptors shown to everyone who is NOT the active player
+  'mono.statusRolling': { en: '{name} is rolling…', ar: '{name} يرمي النرد…' },
+  'mono.statusThinking': { en: "{name} is taking their turn…", ar: '{name} يلعب دوره…' },
+  'mono.statusBuying': { en: '{name} is deciding on {tile}', ar: '{name} يقرّر بشأن {tile}' },
+  'mono.statusAuction': { en: 'Auctioning {tile}', ar: 'مزاد على {tile}' },
+  'mono.statusJail': { en: '{name} is in jail', ar: '{name} في السجن' },
+  'mono.statusTrade': { en: '{name} is reviewing a trade', ar: '{name} يراجع مقايضة' },
+  'mono.statusDebt': { en: '{name} is settling a debt', ar: '{name} يسوّي دَينًا' },
+  'mono.upNext': { en: 'Up next: {name}', ar: 'التالي: {name}' },
+  'mono.next': { en: 'Next', ar: 'التالي' },
+  // deed rent rows + trade modal labels (were hardcoded English)
+  'mono.deedRentBase': { en: 'Rent', ar: 'الإيجار' },
+  'mono.deedRentHouses': { en: '{n} 🏠', ar: '{n} 🏠' },
+  'mono.deedRentHotel': { en: '🏨 Hotel', ar: '🏨 فندق' },
+  'mono.deedPrice': { en: 'Price', ar: 'السعر' },
+  'mono.deedHouseCost': { en: 'House {cost}', ar: 'البيت {cost}' },
+  'mono.tradeYouGive': { en: 'You give', ar: 'تُعطي' },
+  'mono.tradeYouWant': { en: 'You want', ar: 'تريد' },
+
   // ===== Monopoly game metadata (lobby card) =====
   'game.monopoly.label': { en: 'Jordan Monopoly', ar: 'مونوبولي الأردن' },
   'game.monopoly.desc': { en: 'Buy Jordan, charge rent, bankrupt your friends.', ar: 'اشترِ الأردن واجمع الإيجارات وأفلس أصدقاءك.' },

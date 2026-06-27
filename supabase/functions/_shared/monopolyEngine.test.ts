@@ -278,3 +278,39 @@ Deno.test('tick after deadline auto-rolls for the current player', () => {
   g.act(me, { action: 'tick' }, [[1, 2]])
   assertEquals(g.P(me).position, 3) // auto-rolled and moved
 })
+
+Deno.test('tick in roll after a double ends the turn — never a surprise jail', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur()
+  // A double was already rolled and resolved: dice present, still in 'roll'.
+  g.state.room.dice = [3, 3]
+  g.state.room.doubles_count = 2
+  g.state.room.phase = 'roll'
+  g.state.room.phase_ends_at = new Date(g.now - 1000).toISOString()
+  // A queued double is intentionally provided; the gentle path must NOT consume it.
+  g.act(me, { action: 'tick' }, [[3, 3]])
+  assert(g.cur() !== me) // turn passed cleanly
+  assertEquals(g.P(me).in_jail, false) // not jailed by an auto third double
+})
+
+Deno.test('tick in buy_decision forfeits the buy with no auction (gentle)', () => {
+  const g = new Game(3); g.start()
+  const me = g.cur()
+  g.act(me, { action: 'roll' }, [[1, 2]]) // → tile 3, buy_decision
+  assertEquals(g.state.room.phase, 'buy_decision')
+  g.state.room.phase_ends_at = new Date(g.now - 1000).toISOString()
+  g.act(me, { action: 'tick' })
+  assertEquals(g.state.room.phase, 'roll') // back to roll, NOT auction
+  assertEquals(g.state.room.pending_auction, null)
+  assertEquals(g.prop(3).owner, null) // tile stays bank-owned
+  assertEquals(g.cur(), me) // still my turn (I rolled a non-double)
+})
+
+Deno.test('manual decline_buy still opens an auction (vs a timeout)', () => {
+  const g = new Game(3); g.start()
+  const me = g.cur()
+  g.act(me, { action: 'roll' }, [[1, 2]]) // → tile 3, buy_decision
+  g.act(me, { action: 'decline_buy' })
+  assertEquals(g.state.room.phase, 'auction')
+  assert(g.state.room.pending_auction !== null)
+})
