@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { BOARD, COLOR_GROUPS, tileName } from './monopolyBoard.js'
 import { gridPos, tileSide } from './monopolyGeometry.js'
+import { buildableHint, rentNow } from './monopolyAffordance.js'
 import TokenLayer from './TokenLayer.jsx'
 import MoneyFloatLayer from './MoneyFloat.jsx'
 import {
@@ -49,18 +50,24 @@ function CornerInner({ t, lang, tt }) {
   )
 }
 
-const Tile = memo(function Tile({ t, prop, lang, ownerColor, active, onClick, tt }) {
-  const owned = !!(prop && prop.owner)
+// All extra props are PRIMITIVES precomputed by the board, so the memo holds and
+// a token hop (which never re-renders the board) never re-renders a tile.
+const Tile = memo(function Tile({ t, prop, lang, ownerColor, owner, active, auction, mine, setComplete, buildable, title, onClick, tt }) {
+  const owned = !!owner
   const houses = prop?.houses || 0
   const side = tileSide(t.i)
   const ownable = t.type === 'property' || t.type === 'railroad' || t.type === 'utility'
   const corner = isCorner(t.i)
+  const cls = `mono-tile mono-tile-${t.type}${corner ? ' corner' : ''}${owned ? ' owned' : ''}`
+    + `${mine ? ' mine' : ''}${setComplete ? ' set' : ''}${buildable ? ' buildable' : ''}`
+    + `${active ? ' active' : ''}${auction ? ' auction' : ''}${prop?.mortgaged ? ' mortgaged' : ''}`
   return (
     <button
-      className={`mono-tile mono-tile-${t.type}${corner ? ' corner' : ''}${owned ? ' owned' : ''}${active ? ' active' : ''}`}
+      className={cls}
       style={cssPos(t.i)}
       onClick={() => onClick && onClick(t.i)}
       aria-label={tileName(t, lang)}
+      title={title}
       data-tile={t.i}
     >
       {t.type === 'property' && (
@@ -79,7 +86,9 @@ const Tile = memo(function Tile({ t, prop, lang, ownerColor, active, onClick, tt
         )}
       </span>
 
-      {owned && <span className="mono-tile-own" style={{ '--ow': ownerColor }} aria-hidden />}
+      {/* keyed on owner so a change of ownership remounts the stripe and replays
+          the "deed stamp" animation (same re-key trick as the token hop). */}
+      {owned && <span key={owner} className="mono-tile-own" style={{ '--ow': ownerColor }} aria-hidden />}
 
       {houses > 0 && (
         <span className={`mono-tile-houses ${side}`} aria-hidden>
@@ -94,27 +103,51 @@ const Tile = memo(function Tile({ t, prop, lang, ownerColor, active, onClick, tt
   )
 })
 
-function MonopolyBoard({ players, properties, lang, playerColor, activeTile, onTile, store, tt, children }) {
-  const propByTile = {}
-  for (const p of properties) propByTile[p.tile_index] = p
+function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId, myFullSets, auctionTile, activeTile, onTile, store, tt, children }) {
+  // Richer hover tooltip via the native title attribute (escapes the tile's
+  // overflow:hidden + the dir=ltr/container-query transforms a CSS tooltip can't).
+  const tipFor = (t, prop) => {
+    const ownable = t.type === 'property' || t.type === 'railroad' || t.type === 'utility'
+    const parts = [tileName(t, lang)]
+    if (prop?.owner) {
+      if (nameById?.[prop.owner]) parts.push(nameById[prop.owner])
+      const r = rentNow(t, prop, propByTile)
+      if (r) parts.push(`${tt('mono.rentNow')}: ${r.kind === 'dice' ? `${r.mult}× 🎲` : r.amount}`)
+      if (prop.mortgaged) parts.push(tt('mono.deedMortgaged'))
+      if (prop.owner === myId && t.color && myFullSets?.has(t.color)) parts.push(tt('mono.tipSet'))
+    } else if (ownable && t.price) {
+      parts.push(`${t.price}`)
+    }
+    return parts.filter(Boolean).join(' · ')
+  }
   return (
     // dir=ltr is load-bearing: the board uses explicit grid column numbers and
     // RTL would mirror the whole board (GO would jump to the wrong corner). The
     // surrounding chrome stays RTL; only the geometry is pinned LTR.
     <div className="mono-board" role="group" aria-label="Monopoly board" dir="ltr">
-      <span className="mono-board-watermark" aria-hidden>JO</span>
-      {BOARD.map((t) => (
-        <Tile
-          key={t.i}
-          t={t}
-          prop={propByTile[t.i]}
-          lang={lang}
-          ownerColor={propByTile[t.i]?.owner ? playerColor[propByTile[t.i].owner] : undefined}
-          active={t.i === activeTile}
-          onClick={onTile}
-          tt={tt}
-        />
-      ))}
+      {BOARD.map((t) => {
+        const prop = propByTile[t.i]
+        const owner = prop?.owner || null
+        const mine = owner === myId
+        return (
+          <Tile
+            key={t.i}
+            t={t}
+            prop={prop}
+            lang={lang}
+            owner={owner}
+            ownerColor={owner ? playerColor[owner] : undefined}
+            active={t.i === activeTile}
+            auction={t.i === auctionTile}
+            mine={mine}
+            setComplete={!!(mine && t.color && myFullSets?.has(t.color))}
+            buildable={buildableHint(t, prop, propByTile, myId)}
+            title={tipFor(t, prop)}
+            onClick={onTile}
+            tt={tt}
+          />
+        )
+      })}
       {store && <TokenLayer players={players} store={store} />}
       {store && <MoneyFloatLayer store={store} />}
       <div className="mono-center">{children}</div>

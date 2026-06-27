@@ -516,6 +516,14 @@ export const STRINGS = {
   'mono.deedMortgaged': { en: 'Mortgaged', ar: 'مرهون' },
   'mono.close': { en: 'Close', ar: 'إغلاق' },
 
+  // ----- Interactivity pass: on-board management, dice-to-roll, legend -----
+  'mono.rollHint': { en: 'Tap to roll the dice', ar: 'انقر لرمي النرد' },
+  'mono.rentNow': { en: 'Rent now', ar: 'الإيجار الآن' },
+  'mono.deedManage': { en: 'Manage this property', ar: 'أدر هذا العقار' },
+  'mono.tipSet': { en: 'You own the full set', ar: 'تملك المجموعة كاملة' },
+  'mono.legend': { en: 'Holdings', ar: 'الممتلكات' },
+  'mono.propsCount': { en: '{n} properties', ar: '{n} عقار' },
+
   // ----- Enterprise pass: clearer turn states, deck/deed labels, currency -----
   'mono.currency': { en: 'JOD', ar: 'دينار' },
   'mono.amount': { en: '{amount} JOD', ar: '{amount} دينار' },
