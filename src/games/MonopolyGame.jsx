@@ -1,34 +1,67 @@
-import { useMemo, useState, useCallback, memo } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef, memo, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
-import { Dice5, LogOut, Trophy, RotateCcw, Home, Banknote, Handshake, X, Crown } from 'lucide-react'
+import {
+  Dice5, LogOut, Trophy, RotateCcw, Home, Banknote, Handshake, X,
+  Volume2, VolumeX, Maximize, Landmark,
+} from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
-import Avatar from '../components/Avatar.jsx'
 import Confetti from '../components/Confetti.jsx'
 import MonopolyBoard from './MonopolyBoard.jsx'
 import TurnTimer from './TurnTimer.jsx'
-import { BOARD, COLOR_GROUPS, tileName, JAIL_FINE } from './monopolyBoard.js'
+import Dice3D from './Dice3D.jsx'
+import { useSound } from '../hooks/useSound.js'
+import { useBoardAnimator } from './useBoardAnimator.js'
+import { BOARD, COLOR_GROUPS, tileName, JAIL_FINE, isOwnable } from './monopolyBoard.js'
 import { tokenMeta } from './monopolyTokens.js'
 
-const DICE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
 const profName = (p) => p?.profile?.global_name || p?.profile?.username || 'player'
+
+// Live OS-level "reduce motion" preference, kept current.
+function useReducedMotion() {
+  const [r, setR] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const h = () => setR(mq.matches)
+    mq.addEventListener?.('change', h)
+    return () => mq.removeEventListener?.('change', h)
+  }, [])
+  return r
+}
+
+// The two 3D dice, fed by the animator's dice slice (reflects broadcast "rolling"
+// then the committed "settled" faces). Subscribing here keeps the tumble/settle
+// off MonopolyGame's render path.
+function DiceBox({ store }) {
+  const dice = useSyncExternalStore(store.dice.subscribe, store.dice.get)
+  return (
+    <div className="mono-dice" aria-label="dice">
+      <Dice3D value={dice.a} rolling={dice.rolling} />
+      <Dice3D value={dice.b} rolling={dice.rolling} />
+    </div>
+  )
+}
 
 export default function MonopolyGame({ hook, t, dir, myId }) {
   const toast = useToast()
-  const { room, players, properties, sendAction } = hook
+  const { room, players, properties, sendAction, rollingBy, broadcast } = hook
+  const { play, muted, toggleMute } = useSound()
+  const reducedMotion = useReducedMotion()
+  const animator = useBoardAnimator(room, players, properties, { play, reducedMotion, myId })
+
   const [busy, setBusy] = useState(false)
   const [rolling, setRolling] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [tradeOpen, setTradeOpen] = useState(false)
+  const [deedTile, setDeedTile] = useState(null)
+  const rootRef = useRef(null)
 
   const playerById = useMemo(() => Object.fromEntries(players.map((p) => [p.profile_id, p])), [players])
   const playerColor = useMemo(
     () => Object.fromEntries(players.map((p) => [p.profile_id, tokenMeta(p.token).color])), [players])
   const lang = dir === 'rtl' ? 'ar' : 'en'
 
-  // Newest-first log, computed only when the log actually changes (not on every
-  // unrelated re-render). `i` is the entry's original index — stable as long as
-  // the ring buffer hasn't trimmed; good enough for 40 non-interactive rows.
   const reversedLog = useMemo(() => (room?.log || []).map((e, i) => ({ e, i })).reverse(), [room?.log])
 
   const turnId = room?.turn_order?.[room?.current_seat]
@@ -38,7 +71,13 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const dice = room?.dice
   const isDoubles = Array.isArray(dice) && dice[0] === dice[1]
 
+  // Who, if anyone, has dice tumbling right now: a remote roller (broadcast) or me.
+  const rollingId = rollingBy || (rolling ? myId : null)
+
   const name = useCallback((id) => profName(playerById[id]), [playerById])
+
+  // Mirror remote roll-start presence into the dice tumble.
+  useEffect(() => { if (rollingBy) animator.setRolling(true) }, [rollingBy, animator])
 
   const act = useCallback(async (action, args = {}) => {
     setBusy(true)
@@ -48,14 +87,26 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     return res
   }, [sendAction, toast])
 
-  // Roll wrapper: only roll actions should tumble the dice (a build/mortgage
-  // shouldn't). Wraps `act` so buttons still gate on `busy`.
+  // Roll wrapper: tumble the dice locally AND broadcast roll-start so remote
+  // players see it before the Edge round-trip lands. Both are best-effort cosmetic.
   const rollDice = useCallback(async (action) => {
     setRolling(true)
+    animator.setRolling(true)
+    broadcast?.('roll', { by: myId })
+    play('diceRoll')
     const res = await act(action)
     setRolling(false)
     return res
-  }, [act])
+  }, [act, animator, broadcast, myId, play])
+
+  const toggleFullscreen = useCallback(() => {
+    const el = rootRef.current
+    if (!el) return
+    if (document.fullscreenElement) document.exitFullscreen?.()
+    else el.requestFullscreen?.()
+  }, [])
+
+  const onTile = useCallback((i) => { if (isOwnable(i)) setDeedTile(i) }, [])
 
   // ---------------- FINISHED ----------------
   if (room?.status === 'finished') {
@@ -95,23 +146,20 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   if (!room || room.status !== 'playing') return <div className="page-loader"><div className="spinner" /></div>
 
   // ---------------- center action area ----------------
-  // A plain render function (NOT a nested component) so its subtree keeps its
-  // identity across parent re-renders — otherwise the dice/auction/buy panels
-  // would remount and their local state (e.g. the auction bid) would reset.
   const renderCenter = () => {
     const turnName = name(turnId)
+    const rollingName = rollingId ? (rollingId === myId ? t('mono.rolling') : t('mono.isRolling', { name: name(rollingId) })) : null
     return (
-      <div className="mono-center-inner">
+      <div className="mono-center-inner" dir={dir}>
         <div className="mono-title-badge"><Home size={14} /> {t('mono.title')}</div>
 
-        <div className={`mono-turn-banner${isMyTurn ? ' you' : ''}`}>
+        <div className={`mono-turn-banner${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`}>
           {isMyTurn ? t('mono.yourTurn') : t('mono.turnOf', { name: turnName })}
         </div>
 
-        <div className="mono-dice" aria-label="dice">
-          <span key={`d0-${dice ? dice[0] : 'x'}`} className={`mono-die${rolling ? ' rolling' : ''}`}>{dice ? DICE[dice[0]] : '⚀'}</span>
-          <span key={`d1-${dice ? dice[1] : 'x'}`} className={`mono-die${rolling ? ' rolling' : ''}`}>{dice ? DICE[dice[1]] : '⚀'}</span>
-        </div>
+        <DiceBox store={animator} />
+
+        {rollingName && <div className="mono-rolling-tag"><span className="mono-roll-dot" />{rollingName}</div>}
 
         {room.phase_ends_at && (
           <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} />
@@ -122,16 +170,15 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p></div>
         )}
 
-        {/* phase-specific actions */}
         <div className="mono-actions">
           {phase === 'roll' && isMyTurn && (
             <>
               {(dice === null || isDoubles) ? (
-                <button className="btn btn-green" disabled={busy} onClick={() => rollDice('roll')}>
+                <button className="btn btn-gold" disabled={busy} onClick={() => rollDice('roll')}>
                   <Dice5 size={16} /> {busy ? t('mono.rolling') : t('mono.roll')}{isDoubles && dice ? ' ↻' : ''}
                 </button>
               ) : (
-                <button className="btn btn-green" disabled={busy} onClick={() => act('end_turn')}>{t('mono.endTurn')}</button>
+                <button className="btn btn-gold" disabled={busy} onClick={() => act('end_turn')}>{t('mono.endTurn')}</button>
               )}
               <button className="btn btn-line btn-sm" onClick={() => setManageOpen(true)}>{t('mono.manage')}</button>
               <button className="btn btn-line btn-sm" onClick={() => setTradeOpen(true)}><Handshake size={14} /> {t('mono.trade')}</button>
@@ -151,7 +198,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               <span className="mono-jail-tag">{t('mono.inJail')}</span>
               <button className="btn btn-line btn-sm" disabled={busy || (me?.cash || 0) < JAIL_FINE} onClick={() => act('pay_jail_fine')}>{t('mono.payFine')}</button>
               {me?.goojf_cards > 0 && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => act('use_jail_card')}>{t('mono.useCard')}</button>}
-              <button className="btn btn-green btn-sm" disabled={busy} onClick={() => rollDice('roll_for_jail')}>{t('mono.rollJail')}</button>
+              <button className="btn btn-gold btn-sm" disabled={busy} onClick={() => rollDice('roll_for_jail')}>{t('mono.rollJail')}</button>
             </div>
           )}
           {phase === 'jail' && !isMyTurn && <p className="muted">{name(turnId)} · {t('mono.inJail')}</p>}
@@ -184,16 +231,37 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     )
   }
 
+  const presentCount = players.filter((p) => p.is_present && !p.bankrupt).length
+
   return (
-    <div className="mono-game" dir={dir}>
+    <div className="mono-game" dir={dir} ref={rootRef}>
+      <div className="mono-header">
+        <div className="mono-brand">
+          <div className="mono-crest"><Landmark size={20} /></div>
+          <div className="mono-brand-text">
+            <span className="mono-brand-over">JORDAN</span>
+            <span className="mono-brand-name">MONOPOLY</span>
+          </div>
+        </div>
+        <div className="mono-header-tools">
+          <span className="mono-live-pill"><span className="mono-live-dot" /> {presentCount} · {t('mono.live')}</span>
+          <button className="mono-icon-btn" onClick={toggleMute} aria-label={muted ? t('mono.soundOff') : t('mono.soundOn')} title={muted ? t('mono.soundOff') : t('mono.soundOn')}>
+            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+          <button className="mono-icon-btn" onClick={toggleFullscreen} aria-label={t('mono.fullscreen')} title={t('mono.fullscreen')}>
+            <Maximize size={18} />
+          </button>
+        </div>
+      </div>
+
       <div className="mono-players-strip">
         {players.map((p) => (
-          <PlayerChip key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isMe={p.profile_id === myId} />
+          <PlayerCard key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isMe={p.profile_id === myId} rolling={p.profile_id === rollingId} rollText={t('mono.rolling')} />
         ))}
       </div>
 
       <div className="mono-stage">
-        <MonopolyBoard players={players} properties={properties} lang={lang} playerColor={playerColor} activeTile={playerById[turnId]?.position} onTile={null}>
+        <MonopolyBoard players={players} properties={properties} lang={lang} playerColor={playerColor} activeTile={playerById[turnId]?.position} onTile={onTile} store={animator} tt={t}>
           {renderCenter()}
         </MonopolyBoard>
       </div>
@@ -212,25 +280,24 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
       {manageOpen && <ManageModal room={room} me={me} properties={properties} lang={lang} t={t} busy={busy} act={act} onClose={() => setManageOpen(false)} />}
       {tradeOpen && <TradeModal room={room} me={me} players={players} properties={properties} lang={lang} t={t} myId={myId} name={name} busy={busy} act={act} onClose={() => setTradeOpen(false)} />}
+      {deedTile !== null && <DeedPopover tileIndex={deedTile} properties={properties} lang={lang} t={t} name={name} onClose={() => setDeedTile(null)} />}
     </div>
   )
 }
 
 // ---------------- sub-panels ----------------
-// Memoized so a single player's cash/jail change (or any parent re-render) only
-// re-renders that one chip, not the whole strip. Props are primitives + a stable
-// row reference, so the memo actually holds.
-const PlayerChip = memo(function PlayerChip({ p, isTurn, isMe }) {
+const PlayerCard = memo(function PlayerCard({ p, isTurn, isMe, rolling, rollText }) {
   const meta = tokenMeta(p.token)
   return (
-    <div className={`mono-pchip${isTurn ? ' turn' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`} style={{ '--tok': meta.color }}>
-      <Avatar profile={p.profile} size="sm" />
-      <span className="mono-pchip-emoji">{meta.emoji}</span>
-      <div className="mono-pchip-info">
-        <span className="mono-pchip-name">{profName(p)}</span>
-        <span className="mono-pchip-cash"><Banknote size={11} /> {p.cash}</span>
+    <div className={`mono-pcard${isTurn ? ' turn' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`} style={{ '--tok': meta.color }}>
+      <div className="mono-pcard-av">{meta.emoji}</div>
+      <div className="mono-pcard-info">
+        <span className="mono-pcard-name">{profName(p)}</span>
+        {rolling
+          ? <span className="mono-pcard-roll"><span className="mono-roll-dot" />{rollText}</span>
+          : <span className="mono-pcard-cash"><Banknote size={12} /> {p.cash}</span>}
       </div>
-      {p.in_jail && <span className="mono-pchip-jail">⛓</span>}
+      {p.in_jail && <span className="mono-pcard-jail">⛓</span>}
     </div>
   )
 })
@@ -241,7 +308,7 @@ function BuyPanel({ pend, lang, t, busy, cash, onBuy, onDecline }) {
     <div className="mono-buy">
       <Deed tile={tile} lang={lang} />
       <div className="mono-buy-btns">
-        <button className="btn btn-green btn-sm" disabled={busy || cash < pend.price} onClick={onBuy}>{t('mono.buy', { price: pend.price })}</button>
+        <button className="btn btn-gold btn-sm" disabled={busy || cash < pend.price} onClick={onBuy}>{t('mono.buy', { price: pend.price })}</button>
         <button className="btn btn-line btn-sm" disabled={busy} onClick={onDecline}>{t('mono.decline')}</button>
       </div>
     </div>
@@ -261,7 +328,7 @@ function AuctionPanel({ room, myId, name, lang, t, busy, onBid, onPass }) {
       {mine ? (
         <div className="mono-auction-act">
           <input type="number" min={(a.high_bid || 0) + 1} value={amt} onChange={(e) => setAmt(Number(e.target.value))} />
-          <button className="btn btn-green btn-sm" disabled={busy} onClick={() => onBid(amt)}>{t('mono.bid')}</button>
+          <button className="btn btn-gold btn-sm" disabled={busy} onClick={() => onBid(amt)}>{t('mono.bid')}</button>
           <button className="btn btn-line btn-sm" disabled={busy} onClick={onPass}>{t('mono.pass')}</button>
         </div>
       ) : (
@@ -284,7 +351,7 @@ function TradePanel({ tr, myId, name, lang, t, busy, onAccept, onReject, onCance
       <p className="mono-trade-line"><b>{name(tr.to)}</b> → {side(tr.want)}</p>
       {tr.to === myId && (
         <div className="mono-trade-btns">
-          <button className="btn btn-green btn-sm" disabled={busy} onClick={onAccept}>✓</button>
+          <button className="btn btn-gold btn-sm" disabled={busy} onClick={onAccept}>✓</button>
           <button className="btn btn-line btn-sm" disabled={busy} onClick={onReject}>✕</button>
         </div>
       )}
@@ -309,6 +376,31 @@ function Deed({ tile, lang }) {
         </ul>
       )}
       <div className="mono-deed-foot">{tile.price ? `${tile.price} JOD` : ''}{tile.house ? ` · 🏠 ${tile.house}` : ''}</div>
+    </div>
+  )
+}
+
+// Read-only deed card popover (tap a tile). Closes on outside-click / Esc.
+function DeedPopover({ tileIndex, properties, lang, t, name, onClose }) {
+  const tile = BOARD[tileIndex]
+  const prop = properties.find((p) => p.tile_index === tileIndex)
+  const owner = prop?.owner ? name(prop.owner) : null
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+  return (
+    <div className="mono-modal-overlay" onClick={onClose}>
+      <div className="mono-deed-pop" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={tileName(tile, lang)}>
+        <Deed tile={tile} lang={lang} />
+        <div className="mono-deed-pop-meta">
+          <span>{t('mono.deedOwner')}: <b>{owner || t('mono.deedUnowned')}</b></span>
+          {prop?.houses > 0 && <span>{prop.houses === 5 ? '🏨' : '🏠'.repeat(prop.houses)}</span>}
+          {prop?.mortgaged && <span className="mono-mort-tag">{t('mono.deedMortgaged')}</span>}
+        </div>
+        <button className="btn btn-line btn-sm" onClick={onClose}>{t('mono.close')}</button>
+      </div>
     </div>
   )
 }
@@ -395,7 +487,7 @@ function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, o
             </div>
           </div>
         </div>
-        <button className="btn btn-green btn-block" disabled={busy || !to} onClick={submit}>{t('mono.trade')}</button>
+        <button className="btn btn-gold btn-block" disabled={busy || !to} onClick={submit}>{t('mono.trade')}</button>
       </div>
     </div>
   )

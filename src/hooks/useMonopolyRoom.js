@@ -36,11 +36,14 @@ export function useMonopolyRoom(roomId) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [connState, setConnState] = useState('connecting')
+  const [rollingBy, setRollingBy] = useState(null) // ephemeral "X is rolling…" presence
 
   const roomRef = useRef(null)
   const playersRef = useRef([])
   const onlineRef = useRef([])
   const connRef = useRef('connecting')
+  const channelRef = useRef(null) // for ephemeral broadcasts (roll-start)
+  const rollClearRef = useRef(null) // safety timer that clears a stuck "rolling…"
   const advancedForRef = useRef(null) // phase_ends_at we've already pumped
   const pickSeqRef = useRef(0) // monotonic id of the latest token pick
   const pendingTokenRef = useRef(null) // optimistic token held until the server echoes it
@@ -69,10 +72,24 @@ export function useMonopolyRoom(roomId) {
       if (prev && typeof row.seq === 'number' && typeof prev.seq === 'number' && row.seq < prev.seq) {
         return prev
       }
+      // A genuinely newer committed snapshot has arrived — the roll resolved, so
+      // any ephemeral "X is rolling…" indicator is now stale; clear it.
+      if (!prev || typeof prev.seq !== 'number' || (typeof row.seq === 'number' && row.seq > prev.seq)) {
+        setRollingBy(null)
+      }
       const next = { ...(prev || {}), ...row }
       roomRef.current = next
       return next
     })
+  }, [])
+
+  // Best-effort, purely-cosmetic broadcast on the SAME realtime channel (e.g. the
+  // instant a player clicks Roll). Never mutates state; if it's missed the
+  // committed snapshot still drives the full animation.
+  const broadcast = useCallback((event, payload = {}) => {
+    const ch = channelRef.current
+    if (!ch) return
+    try { ch.send({ type: 'broadcast', event, payload }) } catch { /* ignore */ }
   }, [])
 
   // Merge engine-returned player rows into the joined list, keeping each row's
@@ -249,6 +266,17 @@ export function useMonopolyRoom(roomId) {
     const ch = supabase.channel(`monopoly-room:${roomId}`, {
       config: { presence: { key: myId || 'anon' } },
     })
+    channelRef.current = ch
+    // Ephemeral roll-start presence: show a remote player's dice tumbling the
+    // instant they click, before the Edge round-trip lands. Ignore my own echo
+    // (my dice already tumble locally). Auto-expire after 2.5s so a dropped
+    // snapshot can't leave the indicator stuck.
+    ch.on('broadcast', { event: 'roll' }, ({ payload }) => {
+      if (!payload || payload.by === myId) return
+      setRollingBy(payload.by)
+      clearTimeout(rollClearRef.current)
+      rollClearRef.current = setTimeout(() => setRollingBy(null), 2500)
+    })
     ch.on('postgres_changes',
       { event: '*', schema: 'public', table: 'monopoly_rooms', filter: `id=eq.${roomId}` },
       (payload) => applyRoom(payload.new))
@@ -298,15 +326,17 @@ export function useMonopolyRoom(roomId) {
     return () => {
       clearTimeout(pDebounce)
       clearTimeout(prDebounce)
+      clearTimeout(rollClearRef.current)
       clearInterval(interval)
       clearInterval(driver)
       document.removeEventListener('visibilitychange', onVisible)
+      channelRef.current = null
       supabase.removeChannel(ch)
     }
   }, [roomId, myId, fetchRoom, fetchPlayers, fetchProperties, refetch, applyRoom, setConn, isPumper, sendAction])
 
   return {
-    room, players, properties, online, loading, error, connState, myId,
-    applyRoom, refetch, sendAction, pickToken,
+    room, players, properties, online, loading, error, connState, myId, rollingBy,
+    applyRoom, refetch, sendAction, pickToken, broadcast,
   }
 }
