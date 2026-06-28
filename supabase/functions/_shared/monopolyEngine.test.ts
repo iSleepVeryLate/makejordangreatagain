@@ -257,6 +257,29 @@ Deno.test('bankruptcy: unpayable rent → bankrupt → win', () => {
   assertEquals(g.state.room.winner, owner)
 })
 
+Deno.test('bankruptcy to a creditor never drives the creditor (winner) negative', () => {
+  const g = new Game(2); g.start()
+  const debtor = g.cur(); const creditor = g.other()
+  // creditor owns the full blue set with a hotel on 39 → enormous unpayable rent
+  g.setOwner(37, creditor); g.setOwner(39, creditor)
+  g.prop(39).houses = 5
+  // debtor holds a mortgage-heavy estate: each mortgaged tile carries a 10%
+  // inheritance fee the creditor would otherwise pay immediately out of pocket.
+  for (const t of [1, 3, 6, 8, 9, 11, 13, 14]) { g.setOwner(t, debtor); g.prop(t).mortgaged = true }
+  g.P(creditor).cash = 5 // cash-poor creditor
+  g.P(debtor).cash = 10  // can't pay the rent
+  g.P(debtor).position = 36
+  g.act(debtor, { action: 'roll' }, [[1, 2]]) // → 39, rent far over 10
+  assertEquals(g.state.room.phase, 'awaiting_debt')
+  g.act(debtor, { action: 'declare_bankruptcy' })
+  assertEquals(g.P(debtor).bankrupt, true)
+  assert(g.P(creditor).cash >= 0) // the fee is clamped — winner is never negative
+  assert(noNegativeCash(g))
+  // and the mortgaged estate transferred to the creditor
+  assertEquals(g.prop(1).owner, creditor)
+  assertEquals(g.prop(1).mortgaged, true)
+})
+
 Deno.test('no action ever leaves a player with negative cash', () => {
   const g = new Game(2); g.start()
   const me = g.cur()

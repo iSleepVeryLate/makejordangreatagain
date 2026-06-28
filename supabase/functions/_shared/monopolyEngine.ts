@@ -761,12 +761,19 @@ function doBankrupt(w: W, id: string) {
   if (creditorId) {
     const cr = w.player(creditorId)!
     cr.cash += debtor.cash
+    // mortgaged props transfer with a 10% fee to unmortgage later — modeled as an
+    // immediate fee paid by the receiver on mortgaged value. The fee is CLAMPED to
+    // the receiver's available cash: a creditor who just absorbed an unpayable debt
+    // and inherits a mortgage-heavy estate must never be driven below zero (that
+    // shortfall would otherwise surface as a NEGATIVE-cash winner on the game-over
+    // screen — the receiver is owed money, not in debt). Any un-charged remainder
+    // is forgiven; the full mortgage interest is still collected later at unmortgage.
+    let fee = 0
     for (const pr of ownerProps(w, id)) {
       pr.owner = creditorId
-      // mortgaged props transfer with a 10% fee to unmortgage later — modeled as
-      // an immediate fee paid by the receiver on mortgaged value.
-      if (pr.mortgaged) cr.cash -= Math.ceil((tile(pr.tile_index).mortgage || 0) * B.BANKRUPTCY_FEE)
+      if (pr.mortgaged) fee += Math.ceil((tile(pr.tile_index).mortgage || 0) * B.BANKRUPTCY_FEE)
     }
+    cr.cash = Math.max(0, cr.cash - fee)
   } else {
     // to the bank: estate returns houseless + unmortgaged (auctioned in M4)
     for (const pr of ownerProps(w, id)) {
