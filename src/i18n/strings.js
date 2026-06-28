@@ -582,6 +582,91 @@ export const STRINGS = {
   'notif.err.challenge_closed': { en: 'This challenge is no longer open.', ar: 'هذا التحدي لم يعد متاحًا.' },
   'notif.err.challenge_expired': { en: 'This challenge has expired.', ar: 'انتهت صلاحية هذا التحدي.' },
 
+  // ===== MJGA shop / products =====
+  // nav entries (one per navbar variant: resource layout, app nav, landing)
+  'nav.shop': { en: 'Shop', ar: 'المتجر' },
+  'app.nav.shop': { en: 'Shop', ar: 'المتجر' },
+  'land.nav.shop': { en: 'Shop', ar: 'المتجر' },
+  'land.foot.shop': { en: 'MJGA Shop', ar: 'متجر MJGA' },
+
+  // shop hero
+  'shop.eyebrow': { en: 'Official MJGA merch', ar: 'منتجات MJGA الرسمية' },
+  'shop.title': { en: 'Wear it. Make Jordan Great Again.', ar: 'ارتدِها. لنجعل الأردن عظيماً من جديد.' },
+  'shop.lede': {
+    en: 'Caps, tees, polos and hoodies carrying the Jordan flag wordmark — designed for the community, worn with pride.',
+    ar: 'كابات وتيشيرتات وبولو وهوديهات تحمل شعار علم الأردن — مصمّمة للمجتمع، تُرتدى بكل فخر.',
+  },
+  'shop.trust.shipping': { en: 'Free delivery over {amount}', ar: 'توصيل مجاني للطلبات فوق {amount}' },
+  'shop.trust.quality': { en: 'Premium heavyweight cotton', ar: 'قطن فاخر عالي الجودة' },
+  'shop.trust.community': { en: 'Made for the community', ar: 'صُنع من أجل المجتمع' },
+
+  // categories
+  'shop.cat.all': { en: 'All', ar: 'الكل' },
+  'shop.cat.hats': { en: 'Hats', ar: 'القبعات' },
+  'shop.cat.tops': { en: 'Shirts', ar: 'القمصان' },
+  'shop.cat.hoodies': { en: 'Hoodies', ar: 'الهوديهات' },
+
+  // badges
+  'shop.badge.bestseller': { en: 'Bestseller', ar: 'الأكثر مبيعاً' },
+  'shop.badge.new': { en: 'New', ar: 'جديد' },
+
+  // options
+  'shop.color': { en: 'Colour', ar: 'اللون' },
+  'shop.size': { en: 'Size', ar: 'المقاس' },
+  'shop.size.one': { en: 'One size', ar: 'مقاس واحد' },
+  'shop.color.black': { en: 'Black', ar: 'أسود' },
+  'shop.color.white': { en: 'White', ar: 'أبيض' },
+  'shop.color.sand': { en: 'Sand', ar: 'رملي' },
+  'shop.color.olive': { en: 'Olive', ar: 'زيتي' },
+  'shop.add': { en: 'Add to cart', ar: 'أضف إلى السلة' },
+  'shop.added': { en: 'Added to cart', ar: 'تمت الإضافة إلى السلة' },
+
+  // products
+  'shop.p.cap.name': { en: 'MJGA Dad Cap', ar: 'كاب MJGA' },
+  'shop.p.cap.desc': { en: 'Structured 6-panel cap with an embroidered flag wordmark and adjustable strap.', ar: 'كاب بستة قطع وشعار العلم المطرّز وحزام قابل للتعديل.' },
+  'shop.p.tee.name': { en: 'MJGA Classic Tee', ar: 'تيشيرت MJGA الكلاسيكي' },
+  'shop.p.tee.desc': { en: 'Heavyweight crew-neck tee with the full flag wordmark across the chest.', ar: 'تيشيرت بياقة دائرية وقطن ثقيل وشعار العلم الكامل على الصدر.' },
+  'shop.p.pocket.name': { en: 'MJGA Pocket Tee', ar: 'تيشيرت MJGA بشعار الصدر' },
+  'shop.p.pocket.desc': { en: 'Clean everyday tee with a small left-chest flag mark.', ar: 'تيشيرت يومي أنيق بشعار العلم الصغير على الصدر.' },
+  'shop.p.polo.name': { en: 'MJGA Polo', ar: 'بولو MJGA' },
+  'shop.p.polo.desc': { en: 'Smart piqué polo with a subtle embroidered chest mark.', ar: 'بولو أنيق بقماش البيكيه وشعار مطرّز على الصدر.' },
+  'shop.p.hoodie.name': { en: 'MJGA Hoodie', ar: 'هودي MJGA' },
+  'shop.p.hoodie.desc': { en: 'Cosy fleece-lined hoodie with the flag wordmark and kangaroo pocket.', ar: 'هودي دافئ مبطّن بالصوف مع شعار العلم وجيب أمامي.' },
+  'shop.p.long.name': { en: 'MJGA Long-Sleeve', ar: 'تيشيرت MJGA بأكمام طويلة' },
+  'shop.p.long.desc': { en: 'Long-sleeve tee with the flag wordmark — built for cooler days.', ar: 'تيشيرت بأكمام طويلة وشعار العلم — مناسب للأيام الباردة.' },
+
+  'shop.disclaimer': {
+    en: 'Community merch by Make Jordan Great Again. Orders are arranged and confirmed through our Discord — payment and delivery details are agreed there.',
+    ar: 'منتجات مجتمع Make Jordan Great Again. تُرتّب الطلبات وتُؤكَّد عبر ديسكورد — يُتّفق على الدفع والتوصيل هناك.',
+  },
+
+  // cart
+  'shop.cart.title': { en: 'Your cart', ar: 'سلّتك' },
+  'shop.cart.empty': { en: 'Your cart is empty.', ar: 'سلّتك فارغة.' },
+  'shop.cart.continue': { en: 'Continue shopping', ar: 'متابعة التسوّق' },
+  'shop.cart.remove': { en: 'Remove', ar: 'إزالة' },
+  'shop.cart.close': { en: 'Close', ar: 'إغلاق' },
+  'shop.cart.subtotal': { en: 'Subtotal', ar: 'المجموع الفرعي' },
+  'shop.cart.shipping': { en: 'Delivery', ar: 'التوصيل' },
+  'shop.cart.free': { en: 'Free', ar: 'مجاناً' },
+  'shop.cart.total': { en: 'Total', ar: 'الإجمالي' },
+  'shop.cart.checkout': { en: 'Checkout', ar: 'إتمام الطلب' },
+
+  // checkout
+  'shop.co.title': { en: 'Checkout', ar: 'إتمام الطلب' },
+  'shop.co.note': {
+    en: 'Tell us where to deliver. We finalise your order and payment with you on Discord — your summary is copied automatically.',
+    ar: 'أخبرنا بعنوان التوصيل. نُنهي طلبك والدفع معك عبر ديسكورد — يُنسخ ملخّص طلبك تلقائياً.',
+  },
+  'shop.co.name': { en: 'Full name', ar: 'الاسم الكامل' },
+  'shop.co.phone': { en: 'Phone', ar: 'رقم الهاتف' },
+  'shop.co.gov': { en: 'Governorate', ar: 'المحافظة' },
+  'shop.co.address': { en: 'Delivery address', ar: 'عنوان التوصيل' },
+  'shop.co.notes': { en: 'Notes (optional)', ar: 'ملاحظات (اختياري)' },
+  'shop.co.place': { en: 'Place order on Discord', ar: 'إرسال الطلب عبر ديسكورد' },
+  'shop.co.back': { en: 'Back to cart', ar: 'العودة إلى السلة' },
+  'shop.co.success': { en: 'Order copied — paste it in Discord to confirm!', ar: 'تم نسخ الطلب — الصقه في ديسكورد للتأكيد!' },
+
   // language toggle (label shows the language you switch TO)
   'lang.switch': { en: 'العربية', ar: 'English' },
 }

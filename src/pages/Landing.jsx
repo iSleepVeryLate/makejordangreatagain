@@ -83,6 +83,7 @@ export default function Landing() {
             <a href="#community" onClick={closeMenu}>{t('land.nav.community')}</a>
             <a href="#features" onClick={closeMenu}>{t('land.nav.inside')}</a>
             <Link to="/explore" onClick={closeMenu}>{t('land.nav.explore')}</Link>
+            <Link to="/products" onClick={closeMenu}>{t('land.nav.shop')}</Link>
             <Link to="/play" onClick={closeMenu}>{t('land.nav.games')}</Link>
             <a href="#faq" onClick={closeMenu}>{t('land.nav.faq')}</a>
             <LangToggle />
@@ -348,6 +349,7 @@ export default function Landing() {
                 <Link to="/tourism">{t('land.foot.tourism')}</Link>
                 <Link to="/services">{t('land.foot.services')}</Link>
                 <Link to="/emergency">{t('land.foot.emergency')}</Link>
+                <Link to="/products">{t('land.foot.shop')}</Link>
               </div>
               <div className="foot-col">
                 <h5>{t('land.foot.play')}</h5>

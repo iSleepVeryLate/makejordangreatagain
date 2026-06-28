@@ -15,6 +15,7 @@ const LINKS = [
   { to: '/tourism', key: 'nav.tourism' },
   { to: '/services', key: 'nav.services' },
   { to: '/emergency', key: 'nav.emergency' },
+  { to: '/products', key: 'nav.shop' },
   { to: '/play', key: 'nav.games' },
 ]
 

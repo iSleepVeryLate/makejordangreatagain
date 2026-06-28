@@ -28,6 +28,9 @@ const Tourism = lazy(() => import('./pages/Tourism.jsx'))
 const Services = lazy(() => import('./pages/Services.jsx'))
 const Emergency = lazy(() => import('./pages/Emergency.jsx'))
 
+// MJGA merch shop — public, no auth required.
+const Products = lazy(() => import('./pages/Products.jsx'))
+
 function MeRedirect() {
   const { profile, loading } = useAuth()
   if (loading) return null
@@ -60,6 +63,7 @@ export default function App() {
       <Route path="/tourism" element={<Tourism />} />
       <Route path="/services" element={<Services />} />
       <Route path="/emergency" element={<Emergency />} />
+      <Route path="/products" element={<Products />} />
 
       <Route
         path="/play"

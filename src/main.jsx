@@ -11,6 +11,7 @@ import { registerSW } from './lib/registerSW.js'
 import './styles/landing.css'
 import './styles/app.css'
 import './styles/resources.css'
+import './styles/shop.css'
 import './styles/rtl.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(

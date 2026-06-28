@@ -18,6 +18,7 @@ export default function AppNav() {
             <NavLink to="/play">{t('app.nav.games')}</NavLink>
             <NavLink to="/leaderboard">{t('app.nav.leaderboard')}</NavLink>
             <NavLink to="/explore">{t('app.nav.explore')}</NavLink>
+            <NavLink to="/products">{t('app.nav.shop')}</NavLink>
           </div>
           <LangToggle />
           {profile && <NotificationBell />}
