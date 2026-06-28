@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef, memo, useSyncExterna
 import { Link } from 'react-router-dom'
 import {
   Dice5, LogOut, Trophy, RotateCcw, Home, Banknote, Handshake, X,
-  Volume2, VolumeX, Maximize, Landmark,
+  Volume2, VolumeX, Maximize, Landmark, Flag,
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
@@ -54,7 +54,7 @@ function DiceBox({ store, canRoll, onRoll, hint }) {
 
 export default function MonopolyGame({ hook, t, dir, myId }) {
   const toast = useToast()
-  const { room, players, properties, sendAction, rollingBy, broadcast } = hook
+  const { room, players, properties, sendAction, rollingBy, broadcast, online, serverNow } = hook
   const { play, muted, toggleMute } = useSound()
   const reducedMotion = useReducedMotion()
   const animator = useBoardAnimator(room, players, properties, { play, reducedMotion, myId })
@@ -199,7 +199,9 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     // so the table always knows what's happening and whose move it is.
     let statusLine = null
     if (!isMyTurn) {
+      const turnAway = turnId && Array.isArray(online) && !online.includes(turnId)
       if (rollingId && rollingId !== myId) statusLine = t('mono.statusRolling', { name: name(rollingId) })
+      else if (turnAway) statusLine = t('mono.statusAway', { name: turnName })
       else if (phase === 'roll') statusLine = t('mono.statusThinking', { name: turnName })
       else if (phase === 'buy_decision') statusLine = t('mono.statusBuying', { name: turnName, tile: tileLabel(room.pending_purchase?.tile) })
       else if (phase === 'auction') statusLine = t('mono.statusAuction', { tile: tileLabel(room.pending_auction?.tile) })
@@ -211,7 +213,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
       <div className="mono-center-inner" dir={dir}>
         <div className="mono-title-badge"><Home size={14} /> {t('mono.title')}</div>
 
-        <div className={`mono-turn-banner${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`}>
+        <div className={`mono-turn-banner${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`} aria-live="polite">
           {isMyTurn ? t('mono.yourTurn') : t('mono.turnOf', { name: turnName })}
         </div>
 
@@ -220,10 +222,10 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           onRoll={() => rollDice('roll')} hint={t('mono.rollHint')} />
 
         {isMyTurn && rolling && <div className="mono-rolling-tag"><span className="mono-roll-dot" />{t('mono.rolling')}</div>}
-        {statusLine && <div className="mono-wait-status"><span className="mono-roll-dot" />{statusLine}</div>}
+        {statusLine && <div className="mono-wait-status" aria-live="polite"><span className="mono-roll-dot" />{statusLine}</div>}
 
         {room.phase_ends_at && (
-          <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} />
+          <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} serverNow={serverNow} />
         )}
 
         {room.last_card && (
@@ -309,6 +311,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         {players.map((p) => (
           <PlayerCard key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isNext={p.profile_id === nextTurnId}
             isMe={p.profile_id === myId} rolling={p.profile_id === rollingId}
+            isOnline={!Array.isArray(online) || online.includes(p.profile_id)} offlineText={t('mono.offline')}
             rollText={t('mono.rolling')} nextText={t('mono.next')} money={money}
             worth={aff.netWorth(p, propByTile)} worthLabel={t('mono.netWorth')} />
         ))}
@@ -357,10 +360,12 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 }
 
 // ---------------- sub-panels ----------------
-const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, rollText, nextText, money, worth, worthLabel }) {
+const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel }) {
   const meta = tokenMeta(p.token)
+  const away = !isOnline && !p.bankrupt
   return (
-    <div className={`mono-pcard${isTurn ? ' turn' : ''}${isNext ? ' next' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`} style={{ '--tok': meta.color }}>
+    <div className={`mono-pcard${isTurn ? ' turn' : ''}${isNext ? ' next' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`}
+      style={{ '--tok': meta.color, ...(away ? { opacity: 0.55 } : null) }}>
       <div className="mono-pcard-av">{meta.emoji}</div>
       <div className="mono-pcard-info">
         <span className="mono-pcard-name">{profName(p)}</span>
@@ -373,6 +378,7 @@ const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, 
       </div>
       {isNext && !isTurn && !p.bankrupt && <span className="mono-pcard-next">{nextText}</span>}
       {p.in_jail && <span className="mono-pcard-jail">⛓</span>}
+      {away && <span className="mono-pcard-jail" title={offlineText} aria-label={offlineText} style={{ filter: 'grayscale(1)' }}>📴</span>}
     </div>
   )
 })
@@ -541,6 +547,12 @@ function ManageModal({ room, me, properties, propByTile, lang, t, busy, act, onC
             )
           })}
         </div>
+        {ctx.isMyTurn && (
+          <button className="btn btn-red btn-sm" style={{ marginTop: 14, width: '100%' }} disabled={busy}
+            onClick={() => { if (typeof window === 'undefined' || window.confirm(t('mono.resignConfirm'))) { act('resign'); onClose() } }}>
+            <Flag size={14} /> {t('mono.resign')}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -625,6 +637,7 @@ function formatLog(e, name, lang, t) {
     case 'auction_win': return `🔨 ${who} → ${tileName(safeTile(e.tile), lang)} (${e.price})`
     case 'auction_none': return `🔨 ${tileName(safeTile(e.tile), lang)} —`
     case 'bankrupt': return `💀 ${who}`
+    case 'resign': return `🏳 ${who}`
     case 'win': return `🏆 ${who}`
     default: return ''
   }

@@ -80,6 +80,10 @@ export function useMonopolyRoom(roomId) {
     }
   }, [])
 
+  // Server-time "now" — the same skew-corrected clock pumpIfDue uses, exposed so the
+  // visible TurnTimer countdown agrees with the deadline that actually fires.
+  const serverNow = useCallback(() => Date.now() + serverOffsetRef.current, [])
+
   // Re-apply the optimistically-chosen token on top of any incoming player
   // snapshot (realtime echo, debounced refetch, or the 4s poll) so a write that
   // hasn't propagated yet can't momentarily revert my pick. Clears itself once
@@ -273,9 +277,14 @@ export function useMonopolyRoom(roomId) {
       if (data?.room) applyRoom(data.room)
       if (data?.players) applyPlayers(data.players)
       if (data?.properties) applyProperties(data.properties)
+      // Push the freshly-committed snapshot to peers on the realtime channel so they
+      // update in ~50-100ms instead of waiting ~300-700ms for the postgres_changes
+      // echo. The DB echo + 4s poll stay as the safety net; the seq guards make the
+      // redundant delivery a no-op. Peers skip our own echo via `by`.
+      if (data?.room) broadcast('snap', { by: myId, room: data.room, players: data.players, properties: data.properties })
       return { data }
     },
-    [roomId, applyRoom, applyPlayers, applyProperties, refetch],
+    [roomId, myId, applyRoom, applyPlayers, applyProperties, refetch, broadcast],
   )
 
   // Is THIS client the elected timer pumper? Current player if present, else the
@@ -354,6 +363,17 @@ export function useMonopolyRoom(roomId) {
       clearTimeout(rollClearRef.current)
       rollClearRef.current = setTimeout(() => setRollingBy(null), 2500)
     })
+    // Authoritative snapshot pushed by the acting client right after its commit — peers
+    // apply it immediately instead of waiting for the slower postgres_changes echo.
+    // Ignore our own echo; gate on seq so a late/stale broadcast can never roll back.
+    ch.on('broadcast', { event: 'snap' }, ({ payload }) => {
+      if (!payload || payload.by === myId || !payload.room) return
+      const cur = roomRef.current
+      if (cur && typeof payload.room.seq === 'number' && typeof cur.seq === 'number' && payload.room.seq < cur.seq) return
+      applyRoom(payload.room)
+      applyPlayers(payload.players)
+      applyProperties(payload.properties)
+    })
     ch.on('postgres_changes',
       { event: '*', schema: 'public', table: 'monopoly_rooms', filter: `id=eq.${roomId}` },
       (payload) => applyRoom(payload.new))
@@ -409,10 +429,10 @@ export function useMonopolyRoom(roomId) {
       channelRef.current = null
       supabase.removeChannel(ch)
     }
-  }, [roomId, myId, fetchRoom, fetchPlayers, fetchProperties, refetch, applyRoom, setConn, pumpIfDue])
+  }, [roomId, myId, fetchRoom, fetchPlayers, fetchProperties, refetch, applyRoom, applyPlayers, applyProperties, setConn, pumpIfDue])
 
   return {
     room, players, properties, online, loading, error, connState, myId, rollingBy,
-    applyRoom, refetch, sendAction, pickToken, broadcast,
+    applyRoom, refetch, sendAction, pickToken, broadcast, serverNow,
   }
 }

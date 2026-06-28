@@ -765,6 +765,39 @@ function settleDebtIfAble(w: W) {
   }
 }
 
+// Return a player's whole estate to the bank: houses/hotels go back to supply, tiles
+// become unowned + houseless + unmortgaged. Shared by bank-bankruptcy and resign.
+function releaseEstateToBank(w: W, id: string) {
+  for (const pr of ownerProps(w, id)) {
+    if (pr.houses === 5) w.room.bank_hotels += 1
+    else w.room.bank_houses += pr.houses
+    pr.owner = null; pr.houses = 0; pr.mortgaged = false
+  }
+}
+
+// A player concedes on their own turn: estate returns to the bank, they're marked
+// bankrupt, and the game either ends (last solvent wins) or advances to the next
+// player. Gated to the current player so it can't be used off-turn to dodge a creditor
+// (an in-debt player resigns the same as declaring bankruptcy to the bank).
+function doResign(w: W, id: string) {
+  const pl = w.player(id)
+  if (!pl || pl.bankrupt) return err('Not in game')
+  if (w.room.status !== 'playing') return err('Game is not in progress')
+  const cur = w.current()
+  if (!cur || cur.profile_id !== id) return err('You can only resign on your turn')
+  releaseEstateToBank(w, id)
+  pl.cash = 0
+  pl.bankrupt = true
+  pl.goojf_cards = 0
+  // clear any pending step the resigning player owned so the next turn starts clean
+  w.room.pending_debt = null
+  w.room.pending_purchase = null
+  w.log({ k: 'resign', by: id })
+  if (checkWin(w)) return ok(w.patch())
+  endTurn(w)
+  return ok(w.patch())
+}
+
 function doBankrupt(w: W, id: string) {
   const d = w.room.pending_debt as { debtor: string; creditor: string | null; amount: number } | null
   const debtor = w.player(id)
@@ -788,12 +821,7 @@ function doBankrupt(w: W, id: string) {
     }
     cr.cash = Math.max(0, cr.cash - fee)
   } else {
-    // to the bank: estate returns houseless + unmortgaged (auctioned in M4)
-    for (const pr of ownerProps(w, id)) {
-      if (pr.houses === 5) w.room.bank_hotels += 1
-      else w.room.bank_houses += pr.houses
-      pr.owner = null; pr.houses = 0; pr.mortgaged = false
-    }
+    releaseEstateToBank(w, id)
   }
   debtor.cash = 0
   debtor.bankrupt = true
@@ -919,6 +947,7 @@ export function reduce(state: State, action: Json, ctx: Ctx): { patch: Json } | 
     case 'reject_trade': return doRejectTrade(w, id, false)
     case 'cancel_trade': return doRejectTrade(w, id, true)
     case 'declare_bankruptcy': return doBankrupt(w, id)
+    case 'resign': return doResign(w, id)
     case 'end_turn': return doEndTurn(w, id)
     case 'tick': return doTick(w)
     default: return err('Unknown action')

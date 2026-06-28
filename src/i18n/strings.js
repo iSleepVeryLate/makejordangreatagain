@@ -550,6 +550,10 @@ export const STRINGS = {
   'mono.statusDebt': { en: '{name} is settling a debt', ar: '{name} يسوّي دَينًا' },
   'mono.upNext': { en: 'Up next: {name}', ar: 'التالي: {name}' },
   'mono.next': { en: 'Next', ar: 'التالي' },
+  'mono.offline': { en: 'offline', ar: 'غير متصل' },
+  'mono.statusAway': { en: '{name} is away…', ar: '{name} غير متصل…' },
+  'mono.resign': { en: 'Resign', ar: 'انسحاب' },
+  'mono.resignConfirm': { en: 'Resign and forfeit the game?', ar: 'هل تريد الانسحاب والتنازل عن اللعبة؟' },
   // deed rent rows + trade modal labels (were hardcoded English)
   'mono.deedRentBase': { en: 'Rent', ar: 'الإيجار' },
   'mono.deedRentHouses': { en: '{n} 🏠', ar: '{n} 🏠' },
