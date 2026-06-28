@@ -310,13 +310,16 @@ function resolveCard(w: W, id: string, deck: 'chance' | 'chest', diceTotal: numb
       return false
     }
     case 'pay_each': {
+      // Pay each opponent up to `give`, capped at remaining cash, iterating EVERY
+      // opponent (no early return). Mirrors collect_from_each's documented simplification
+      // ("avoid multi-player simultaneous debt"): the previous version routed a single-
+      // creditor debt on the first opponent it couldn't fully pay and then RETURNED,
+      // silently skipping every later opponent and losing money. Symmetric, never negative.
+      const give = e.amount as number
       for (const o of w.players) {
         if (o.profile_id === id || o.bankrupt) continue
-        // current player may go into debt to the bank's pool here; pay what we can
-        const give = e.amount as number
-        if (pl.cash >= give) { pl.cash -= give; o.cash += give }
-        else { o.cash += pl.cash; const owed = give - pl.cash; pl.cash = 0
-          return !chargeOrDebt(w, id, owed, o.profile_id, 'card') }
+        const pay = Math.min(give, pl.cash)
+        pl.cash -= pay; o.cash += pay
       }
       return false
     }
@@ -341,7 +344,11 @@ function resolveCard(w: W, id: string, deck: 'chance' | 'chest', diceTotal: numb
       // forced rent multiplier / utility 10x via a one-off landing
       const prop = w.prop(target)
       if (prop && prop.owner && prop.owner !== id && !prop.mortgaged) {
-        const due = rentDue(w, target, w.roll()[0] + w.roll()[1], { rrMult: e.rentMult as number, utilForce10: kind === 'utility' })
+        // Roll ONCE: the prior `w.roll()[0] + w.roll()[1]` called roll() twice, summing
+        // dice from two different rolls (wrong utility-card total + double-consumes the
+        // injectable dice source, breaking determinism/replay).
+        const [dr1, dr2] = w.roll()
+        const due = rentDue(w, target, dr1 + dr2, { rrMult: e.rentMult as number, utilForce10: kind === 'utility' })
         if (due) { const paid = chargeOrDebt(w, id, due.amount, due.to, 'rent')
           if (paid) w.log({ k: 'rent', by: id, to: due.to, amount: due.amount, tile: target }); return !paid }
         return false
@@ -629,7 +636,13 @@ function doBuild(w: W, id: string, t: number) {
 
 function doSell(w: W, id: string, t: number) {
   const cur = w.current()
-  if (!cur || cur.profile_id !== id || w.room.phase !== 'roll') return err('Cannot sell now')
+  // Selling houses is allowed in the normal 'roll' phase AND by the debtor during
+  // 'awaiting_debt' (mirroring doMortgage). Otherwise a player whose only liquidity is
+  // houses on a built-up set is stuck — can't sell (wrong phase) and can't mortgage a
+  // built set — and autoLiquidate's house-sell loop no-ops, auto-bankrupting a SOLVENT
+  // player on timeout. doSell already settles the debt below once enough cash is raised.
+  if (!cur || cur.profile_id !== id) return err('Not your turn')
+  if (!(w.room.phase === 'roll' || (w.room.phase === 'awaiting_debt' && (w.room.pending_debt as { debtor?: string } | null)?.debtor === id))) return err('Cannot sell now')
   const prop = w.prop(t); const def = tile(t)
   if (!prop || prop.owner !== id || def.type !== 'property') return err('You do not own that')
   if (prop.houses <= 0) return err('Nothing to sell')

@@ -280,6 +280,70 @@ Deno.test('bankruptcy to a creditor never drives the creditor (winner) negative'
   assertEquals(g.prop(1).mortgaged, true)
 })
 
+Deno.test('debtor CAN sell houses during awaiting_debt to settle (manual)', () => {
+  const g = new Game(2); g.start()
+  const debtor = g.cur(); const owner = g.other()
+  g.setOwner(1, debtor); g.setOwner(3, debtor) // full brown set
+  g.prop(1).houses = 2; g.prop(3).houses = 2   // 4 houses, each resells for 25
+  g.P(debtor).cash = 10
+  g.state.room.phase = 'awaiting_debt'
+  g.state.room.pending_debt = { debtor, creditor: owner, amount: 60, reason: 'rent' }
+  assert('patch' in g.act(debtor, { action: 'sell_house', tile: 1 })) // was 'Cannot sell now' before fix
+  assertEquals(g.P(debtor).cash, 35)
+  assert('patch' in g.act(debtor, { action: 'sell_house', tile: 3 })) // even-sell from the higher tile
+  // raised 60 → debt auto-settles, turn resumes, player NOT bankrupt
+  assertEquals(g.state.room.phase, 'roll')
+  assertEquals(g.P(debtor).bankrupt, false)
+  assertEquals(g.P(debtor).cash, 0)
+  assertEquals(g.P(owner).cash, 1560)
+})
+
+Deno.test('awaiting_debt TIMEOUT auto-liquidates houses instead of bankrupting a SOLVENT player', () => {
+  const g = new Game(2); g.start()
+  const debtor = g.cur(); const owner = g.other()
+  g.setOwner(1, debtor); g.setOwner(3, debtor)
+  g.prop(1).houses = 2; g.prop(3).houses = 2 // 100 raisable via house sales
+  g.P(debtor).cash = 10
+  g.state.room.phase = 'awaiting_debt'
+  g.state.room.pending_debt = { debtor, creditor: owner, amount: 60, reason: 'rent' }
+  g.state.room.phase_ends_at = new Date(g.now - 1000).toISOString()
+  g.act('p0', { action: 'tick' }) // gentle timeout → autoLiquidate must SELL houses, not bankrupt
+  assertEquals(g.P(debtor).bankrupt, false) // FAILS before the doSell-in-debt fix (would be bankrupt)
+  assertEquals(g.state.room.status, 'playing')
+  assertEquals(g.state.room.phase, 'roll')
+  assert(g.P(owner).cash >= 1560) // got paid
+  assert(noNegativeCash(g))
+})
+
+Deno.test('pay_each pays EVERY opponent (capped at cash) — never skips a player', () => {
+  const g = new Game(4); g.start()
+  const me = g.cur()
+  g.state.secrets.chance = ['c14']; g.state.secrets.chest = []; g.state.secrets.chance_pos = 0 // c14 = pay each 50
+  g.P(me).cash = 70 // can fully pay one opponent, partly a second, nothing for a third
+  const before = g.totalCash()
+  g.act(me, { action: 'roll' }, [[3, 4]]) // → tile 7 chance → c14
+  assertEquals(g.P(me).cash, 0)            // paid out everything it had
+  assertEquals(g.totalCash(), before)      // pure transfer, no money lost (was lost before the fix)
+  assert(noNegativeCash(g))                // no one driven negative
+  assert(g.state.room.phase !== 'awaiting_debt') // no bogus single-creditor debt
+  const opponents = g.state.players.filter((p: any) => p.profile_id !== me)
+  assertEquals(opponents.reduce((s: number, p: any) => s + (p.cash - 1500), 0), 70) // all 70 distributed
+})
+
+Deno.test('move_to_nearest (utility) rolls ONCE — deterministic rent', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur(); const owner = g.other()
+  g.setOwner(12, owner) // owns the first utility
+  g.state.secrets.chance = ['c7']; g.state.secrets.chest = []; g.state.secrets.chance_pos = 0 // c7 = advance to nearest utility
+  // queue: [3,4] lands me on the chance tile (7); [5,6] is the SINGLE forced-rent roll.
+  g.act(me, { action: 'roll' }, [[3, 4], [5, 6]])
+  assertEquals(g.P(me).position, 12)
+  // utility force-10 rent = 10 * (5+6) = 110 with the single-roll fix.
+  // The old double-roll bug consumed [5,6][0]=5 + default[1,2][1]=2 → 70.
+  assertEquals(g.P(me).cash, 1500 - 110)
+  assertEquals(g.P(owner).cash, 1500 + 110)
+})
+
 Deno.test('no action ever leaves a player with negative cash', () => {
   const g = new Game(2); g.start()
   const me = g.cur()

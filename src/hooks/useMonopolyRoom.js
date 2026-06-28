@@ -57,6 +57,23 @@ export function useMonopolyRoom(roomId) {
   const pendingTokenRef = useRef(null) // optimistic token held until the server echoes it
   const everLoadedRef = useRef(false) // have we ever successfully loaded this room?
   const missesRef = useRef(0) // consecutive null fetches (transient vs real not-found)
+  const serverOffsetRef = useRef(0) // estimated (serverClock - clientClock) ms — clock-skew-safe deadlines
+  const offsetBasisRef = useRef(0) // updated_at (ms) the offset was computed from; only a NEWER commit re-estimates
+
+  // Anchor the turn timer to SERVER time, not the local wall clock. updated_at and
+  // phase_ends_at are written in the same server transaction, so estimating
+  // (serverClock - clientClock) from a freshly-received commit lets pumpIfDue fire on
+  // the real deadline even if the device clock is minutes off. Only re-estimate on a
+  // strictly newer commit, so the 4s poll re-delivering the same row can't re-pin a
+  // stale offset (which would freeze "server now" at the old commit time).
+  const noteServerClock = useCallback((updatedAt) => {
+    if (!updatedAt) return
+    const ts = Date.parse(updatedAt)
+    if (Number.isFinite(ts) && ts > offsetBasisRef.current) {
+      offsetBasisRef.current = ts
+      serverOffsetRef.current = ts - Date.now()
+    }
+  }, [])
 
   // Re-apply the optimistically-chosen token on top of any incoming player
   // snapshot (realtime echo, debounced refetch, or the 4s poll) so a write that
@@ -78,6 +95,7 @@ export function useMonopolyRoom(roomId) {
   // Monotonic merge: ignore stale rows (older seq) so we never roll back.
   const applyRoom = useCallback((row) => {
     if (!row) return
+    noteServerClock(row.updated_at)
     setRoom((prev) => {
       if (prev && typeof row.seq === 'number' && typeof prev.seq === 'number' && row.seq < prev.seq) {
         return prev
@@ -91,7 +109,7 @@ export function useMonopolyRoom(roomId) {
       roomRef.current = next
       return next
     })
-  }, [])
+  }, [noteServerClock])
 
   // Best-effort, purely-cosmetic broadcast on the SAME realtime channel (e.g. the
   // instant a player clicks Roll). Never mutates state; if it's missed the
@@ -167,11 +185,12 @@ export function useMonopolyRoom(roomId) {
       }
       everLoadedRef.current = true
       missesRef.current = 0
+      noteServerClock(data.updated_at)
       roomRef.current = data
       setRoom(data)
       setLoading(false)
     },
-    [roomId],
+    [roomId, noteServerClock],
   )
 
   const refetch = useCallback(async () => {
@@ -278,7 +297,7 @@ export function useMonopolyRoom(roomId) {
   const pumpIfDue = useCallback(() => {
     const r = roomRef.current
     if (!r || r.status !== 'playing' || !r.phase_ends_at) return
-    const overdue = Date.now() - new Date(r.phase_ends_at).getTime()
+    const overdue = (Date.now() + serverOffsetRef.current) - new Date(r.phase_ends_at).getTime()
     if (overdue < 0) return
     if (advancedForRef.current === r.phase_ends_at) return
     if (!isPumper()) {
@@ -305,6 +324,8 @@ export function useMonopolyRoom(roomId) {
     advancedForRef.current = null
     everLoadedRef.current = false
     missesRef.current = 0
+    serverOffsetRef.current = 0
+    offsetBasisRef.current = 0
     fetchRoom()
     fetchPlayers()
     fetchProperties()

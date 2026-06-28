@@ -44,7 +44,11 @@ export function canBuild(tileDef, prop, propByTile, ctx) {
 }
 
 export function canSell(tileDef, prop, propByTile, ctx) {
-  if (!ctx.isMyTurn || ctx.phase !== 'roll') return false
+  // Mirror the engine doSell: allowed on your turn in the 'roll' phase AND by the
+  // debtor during 'awaiting_debt' (so the Manage modal can raise cash by selling
+  // houses, instead of presenting a dead control surface at the moment of debt).
+  const allowed = ctx.isMyTurn && (ctx.phase === 'roll' || (ctx.phase === 'awaiting_debt' && ctx.debtorMe))
+  if (!allowed) return false
   if (tileDef.type !== 'property' || !prop || prop.owner !== ctx.id) return false
   if ((prop.houses || 0) <= 0) return false
   const maxH = Math.max(...groupTiles(tileDef.color).map((i) => propByTile[i]?.houses || 0))
