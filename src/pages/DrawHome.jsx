@@ -4,6 +4,7 @@ import { Palette, Plus, LogIn, Users, Clock, Hash } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
+import { friendlyRpcError } from '../lib/rpcErrors.js'
 import AppNav from '../components/AppNav.jsx'
 
 const ROUND_OPTS = [2, 3, 4]
@@ -28,7 +29,7 @@ export default function DrawHome() {
       p_round_seconds: seconds,
     })
     setBusy(false)
-    if (error) return toast(error.message || t('draw.err.create'), 'error')
+    if (error) return toast(friendlyRpcError(error, t), 'error')
     if (data?.id) navigate(`/draw/${data.id}`)
   }
 

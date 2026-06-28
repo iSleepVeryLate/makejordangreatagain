@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useHeartbeat } from './useHeartbeat.js'
 
 // Real-time sync for a Jordan Monopoly room. Mirrors useDrawRoom.js's transport
 // (row subscriptions + presence + a safety-net poll) for an N-player room, and
@@ -36,6 +37,10 @@ const BACKSTOP_STAGGER_MS = 600
 export function useMonopolyRoom(roomId) {
   const { profile } = useAuth()
   const myId = profile?.id
+
+  // Server presence heartbeat → reaps players who drop without calling
+  // monopoly_leave, keeping is_present (and the pumper election) honest.
+  useHeartbeat('monopoly', roomId, !!roomId && !!myId)
 
   const [room, setRoom] = useState(null)
   const [players, setPlayers] = useState([])

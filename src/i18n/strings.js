@@ -393,6 +393,12 @@ export const STRINGS = {
     ar: 'تعذّر الوصول إلى خادم اللعبة. حاول مجددًا.',
   },
 
+  // ===== chess board =====
+  'app.chess.moves': { en: 'Moves', ar: 'النقلات' },
+  'app.chess.mute': { en: 'Mute sounds', ar: 'كتم الأصوات' },
+  'app.chess.unmute': { en: 'Unmute sounds', ar: 'تشغيل الأصوات' },
+  'app.chess.material': { en: 'Captured pieces', ar: 'القطع المأسورة' },
+
   // ===== trivia board =====
   'app.trivia.finalScore': { en: 'Final score', ar: 'النتيجة النهائية' },
   'app.trivia.you': { en: 'You', ar: 'أنت' },
@@ -685,4 +691,49 @@ export const STRINGS = {
 
   // language toggle (label shows the language you switch TO)
   'lang.switch': { en: 'العربية', ar: 'English' },
+
+  // ===== Enterprise room lifecycle (creation caps, reconnect grace, ops) =====
+  // creation abuse — friendly messages for the cap:<n> / cooldown:<n> RPC codes
+  'app.err.roomCap': {
+    en: 'You already have {n} open rooms — finish or close one first.',
+    ar: 'لديك {n} غرف مفتوحة بالفعل — أنهِ أو أغلق واحدة أولاً.',
+  },
+  'app.err.cooldown': {
+    en: 'Slow down — try again in {n}s.',
+    ar: 'تمهّل — حاول مجددًا بعد {n} ثانية.',
+  },
+  // 1v1 reconnect grace + server-initiated close
+  'app.game.oppDisconnectedClaim': {
+    en: 'Opponent disconnected — claim win in {clock}',
+    ar: 'انقطع اتصال الخصم — طالِب بالفوز خلال {clock}',
+  },
+  'app.game.closedInactive': { en: 'Closed for inactivity', ar: 'أُغلقت لعدم النشاط' },
+  'app.game.closedAdmin': { en: 'Closed by an admin', ar: 'أُغلقت من قبل مشرف' },
+  // Draw & Guess / Monopoly server-initiated close (toast)
+  'draw.closedInactive': { en: 'This room was closed for inactivity.', ar: 'تم إغلاق هذه الغرفة لعدم النشاط.' },
+  'draw.closedAdmin': { en: 'This room was closed by an admin.', ar: 'تم إغلاق هذه الغرفة من قبل مشرف.' },
+  'mono.closedInactive': { en: 'This game was closed for inactivity.', ar: 'تم إغلاق هذه اللعبة لعدم النشاط.' },
+  'mono.closedAdmin': { en: 'This game was closed by an admin.', ar: 'تم إغلاق هذه اللعبة من قبل مشرف.' },
+
+  // ===== Admin / ops room dashboard =====
+  'app.nav.ops': { en: 'Ops', ar: 'الإدارة' },
+  'admin.title': { en: 'Room operations', ar: 'إدارة الغرف' },
+  'admin.subtitle': {
+    en: 'Live and stale rooms across every game, with recent lifecycle events.',
+    ar: 'الغرف النشطة والخاملة في كل الألعاب، مع أحدث أحداث دورة الحياة.',
+  },
+  'admin.refresh': { en: 'Refresh', ar: 'تحديث' },
+  'admin.waiting': { en: 'Waiting', ar: 'بانتظار' },
+  'admin.active': { en: 'Active', ar: 'نشطة' },
+  'admin.lobby': { en: 'Lobby', ar: 'الردهة' },
+  'admin.playing': { en: 'Playing', ar: 'قيد اللعب' },
+  'admin.stale': { en: 'Stale', ar: 'خاملة' },
+  'admin.events': { en: 'Recent events', ar: 'أحدث الأحداث' },
+  'admin.empty': { en: 'No recent events.', ar: 'لا توجد أحداث حديثة.' },
+  'admin.forceClose': { en: 'Force close', ar: 'إغلاق إجباري' },
+  'admin.forceCloseConfirm': { en: 'Force-close this room?', ar: 'إغلاق هذه الغرفة إجباريًا؟' },
+  'admin.closed': { en: 'Room closed.', ar: 'تم إغلاق الغرفة.' },
+  'admin.system.match': { en: '1v1 matches', ar: 'مباريات فردية' },
+  'admin.system.draw': { en: 'Draw & Guess', ar: 'ارسم وخمّن' },
+  'admin.system.monopoly': { en: 'Monopoly', ar: 'مونوبولي' },
 }

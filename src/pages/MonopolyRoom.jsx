@@ -24,6 +24,16 @@ export default function MonopolyRoom() {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const joinedRef = useRef(false)
+  const closedToastRef = useRef(false)
+
+  // Surface a server-initiated close (idle sweep / admin) so a swept player isn't
+  // stranded wondering why the game ended. The finished/winner screen still shows.
+  useEffect(() => {
+    if (room?.status === 'finished' && room?.closed_reason && !closedToastRef.current) {
+      closedToastRef.current = true
+      toast(t(room.closed_reason === 'admin' ? 'mono.closedAdmin' : 'mono.closedInactive'), 'info')
+    }
+  }, [room?.status, room?.closed_reason, toast, t])
 
   // Auto-join from a shared link while the room is still an open lobby. Depends
   // on primitives (not the per-render `hook` object) so it doesn't re-run every

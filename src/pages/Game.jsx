@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { useMatch } from '../hooks/useMatch.js'
+import { friendlyRpcError } from '../lib/rpcErrors.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import AppNav from '../components/AppNav.jsx'
@@ -56,6 +57,8 @@ export default function Game() {
   const [busy, setBusy] = useState(false)
   const [ratings, setRatings] = useState({})
   const [copied, setCopied] = useState(false)
+  // Server-derived reconnect-grace window for the claim-timeout button.
+  const [grace, setGrace] = useState(null)
   // 1s heartbeat so the timeout countdown ticks down live.
   const [nowTs, setNowTs] = useState(() => Date.now())
   // Remember the previous status so we can announce a waiting -> active flip.
@@ -89,6 +92,38 @@ export default function Game() {
         if (data) setRatings(Object.fromEntries(data.map((r) => [r.profile_id, r.rating])))
       })
   }, [match?.game_type, match?.player1, match?.player2, match?.status])
+
+  // Server-authoritative reconnect-grace for the claim-timeout button. Polled so
+  // the countdown is anchored to SERVER time (never the local clock) and is honest
+  // about whether the opponent is actually disconnected vs just slow. Degrades to
+  // the local last_move_at estimate if match_grace_status isn't deployed yet.
+  useEffect(() => {
+    if (!matchId || match?.status !== 'active') {
+      setGrace(null)
+      return undefined
+    }
+    let active = true
+    const fetchGrace = () => {
+      supabase.rpc('match_grace_status', { p_match: matchId }).then(
+        ({ data, error }) => {
+          if (!active || error || !data) return
+          const serverNow = data.server_now ? new Date(data.server_now).getTime() : Date.now()
+          setGrace({
+            claimAt: data.claim_at ? new Date(data.claim_at).getTime() : null,
+            offset: serverNow - Date.now(),
+            oppPresent: !!data.opp_present,
+          })
+        },
+        () => {},
+      )
+    }
+    fetchGrace()
+    const iv = setInterval(fetchGrace, 8000)
+    return () => {
+      active = false
+      clearInterval(iv)
+    }
+  }, [matchId, match?.status, match?.last_move_at, match?.current_turn])
 
   const rpc = useCallback(
     async (name, params) => {
@@ -231,7 +266,7 @@ export default function Game() {
     })
     setBusy(false)
     if (error) {
-      toast(error.message || t('app.game.couldntStart'), 'error')
+      toast(friendlyRpcError(error, t), 'error')
       return
     }
     if (data?.id) navigate(`/play/${data.id}`)
@@ -304,7 +339,13 @@ export default function Game() {
   let banner = null
   if (finished) {
     if (match.status === 'abandoned') {
-      banner = <div className="status-banner draw">{t('app.game.cancelled')}</div>
+      const closedMsg =
+        match.closed_reason === 'inactive'
+          ? t('app.game.closedInactive')
+          : match.closed_reason === 'admin'
+            ? t('app.game.closedAdmin')
+            : t('app.game.cancelled')
+      banner = <div className="status-banner draw">{closedMsg}</div>
     } else if (match.result === 'draw') {
       banner = <div className="status-banner draw">{t('app.game.draw')}</div>
     } else if (match.winner === myId) {
@@ -323,14 +364,23 @@ export default function Game() {
   const boardDisabled = finished || (isTurnGame && !isMyTurn)
 
   // Live timeout eligibility. You can't claim on your own move; otherwise the
-  // opponent must be idle past the server threshold (chess 180s / else 60s).
+  // opponent must be idle past the window. Prefer the SERVER-derived grace window
+  // (honest about whether the opponent actually disconnected — a disconnected
+  // opponent shortens the wait); fall back to the local last_move_at clock (chess
+  // 180s / checkers 120s / else 60s) when match_grace_status isn't available.
   const lastMoveMs = match.last_move_at ? new Date(match.last_move_at).getTime() : nowTs
-  const claimRemainMs = Math.max(0, lastMoveMs + TIMEOUT_MS(match.game_type) - nowTs)
+  const serverNowTs = nowTs + (grace?.offset || 0)
+  const claimAtMs = grace?.claimAt ?? lastMoveMs + TIMEOUT_MS(match.game_type)
+  const claimRemainMs = Math.max(0, claimAtMs - serverNowTs)
   const claimEligible = !(isTurnGame && isMyTurn)
   const canClaim = claimEligible && claimRemainMs <= 0
+  // Server presence wins when we have it; else fall back to the realtime channel.
+  const oppDisconnected = grace ? !grace.oppPresent : !!(oppId && !online.includes(oppId))
   const claimLabel =
     claimEligible && claimRemainMs > 0
-      ? t('app.game.claimIn', { clock: fmtClock(claimRemainMs) })
+      ? oppDisconnected
+        ? t('app.game.oppDisconnectedClaim', { clock: fmtClock(claimRemainMs) })
+        : t('app.game.claimIn', { clock: fmtClock(claimRemainMs) })
       : t('app.game.claimNow')
 
   return (
@@ -364,10 +414,12 @@ export default function Game() {
                 {match.game_type === 'chess' && (
                   <ChessGame
                     fen={match.board_state?.fen}
+                    pgn={match.board_state?.pgn}
                     orientation={isP1 ? 'white' : 'black'}
                     myColor={isP1 ? 'w' : 'b'}
                     makeMove={makeChessMove}
                     disabled={boardDisabled}
+                    finished={finished}
                   />
                 )}
                 {match.game_type === 'trivia' && (
@@ -415,7 +467,7 @@ export default function Game() {
               {!finished && (
                 <div className="panel">
                   <h4>{t('app.game.actions')}</h4>
-                  {oppId && !online.includes(oppId) && (
+                  {oppDisconnected && (
                     <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
                       {t('app.game.oppOffline')}
                     </p>

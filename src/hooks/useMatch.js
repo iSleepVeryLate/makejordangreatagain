@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useHeartbeat } from './useHeartbeat.js'
 
 const SEL =
   '*, ' +
@@ -37,6 +38,10 @@ function rowChanged(prev, next) {
 export function useMatch(matchId) {
   const { profile } = useAuth()
   const myId = profile?.id
+
+  // Tell the server we're here, so it can reap a ghost opponent and size the 1v1
+  // reconnect-grace window. Runs beside Supabase Presence below.
+  useHeartbeat('match', matchId, !!matchId && !!myId)
 
   const [match, setMatch] = useState(null)
   const [players, setPlayers] = useState({})

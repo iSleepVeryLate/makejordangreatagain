@@ -34,11 +34,21 @@ export default function DrawRoom() {
   const [copied, setCopied] = useState(false)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const joinedRef = useRef(false)
+  const closedToastRef = useRef(false)
 
   useEffect(() => {
     const i = setInterval(() => setNowTs(Date.now()), 1000)
     return () => clearInterval(i)
   }, [])
+
+  // Surface a server-initiated close (idle sweep / admin) so a swept player isn't
+  // left wondering why the game suddenly ended. The finished podium still renders.
+  useEffect(() => {
+    if (room?.status === 'finished' && room?.closed_reason && !closedToastRef.current) {
+      closedToastRef.current = true
+      toast(t(room.closed_reason === 'admin' ? 'draw.closedAdmin' : 'draw.closedInactive'), 'info')
+    }
+  }, [room?.status, room?.closed_reason, toast, t])
 
   // Auto-join from a shared link while the room is still an open lobby.
   useEffect(() => {

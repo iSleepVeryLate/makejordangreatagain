@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { GAMES, GAME_BY_KEY } from '../games/config.js'
 import { timeAgo } from '../lib/format.js'
+import { friendlyRpcError } from '../lib/rpcErrors.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
 import GameIcon from '../components/GameIcon.jsx'
@@ -160,7 +161,7 @@ export default function Lobby() {
       if (error) throw error
       go(data)
     } catch (e) {
-      const msg = e.message || t('app.common.somethingWrong')
+      const msg = friendlyRpcError(e, t)
       setError(msg)
       toast(msg, 'error')
     } finally {

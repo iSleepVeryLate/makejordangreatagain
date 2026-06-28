@@ -194,6 +194,9 @@ export function AuthProvider({ children }) {
       session,
       user: session?.user ?? null,
       profile,
+      // UI-only flag (the /admin route + nav link). Every admin RPC re-checks
+      // is_admin server-side, so this never grants real privilege on its own.
+      isAdmin: !!profile?.is_admin,
       loading,
       signInWithDiscord,
       signOut,
@@ -224,6 +227,28 @@ export function RequireAuth({ children }) {
   }
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />
+  }
+  return children
+}
+
+// Gate for the ops/admin surface. Requires a session AND profile.is_admin; a
+// non-admin is bounced to the game hub. (Server-side RPCs enforce admin too.)
+export function RequireAdmin({ children }) {
+  const { session, profile, loading } = useAuth()
+  const location = useLocation()
+
+  if (loading) {
+    return (
+      <div className="page-loader">
+        <div className="spinner" />
+      </div>
+    )
+  }
+  if (!session) {
+    return <Navigate to="/login" replace state={{ from: location }} />
+  }
+  if (!profile?.is_admin) {
+    return <Navigate to="/play" replace />
   }
   return children
 }

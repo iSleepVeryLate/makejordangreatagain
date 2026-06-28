@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { RequireAuth, useAuth } from './context/AuthContext.jsx'
+import { RequireAuth, RequireAdmin, useAuth } from './context/AuthContext.jsx'
 import { MOCK_AUTH_ENABLED } from './lib/devAuth.js'
 import OfflineBanner from './components/OfflineBanner.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
@@ -30,6 +30,9 @@ const Emergency = lazy(() => import('./pages/Emergency.jsx'))
 
 // MJGA merch shop — public, no auth required.
 const Products = lazy(() => import('./pages/Products.jsx'))
+
+// Admin/ops room dashboard — admin-gated (RequireAdmin + server-side checks).
+const AdminRooms = lazy(() => import('./pages/AdminRooms.jsx'))
 
 function MeRedirect() {
   const { profile, loading } = useAuth()
@@ -119,6 +122,14 @@ export default function App() {
           <RequireAuth>
             <Leaderboard />
           </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/rooms"
+        element={
+          <RequireAdmin>
+            <AdminRooms />
+          </RequireAdmin>
         }
       />
       <Route path="/me" element={<MeRedirect />} />

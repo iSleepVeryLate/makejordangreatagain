@@ -34,23 +34,39 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const t0 = Date.now()
   try {
-    const authHeader = req.headers.get('Authorization') || ''
-    const jwt = authHeader.replace('Bearer ', '').trim()
-    if (!jwt) return json({ error: 'Not authenticated' }, 401)
-
     const url = Deno.env.get('SUPABASE_URL')!
     const anon = Deno.env.get('SUPABASE_ANON_KEY')!
     const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-    const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } })
-    const { data: { user }, error: userErr } = await userClient.auth.getUser(jwt)
-    if (userErr || !user) return json({ error: 'Not authenticated' }, 401)
-    const uid = user.id
 
     const body = await req.json().catch(() => null)
     const roomId = body?.room_id
     const action = body?.action
     if (!roomId || !action) return json({ error: 'Missing room_id or action' }, 400)
+
+    // Server-driven deadline pump (pump_monopoly_deadlines, migration 0017): a cron
+    // session has no JWT, so it authenticates with a shared secret instead. This path
+    // may ONLY drive 'tick' — the engine's tick is membership-exempt (monopolyEngine
+    // reduce: `!w.player(id) && a !== 'tick'`) and ignores uid (doTick uses the
+    // current seat), so a sentinel uid is safe. Any other action still needs a real JWT.
+    const tickSecret = req.headers.get('x-tick-secret')
+    const isServerTick =
+      body?.server_tick === true &&
+      action === 'tick' &&
+      !!tickSecret &&
+      tickSecret === Deno.env.get('TICK_SECRET')
+
+    let uid: string
+    if (isServerTick) {
+      uid = '00000000-0000-0000-0000-000000000000'
+    } else {
+      const authHeader = req.headers.get('Authorization') || ''
+      const jwt = authHeader.replace('Bearer ', '').trim()
+      if (!jwt) return json({ error: 'Not authenticated' }, 401)
+      const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } })
+      const { data: { user }, error: userErr } = await userClient.auth.getUser(jwt)
+      if (userErr || !user) return json({ error: 'Not authenticated' }, 401)
+      uid = user.id
+    }
 
     const admin = createClient(url, service)
 

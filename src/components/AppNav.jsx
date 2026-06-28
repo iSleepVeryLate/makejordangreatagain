@@ -7,7 +7,7 @@ import LangToggle from './LangToggle.jsx'
 import NotificationBell from './NotificationBell.jsx'
 
 export default function AppNav() {
-  const { profile, signOut } = useAuth()
+  const { profile, isAdmin, signOut } = useAuth()
   const { t } = useLang()
   return (
     <nav className="appnav">
@@ -19,6 +19,7 @@ export default function AppNav() {
             <NavLink to="/leaderboard">{t('app.nav.leaderboard')}</NavLink>
             <NavLink to="/explore">{t('app.nav.explore')}</NavLink>
             <NavLink to="/products">{t('app.nav.shop')}</NavLink>
+            {isAdmin && <NavLink to="/admin/rooms">{t('app.nav.ops')}</NavLink>}
           </div>
           <LangToggle />
           {profile && <NotificationBell />}

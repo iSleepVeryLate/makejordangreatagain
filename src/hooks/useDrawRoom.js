@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useHeartbeat } from './useHeartbeat.js'
 
 // Real-time sync for a Draw & Guess room. Mirrors useMatch.js's transport (row
 // subscription + a safety-net poll + presence) but for an N-player room, and adds
@@ -24,6 +25,10 @@ const HEARTBEAT = 3 // when 'live', only reconcile every 3rd tick (~12s)
 export function useDrawRoom(roomId) {
   const { profile } = useAuth()
   const myId = profile?.id
+
+  // Server presence heartbeat → lets the sweep reap players who vanish without
+  // calling draw_leave (so host-migration + "all present guessed" stay honest).
+  useHeartbeat('draw', roomId, !!roomId && !!myId)
 
   const [room, setRoom] = useState(null)
   const [players, setPlayers] = useState([])

@@ -82,6 +82,11 @@
 /* numeric leaderboard columns stay left-to-right and right-aligned */
 [dir="rtl"] .lb-table td.num-cell { direction: ltr; }
 
+/* the chess board, its coordinate labels, captured strips and algebraic move list
+   are inherently left-to-right — never mirror them. Board orientation is driven by
+   boardOrientation, not CSS direction, so this only fixes the surrounding layout. */
+[dir="rtl"] .chess-wrap { direction: ltr; }
+
 /* toasts slide in from the reading edge (left in RTL) */
 [dir="rtl"] .toaster { right: auto; left: 20px; }
 @media (max-width: 480px) {

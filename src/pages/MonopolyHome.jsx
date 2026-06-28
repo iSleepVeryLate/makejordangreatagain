@@ -4,6 +4,7 @@ import { Landmark, Plus, LogIn, Clock, Coins, Users } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
+import { friendlyRpcError } from '../lib/rpcErrors.js'
 import AppNav from '../components/AppNav.jsx'
 
 const TIME_OPTS = [45, 60, 90]
@@ -29,7 +30,7 @@ export default function MonopolyHome() {
       p_max_players: maxPlayers,
     })
     setBusy(false)
-    if (error) return toast(error.message || t('mono.err.create'), 'error')
+    if (error) return toast(friendlyRpcError(error, t), 'error')
     if (data?.id) navigate(`/monopoly/${data.id}`)
   }
 
