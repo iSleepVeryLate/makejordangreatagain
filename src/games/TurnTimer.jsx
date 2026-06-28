@@ -4,15 +4,19 @@ import { useEffect, useState, memo } from 'react'
 // so the rest of MonopolyGame (the 40-tile board, log, player cards) doesn't
 // re-render twice a second just to nudge a width %. A coarse 250ms interval is
 // plenty smooth for the bar and the whole-second readout.
-function TurnTimer({ phaseEndsAt, turnSeconds }) {
-  const [now, setNow] = useState(() => Date.now())
+function TurnTimer({ phaseEndsAt, turnSeconds, serverNow }) {
+  // Use the server-skew-corrected clock (the same offset pumpIfDue fires on) so the
+  // displayed countdown matches the real deadline even if the device clock is off.
+  const clock = () => (serverNow ? serverNow() : Date.now())
+  const [now, setNow] = useState(clock)
 
   useEffect(() => {
     if (!phaseEndsAt) return undefined
-    setNow(Date.now())
-    const i = setInterval(() => setNow(Date.now()), 250)
+    setNow(clock())
+    const i = setInterval(() => setNow(clock()), 250)
     return () => clearInterval(i)
-  }, [phaseEndsAt])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phaseEndsAt, serverNow])
 
   if (!phaseEndsAt) return null
   const remaining = Math.max(0, (new Date(phaseEndsAt).getTime() - now) / 1000)

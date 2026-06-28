@@ -344,6 +344,31 @@ Deno.test('move_to_nearest (utility) rolls ONCE — deterministic rent', () => {
   assertEquals(g.P(owner).cash, 1500 + 110)
 })
 
+Deno.test('resign: current player concedes — estate to bank, bankrupt, turn advances', () => {
+  const g = new Game(3); g.start()
+  const me = g.cur()
+  g.setOwner(1, me) // owns a tile
+  assert('patch' in g.act(me, { action: 'resign' }))
+  assertEquals(g.P(me).bankrupt, true)
+  assertEquals(g.prop(1).owner, null) // estate returned to the bank
+  assertEquals(g.state.room.status, 'playing') // two others remain
+  assert(g.cur() !== me) // turn advanced past the resigner
+})
+
+Deno.test('resign: in a heads-up the other player wins', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur(); const other = g.other()
+  g.act(me, { action: 'resign' })
+  assertEquals(g.P(me).bankrupt, true)
+  assertEquals(g.state.room.status, 'finished')
+  assertEquals(g.state.room.winner, other)
+})
+
+Deno.test('resign: cannot resign on another player\'s turn', () => {
+  const g = new Game(3); g.start()
+  assert('error' in g.act(g.other(), { action: 'resign' }))
+})
+
 Deno.test('no action ever leaves a player with negative cash', () => {
   const g = new Game(2); g.start()
   const me = g.cur()
