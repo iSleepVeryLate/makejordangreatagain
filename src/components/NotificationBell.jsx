@@ -5,6 +5,7 @@ import { useNotifications } from '../context/NotificationsContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { timeAgo } from '../lib/format.js'
 import Avatar from './Avatar.jsx'
+import PushToggle from './PushToggle.jsx'
 
 // Navbar bell: unread badge + a dropdown inbox. Challenge pings get inline
 // Accept/Decline while they're still pending; turn/accepted pings deep-link
@@ -142,6 +143,7 @@ export default function NotificationBell() {
           <div className="notif-head">
             <span className="notif-h-title">{t('notif.title')}</span>
           </div>
+          <PushToggle />
           {notifications.length === 0 ? (
             <div className="notif-empty">
               <Swords size={22} />

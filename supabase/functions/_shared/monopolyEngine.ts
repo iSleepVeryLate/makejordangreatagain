@@ -12,8 +12,11 @@
 //            unit-testable (no Math.random / Date.now inside).
 //
 // The engine NEVER mutates `state`; it works on a deep copy and returns a `patch`
-// the DB commit applies atomically. Money is always conserved (a debit to a
-// player is a credit to a player or the bank) — assertMoney() guards this.
+// the DB commit applies atomically. Every debit to a player is a credit to a
+// player or the bank; the bank also creates money (GO salary, card collects) and
+// destroys it (taxes, fines), so the player-cash total is NOT fixed. assertMoney()
+// (run on every patch) instead guards the hard invariants: no negative player
+// balance (shortfalls route through awaiting_debt) and a non-negative bank supply.
 
 import * as B from './monopolyBoard.ts'
 
@@ -24,7 +27,7 @@ interface PlayerRow {
 }
 interface PropRow { tile_index: number; owner: string | null; houses: number; mortgaged: boolean }
 interface RoomRow {
-  id: string; status: string; phase: string; current_seat: number; turn_order: string[]
+  id: string; host: string; status: string; phase: string; current_seat: number; turn_order: string[]
   dice: number[] | null; doubles_count: number; last_card: Json | null; phase_ends_at: string | null
   turn_seconds: number; start_cash: number; max_players: number; bank_houses: number; bank_hotels: number
   seq: number; pending_purchase: Json | null; pending_auction: Json | null; pending_trade: Json | null
@@ -84,6 +87,7 @@ class W {
     this.room.log = [...(this.room.log || []), { ts: this.now, ...entry }].slice(-40)
   }
   patch(): Json {
+    assertMoney(this)
     const out: Json = {
       room: this.room,
       players: this.players,
@@ -91,6 +95,24 @@ class W {
     }
     if (this.secretsDirty) out.secrets = this.secrets
     return out
+  }
+}
+
+// Defensive invariant check on every committed patch. We can't assert a fixed
+// money total (the bank legitimately creates money via GO/cards and destroys it
+// via taxes/fines), so we assert the invariants the engine must always uphold:
+// no player below zero cash (shortfalls route through awaiting_debt, never a
+// negative balance) and a non-negative bank building supply. We LOG rather than
+// throw, so a single bad edge surfaces in the function logs without bricking a
+// live game.
+function assertMoney(w: W) {
+  for (const p of w.players) {
+    if (p.cash < 0) {
+      console.log(JSON.stringify({ fn: 'monopolyEngine', warn: 'negative_cash', player: p.profile_id, cash: p.cash }))
+    }
+  }
+  if (w.room.bank_houses < 0 || w.room.bank_hotels < 0) {
+    console.log(JSON.stringify({ fn: 'monopolyEngine', warn: 'bank_supply_negative', houses: w.room.bank_houses, hotels: w.room.bank_hotels }))
   }
 }
 
@@ -398,9 +420,12 @@ function doRoll(w: W, id: string) {
   if (!cur || cur.profile_id !== id) return err('Not your turn')
   if (w.room.phase !== 'roll') return err('Cannot roll right now')
   if (cur.in_jail) return err('You are in jail')
-  // must end turn if previous roll was a non-double
-  const prev = w.room.dice
-  if (Array.isArray(prev) && prev[0] !== prev[1]) return err('You must end your turn')
+  // You may only roll again if you have an OUTSTANDING doubles roll. We track that
+  // via doubles_count (incremented only on a genuine roll-phase double, reset on a
+  // non-double) rather than raw dice equality — so a jail-exit roll that happens
+  // to come up doubles never grants a bonus roll. Once you've rolled and owe no
+  // bonus roll, you must end the turn.
+  if (w.room.dice !== null && w.room.doubles_count === 0) return err('You must end your turn')
 
   const [d1, d2] = w.roll()
   w.room.dice = [d1, d2]
@@ -412,6 +437,8 @@ function doRoll(w: W, id: string) {
       endTurn(w)
       return ok(w.patch())
     }
+  } else {
+    w.room.doubles_count = 0 // chain ends — you must end your turn after this
   }
   const total = d1 + d2
   const before = cur.position
@@ -555,10 +582,18 @@ function doRollForJail(w: W, id: string) {
   }
   cur.jail_turns += 1
   if (cur.jail_turns >= 3) {
-    // forced to pay the fine (or liquidate) then move
+    // Third failed attempt: pay the fine (liquidating if needed), then move by the
+    // dice we JUST rolled — NOT a fresh roll (which would double-log and re-randomize
+    // the move). doubles_count stays 0, so this never grants a bonus roll.
     if (!chargeOrDebt(w, id, B.JAIL_FINE, null, 'jail')) return ok(w.patch())
+    cur.in_jail = false; cur.jail_turns = 0
     w.log({ k: 'jail_out', by: id, how: 'forced' })
-    leaveJailAndRoll(w, id)
+    const total = d1 + d2
+    const before = cur.position
+    cur.position = (before + total) % 40
+    if (cur.position < before) { cur.cash += B.GO_SALARY; w.log({ k: 'pass_go', by: id }) }
+    const paused = applyLanding(w, id, total)
+    if (!paused) { w.room.phase = 'roll'; w.deadline() }
     return ok(w.patch())
   }
   endTurn(w)
@@ -756,7 +791,9 @@ function doEndTurn(w: W, id: string) {
   if (w.room.phase !== 'roll') return err('Resolve the current step first')
   const d = w.room.dice
   if (d === null) return err('Roll first')
-  if (Array.isArray(d) && d[0] === d[1] && !cur.in_jail) return err('You rolled doubles — roll again')
+  // An outstanding doubles roll (count > 0) means you owe another roll — but a
+  // jail-exit roll leaves count at 0, so it never traps you into a bonus roll.
+  if (w.room.doubles_count > 0 && !cur.in_jail) return err('You rolled doubles — roll again')
   endTurn(w)
   return ok(w.patch())
 }

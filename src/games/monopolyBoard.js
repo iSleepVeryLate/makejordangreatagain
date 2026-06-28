@@ -153,6 +153,14 @@ export const tileAt = (i) => BOARD[((i % 40) + 40) % 40]
 export const isOwnable = (i) => OWNABLE.includes(i)
 export const tileName = (t, lang = 'en') => (t && t.name ? t.name[lang] || t.name.en : '')
 
+// Hard-safe tile lookup for render paths that read tile fields directly
+// (.color / .rent / .price / .house). A transient/stale snapshot can briefly
+// carry an out-of-range or missing index (e.g. a new phase arrives a beat
+// before its pending_* object); returning a blank placeholder instead of
+// `undefined` keeps a render from throwing and tripping the error boundary.
+export const EMPTY_TILE = { i: -1, type: 'blank', name: { en: '', ar: '' } }
+export const safeTile = (i) => (Number.isInteger(i) && BOARD[i]) || EMPTY_TILE
+
 // Tile indices belonging to a color group (for monopoly + even-build checks).
 export const groupTiles = (color) => BOARD.filter((t) => t.color === color).map((t) => t.i)
 export const railroadTiles = () => BOARD.filter((t) => t.group === 'railroad').map((t) => t.i)

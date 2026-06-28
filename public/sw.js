@@ -11,7 +11,7 @@
  * Safe by design: online users always get fresh HTML, and any unhandled or
  * failed request falls through to the network/normal browser behaviour.
  */
-const VERSION = 'v2'
+const VERSION = 'v3'
 const SHELL_CACHE = `jst-shell-${VERSION}`
 const ASSET_CACHE = `jst-assets-${VERSION}`
 const DATA_CACHE = `jst-data-${VERSION}`
@@ -121,5 +121,55 @@ self.addEventListener('fetch', (event) => {
           }),
       )
       .catch(() => offlineResponse()),
+  )
+})
+
+// ---------------------------------------------------------------------------
+// Web Push — "your turn" / challenge pings, delivered even when the tab is shut.
+// The send-push Edge Function posts a JSON payload {title, body, url, tag}.
+// ---------------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = {}
+  }
+  const title = data.title || 'Jordan Stand Tall'
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    // Same tag collapses repeated pings for one match into a single bubble.
+    tag: data.tag || 'mjg',
+    renotify: true,
+    data: { url: data.url || '/play' },
+  }
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+// Tapping the notification focuses an open tab (and navigates it to the match)
+// or opens a new one. Deep-links like /play/:matchId go straight to the game.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || '/play'
+  const full = new URL(target, self.location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (all) => {
+      for (const client of all) {
+        if ('focus' in client) {
+          await client.focus()
+          if ('navigate' in client && client.url !== full) {
+            try {
+              await client.navigate(full)
+            } catch {
+              /* cross-origin or detached — ignore */
+            }
+          }
+          return
+        }
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(full)
+    }),
   )
 })

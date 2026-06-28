@@ -6,7 +6,7 @@
 //
 // All take `propByTile` (an object keyed by tile_index) and a small `ctx`:
 //   { id, phase, isMyTurn, cash, room, debtorMe }
-import { BOARD, COLOR_GROUPS, groupTiles, railroadTiles, utilityTiles, MORTGAGE_INTEREST } from './monopolyBoard.js'
+import { COLOR_GROUPS, groupTiles, railroadTiles, utilityTiles, MORTGAGE_INTEREST, safeTile } from './monopolyBoard.js'
 
 export const ownsFullSet = (propByTile, color, id) =>
   !!color && groupTiles(color).every((i) => propByTile[i]?.owner === id)
@@ -88,7 +88,7 @@ export function netWorth(player, propByTile) {
   for (const key in propByTile) {
     const p = propByTile[key]
     if (!p || p.owner !== player.profile_id) continue
-    const t = BOARD[p.tile_index]
+    const t = safeTile(p.tile_index)
     const price = t.price || 0
     n += p.mortgaged ? Math.floor(price / 2) : price
     if (p.houses > 0 && t.house) n += p.houses * Math.floor(t.house / 2)

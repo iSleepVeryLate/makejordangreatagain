@@ -87,6 +87,20 @@ const SFX = {
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, t0: i * 0.13, type: 'triangle', dur: 0.32, gain: 0.17 })) },
   turn: () => { tone({ freq: 784, type: 'sine', dur: 0.12, gain: 0.14 }); tone({ freq: 1047, t0: 0.1, type: 'sine', dur: 0.18, gain: 0.14 }) },
   ui: () => tone({ freq: 560, type: 'sine', dur: 0.05, gain: 0.07 }),
+
+  // ---- chess: dry, wooden, chess.com-flavoured. Own + opponent moves play these. ----
+  // soft wood "tock" — a quiet thud under a short low click
+  chessMove: () => { noise({ dur: 0.045, gain: 0.16, type: 'lowpass', freq: 520 }); tone({ freq: 180, type: 'sine', dur: 0.05, gain: 0.06 }) },
+  // harder/lower than a move: a punchier knock with a downward body
+  chessCapture: () => { noise({ dur: 0.06, gain: 0.26, type: 'bandpass', freq: 380, q: 1.2 }); tone({ freq: 150, glideTo: 90, type: 'triangle', dur: 0.09, gain: 0.12 }) },
+  // two quick tocks ~80ms apart (rook + king settling)
+  chessCastle: () => { noise({ dur: 0.045, gain: 0.16, type: 'lowpass', freq: 520 }); noise({ t0: 0.085, dur: 0.045, gain: 0.16, type: 'lowpass', freq: 520 }); tone({ freq: 180, type: 'sine', dur: 0.05, gain: 0.05 }) },
+  // alerting two-note rise
+  chessCheck: () => { tone({ freq: 660, type: 'triangle', dur: 0.1, gain: 0.12 }); tone({ freq: 990, t0: 0.09, type: 'triangle', dur: 0.13, gain: 0.12 }) },
+  // bright ascending sparkle
+  chessPromote: () => { [784, 1047, 1319].forEach((f, i) => tone({ freq: f, t0: i * 0.07, type: 'triangle', dur: 0.12, gain: 0.1 })) },
+  // short resolved cadence (neutral — the result banner says who won)
+  chessGameOver: () => { [523, 659, 784].forEach((f, i) => tone({ freq: f, t0: i * 0.12, type: 'triangle', dur: 0.26, gain: 0.15 })) },
 }
 
 function play(name) {

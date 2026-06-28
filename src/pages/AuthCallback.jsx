@@ -11,7 +11,15 @@ export default function AuthCallback() {
 
   useEffect(() => {
     if (loading) return
-    navigate(session ? '/play' : '/login', { replace: true })
+    if (!session) { navigate('/login', { replace: true }); return }
+    // Restore the page the user was headed to before sign-in (stashed by
+    // signInWithDiscord), falling back to the games hub.
+    let to = '/play'
+    try {
+      const stored = sessionStorage.getItem('mjg:returnTo')
+      if (stored) { to = stored; sessionStorage.removeItem('mjg:returnTo') }
+    } catch { /* ignore */ }
+    navigate(to, { replace: true })
   }, [loading, session, navigate])
 
   return (

@@ -468,6 +468,8 @@ export const STRINGS = {
   'mono.notFound': { en: "This game isn't available.", ar: 'هذه اللعبة غير متاحة.' },
   'mono.backHome': { en: 'Back to Monopoly', ar: 'العودة إلى مونوبولي' },
   'mono.reconnecting': { en: 'Reconnecting…', ar: 'إعادة الاتصال…' },
+  'mono.hiccup': { en: 'The board hit a snag — recovering your game…', ar: 'حدث خلل في اللوحة — جارٍ استعادة لعبتك…' },
+  'mono.retry': { en: 'Reload board', ar: 'إعادة تحميل اللوحة' },
 
   'mono.cash': { en: 'Cash', ar: 'النقد' },
   'mono.netWorth': { en: 'Net worth', ar: 'صافي الثروة' },
@@ -581,6 +583,20 @@ export const STRINGS = {
   'notif.err.invalid_target': { en: "You can't challenge that player.", ar: 'لا يمكنك تحدّي هذا اللاعب.' },
   'notif.err.challenge_closed': { en: 'This challenge is no longer open.', ar: 'هذا التحدي لم يعد متاحًا.' },
   'notif.err.challenge_expired': { en: 'This challenge has expired.', ar: 'انتهت صلاحية هذا التحدي.' },
+
+  // web push (per-device "your turn" / challenge alerts)
+  'push.prompt': { en: 'Get notified when it’s your move', ar: 'نبّهني عندما يحين دوري' },
+  'push.enable': { en: 'Enable', ar: 'تفعيل' },
+  'push.on': { en: 'Alerts on for this device', ar: 'التنبيهات مُفعّلة على هذا الجهاز' },
+  'push.turnOff': { en: 'Turn off', ar: 'إيقاف' },
+  'push.enabled': { en: 'Notifications enabled on this device', ar: 'تم تفعيل الإشعارات على هذا الجهاز' },
+  'push.disabled': { en: 'Notifications turned off', ar: 'تم إيقاف الإشعارات' },
+  'push.denied': { en: 'Permission was denied', ar: 'تم رفض الإذن' },
+  'push.error': { en: 'Could not enable notifications', ar: 'تعذّر تفعيل الإشعارات' },
+  'push.blockedHint': {
+    en: 'Notifications are blocked. Enable them in your browser’s site settings.',
+    ar: 'الإشعارات محظورة. فعّلها من إعدادات الموقع في متصفحك.',
+  },
 
   // ===== MJGA shop / products =====
   // nav entries (one per navbar variant: resource layout, app nav, landing)

@@ -314,3 +314,58 @@ Deno.test('manual decline_buy still opens an auction (vs a timeout)', () => {
   assertEquals(g.state.room.phase, 'auction')
   assert(g.state.room.pending_auction !== null)
 })
+
+Deno.test('jail: rolling doubles to get out moves but grants NO bonus roll', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur()
+  g.P(me).in_jail = true; g.P(me).position = B.JAIL_INDEX
+  g.state.room.phase = 'jail'; g.state.room.doubles_count = 0
+  g.setOwner(16, me) // 10 + 6 = 16, self-owned so the landing doesn't pause
+  g.act(me, { action: 'roll_for_jail' }, [[3, 3]])
+  assertEquals(g.P(me).in_jail, false)
+  assertEquals(g.P(me).position, 16) // moved by the doubles total
+  assertEquals(g.state.room.phase, 'roll')
+  assertEquals(g.state.room.doubles_count, 0) // no doubles chain started
+  // The turn must be endable — a jail-exit double must not force another roll.
+  const r: any = g.act(me, { action: 'end_turn' })
+  assert('patch' in r)
+  assert(g.cur() !== me)
+})
+
+Deno.test('jail: pay fine then roll doubles grants NO bonus roll', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur()
+  g.P(me).in_jail = true; g.P(me).position = B.JAIL_INDEX
+  g.state.room.phase = 'jail'
+  g.setOwner(14, me) // 10 + 4 = 14, self-owned, no pause
+  g.act(me, { action: 'pay_jail_fine' }, [[2, 2]])
+  assertEquals(g.P(me).in_jail, false)
+  assertEquals(g.P(me).position, 14)
+  assertEquals(g.P(me).cash, 1450) // -50 fine
+  assertEquals(g.state.room.doubles_count, 0)
+  assert('patch' in g.act(me, { action: 'end_turn' })) // not trapped into a re-roll
+})
+
+Deno.test('jail: third failed roll pays the fine and moves by THAT roll (no re-roll)', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur()
+  g.P(me).in_jail = true; g.P(me).jail_turns = 2; g.P(me).position = B.JAIL_INDEX
+  g.state.room.phase = 'jail'
+  g.setOwner(13, me) // 10 + 3 = 13, self-owned, no purchase pause
+  g.act(me, { action: 'roll_for_jail' }, [[1, 2]]) // 3rd attempt, non-double
+  assertEquals(g.P(me).in_jail, false)
+  assertEquals(g.P(me).position, 13) // moved by the [1,2] just rolled, not a fresh roll
+  assertEquals(g.P(me).cash, 1500 - B.JAIL_FINE) // fine charged exactly once
+  assertEquals(g.state.room.phase, 'roll')
+  assert(noNegativeCash(g))
+})
+
+Deno.test('a non-double roll forces you to end the turn (cannot roll again)', () => {
+  const g = new Game(2); g.start()
+  const me = g.cur()
+  g.setOwner(3, me) // self-owned so landing doesn't pause
+  g.act(me, { action: 'roll' }, [[1, 2]]) // non-double → tile 3
+  assertEquals(g.state.room.doubles_count, 0)
+  assert('error' in g.act(me, { action: 'roll' })) // a second roll is rejected
+  assert('patch' in g.act(me, { action: 'end_turn' }))
+})

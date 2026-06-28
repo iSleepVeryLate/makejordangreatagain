@@ -8,6 +8,7 @@ import { useLang } from '../context/LanguageContext.jsx'
 import { useMonopolyRoom } from '../hooks/useMonopolyRoom.js'
 import AppNav from '../components/AppNav.jsx'
 import Avatar from '../components/Avatar.jsx'
+import GameErrorBoundary from '../components/GameErrorBoundary.jsx'
 import { TOKENS, tokenMeta } from '../games/monopolyTokens.js'
 import { MIN_PLAYERS } from '../games/monopolyBoard.js'
 import MonopolyGame from '../games/MonopolyGame.jsx'
@@ -18,25 +19,30 @@ export default function MonopolyRoom() {
   const { profile } = useAuth()
   const { t, dir } = useLang()
   const hook = useMonopolyRoom(roomId)
-  const { room, players, online, loading, error, connState, myId, pickToken } = hook
+  const { room, players, online, error, connState, myId, pickToken, refetch } = hook
 
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const joinedRef = useRef(false)
 
-  // Auto-join from a shared link while the room is still an open lobby.
+  // Auto-join from a shared link while the room is still an open lobby. Depends
+  // on primitives (not the per-render `hook` object) so it doesn't re-run every
+  // render; `joinedRef` guards against a double-join. We wait for `myId` so the
+  // membership check is meaningful (and we never fire a spurious join).
   useEffect(() => {
-    if (!room || joinedRef.current) return
+    if (!room || joinedRef.current || !myId) return
     const amMember = players.some((p) => p.profile_id === myId)
     if (!amMember && room.status === 'lobby' && room.code) {
       joinedRef.current = true
-      supabase.rpc('monopoly_join', { p_code: room.code }).then(() => hook.refetch())
+      supabase.rpc('monopoly_join', { p_code: room.code }).then(() => refetch()).catch(() => {})
     }
-  }, [room, players, myId, hook])
+  }, [room, players, myId, refetch])
 
   // Best-effort "I left" on unmount; the turn timer keeps the game moving anyway.
+  // NB: supabase's query builder is a thenable WITHOUT a `.catch` method (only
+  // `.then`), so swallow any rejection via `.then`'s reject handler.
   useEffect(() => {
-    return () => { supabase.rpc('monopoly_leave', { p_room: roomId }) }
+    return () => { supabase.rpc('monopoly_leave', { p_room: roomId }).then(() => {}, () => {}) }
   }, [roomId])
 
   const copyLink = useCallback(() => {
@@ -58,21 +64,26 @@ export default function MonopolyRoom() {
     if (res?.error) toast(res.error, 'error')
   }
 
-  if (loading) {
+  if (!room) {
+    // A hard, surfaced error is a genuine "not found". Otherwise we're still
+    // loading or riding out a transient null (mid-reconnect / RLS race right
+    // after a join) — keep the spinner so a momentary miss never bounces the
+    // player out to a dead-end. Once we have a room we always render it, even
+    // while `connState === 'reconnecting'`.
+    if (error) {
+      return (
+        <>
+          <AppNav />
+          <main className="app-main"><div className="app-wrap center">
+            <div className="empty-state">
+              {t('mono.notFound')}
+              <div style={{ marginTop: 18 }}><Link className="btn btn-green btn-sm" to="/monopoly">{t('mono.backHome')}</Link></div>
+            </div>
+          </div></main>
+        </>
+      )
+    }
     return (<><AppNav /><div className="page-loader"><div className="spinner" /></div></>)
-  }
-  if (error || !room) {
-    return (
-      <>
-        <AppNav />
-        <main className="app-main"><div className="app-wrap center">
-          <div className="empty-state">
-            {t('mono.notFound')}
-            <div style={{ marginTop: 18 }}><Link className="btn btn-green btn-sm" to="/monopoly">{t('mono.backHome')}</Link></div>
-          </div>
-        </div></main>
-      </>
-    )
   }
 
   const isHost = room.host === myId
@@ -174,7 +185,18 @@ export default function MonopolyRoom() {
           {connState === 'reconnecting' && (
             <div className="status-banner wait reconnecting"><span className="spinner sm" /> {t('mono.reconnecting')}</div>
           )}
-          <MonopolyGame hook={hook} t={t} dir={dir} myId={myId} profile={profile} />
+          <GameErrorBoundary
+            resetKey={room.seq}
+            onRetry={() => hook.refetch()}
+            fallback={(err, retry) => (
+              <div className="status-banner wait" style={{ flexDirection: 'column', gap: 12, padding: 24 }}>
+                <span>{t('mono.hiccup')}</span>
+                <button className="btn btn-green btn-sm" onClick={retry}>{t('mono.retry')}</button>
+              </div>
+            )}
+          >
+            <MonopolyGame hook={hook} t={t} dir={dir} myId={myId} profile={profile} />
+          </GameErrorBoundary>
         </div>
       </main>
     </>

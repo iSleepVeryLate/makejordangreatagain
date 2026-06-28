@@ -1,4 +1,4 @@
-import { Navigate, Link } from 'react-router-dom'
+import { Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isSupabaseConfigured } from '../lib/supabaseClient.js'
 import { Mark } from '../components/BrandMark.jsx'
@@ -13,6 +13,10 @@ function DiscordIcon() {
 
 export default function Login() {
   const { session, loading, signInWithDiscord } = useAuth()
+  const loc = useLocation()
+  // Where to send the user once signed in: back to the page that bounced them
+  // here (e.g. a Monopoly room), falling back to the games hub.
+  const from = loc.state?.from?.pathname || '/play'
 
   if (loading) {
     return (
@@ -21,7 +25,7 @@ export default function Login() {
       </div>
     )
   }
-  if (session) return <Navigate to="/play" replace />
+  if (session) return <Navigate to={from} replace />
 
   return (
     <div className="auth-shell">
@@ -30,7 +34,7 @@ export default function Login() {
         <h1>Welcome home</h1>
         <p>Sign in with Discord to join the game hub, challenge fellow Jordanians, and climb the leaderboard.</p>
 
-        <button className="btn btn-discord" onClick={signInWithDiscord} disabled={!isSupabaseConfigured}>
+        <button className="btn btn-discord" onClick={() => signInWithDiscord(from)} disabled={!isSupabaseConfigured}>
           <DiscordIcon />
           Continue with Discord
         </button>

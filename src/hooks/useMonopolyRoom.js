@@ -55,6 +55,8 @@ export function useMonopolyRoom(roomId) {
   const advancedForRef = useRef(null) // phase_ends_at we've already pumped
   const pickSeqRef = useRef(0) // monotonic id of the latest token pick
   const pendingTokenRef = useRef(null) // optimistic token held until the server echoes it
+  const everLoadedRef = useRef(false) // have we ever successfully loaded this room?
+  const missesRef = useRef(0) // consecutive null fetches (transient vs real not-found)
 
   // Re-apply the optimistically-chosen token on top of any incoming player
   // snapshot (realtime echo, debounced refetch, or the 4s poll) so a write that
@@ -140,29 +142,40 @@ export function useMonopolyRoom(roomId) {
   }, [roomId])
 
   const fetchRoom = useCallback(
-    async ({ silent = false } = {}) => {
+    async () => {
       const { data, error: err } = await supabase
         .from('monopoly_rooms')
         .select('*')
         .eq('id', roomId)
         .maybeSingle()
       if (err) {
-        if (!silent) { setError(err.message); setLoading(false) }
+        // Surface a real DB/RLS error only before we've ever loaded the room; once
+        // we're in the room, let the poll/realtime recover rather than ejecting.
+        if (!everLoadedRef.current) { setError(err.message); setLoading(false) }
         return
       }
       if (!data) {
-        if (!silent) { setError('Room not found'); setLoading(false) }
+        // A null is often transient (mid-reconnect, or an RLS race in the instant
+        // right after a join). Only commit a hard not-found after a couple of
+        // consecutive misses, and never once we've successfully loaded the room —
+        // so a momentary miss can't bounce a player out to a dead-end.
+        missesRef.current += 1
+        if (!everLoadedRef.current && missesRef.current >= 2) {
+          setError('Room not found'); setLoading(false)
+        }
         return
       }
+      everLoadedRef.current = true
+      missesRef.current = 0
       roomRef.current = data
       setRoom(data)
-      if (!silent) setLoading(false)
+      setLoading(false)
     },
     [roomId],
   )
 
   const refetch = useCallback(async () => {
-    await Promise.all([fetchRoom({ silent: true }), fetchPlayers(), fetchProperties()])
+    await Promise.all([fetchRoom(), fetchPlayers(), fetchProperties()])
   }, [fetchRoom, fetchPlayers, fetchProperties])
 
   // Optimistic lobby token pick: flip my token locally at 0ms, then persist.
@@ -280,11 +293,18 @@ export function useMonopolyRoom(roomId) {
   }, [isPumper, myId, sendAction])
 
   useEffect(() => {
-    if (!roomId) return
+    // Wait for a known identity before subscribing. `myId` (profile.id) resolves a
+    // beat after the session, so subscribing earlier would build the channel under
+    // an 'anon' presence key and then tear it down + re-subscribe (and re-flash the
+    // spinner) the instant the profile loads. Gating here means the first real run
+    // is the only one — no churn. The early return registers no cleanup/channel.
+    if (!roomId || !myId) return undefined
     setLoading(true)
     setConn('connecting')
     roomRef.current = null
     advancedForRef.current = null
+    everLoadedRef.current = false
+    missesRef.current = 0
     fetchRoom()
     fetchPlayers()
     fetchProperties()
@@ -347,6 +367,10 @@ export function useMonopolyRoom(roomId) {
     // throttled to a crawl while hidden) and reconciles any missed state.
     const onVisible = () => { if (!document.hidden) { refetch(); pumpIfDue() } }
     document.addEventListener('visibilitychange', onVisible)
+    // A network restore should reconcile immediately too — realtime can take a
+    // while to notice it's back online.
+    const onOnline = () => { refetch(); pumpIfDue() }
+    window.addEventListener('online', onOnline)
 
     return () => {
       clearTimeout(pDebounce)
@@ -355,6 +379,7 @@ export function useMonopolyRoom(roomId) {
       clearInterval(interval)
       clearInterval(driver)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onOnline)
       channelRef.current = null
       supabase.removeChannel(ch)
     }

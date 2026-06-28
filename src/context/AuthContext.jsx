@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient.js'
 import { MOCK_AUTH_ENABLED, mockSession, mockProfile } from '../lib/devAuth.js'
@@ -86,6 +86,14 @@ export function AuthProvider({ children }) {
     }
 
     let active = true
+    // A transient null session (a failed token refresh that supabase-js will
+    // auto-retry, or an initial-event race) must NOT eject a player mid-game.
+    // We debounce committing a null and cancel it the instant a real session
+    // arrives; only an explicit SIGNED_OUT drops the session immediately.
+    let nullCommitTimer = null
+    const clearNullCommit = () => {
+      if (nullCommitTimer) { clearTimeout(nullCommitTimer); nullCommitTimer = null }
+    }
 
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return
@@ -97,25 +105,50 @@ export function AuthProvider({ children }) {
       }, 0)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!active) return
-      setSession(newSession)
       setLoading(false)
-      // IMPORTANT: never await Supabase calls directly inside this callback —
-      // it runs while the auth client holds a lock, and awaiting another
-      // Supabase call here deadlocks (the sign-in hangs forever). Defer it.
-      setTimeout(() => {
-        if (active) loadProfile(newSession?.user)
-      }, 0)
+
+      if (newSession) {
+        // A real session — cancel any pending null-commit and apply it.
+        clearNullCommit()
+        setSession(newSession)
+        // IMPORTANT: never await Supabase calls directly inside this callback —
+        // it runs while the auth client holds a lock, and awaiting another
+        // Supabase call here deadlocks (the sign-in hangs forever). Defer it.
+        setTimeout(() => {
+          if (active) loadProfile(newSession.user)
+        }, 0)
+        return
+      }
+
+      if (event === 'SIGNED_OUT') {
+        // Explicit sign-out — drop the session now.
+        clearNullCommit()
+        setSession(null)
+        setTimeout(() => { if (active) loadProfile(null) }, 0)
+        return
+      }
+
+      // Transient null on any other event: hold for a beat. If a real session
+      // comes back (the refresh succeeds), the commit above cancels this.
+      clearNullCommit()
+      nullCommitTimer = setTimeout(() => {
+        if (!active) return
+        nullCommitTimer = null
+        setSession(null)
+        loadProfile(null)
+      }, 1500)
     })
 
     return () => {
       active = false
+      clearNullCommit()
       sub.subscription.unsubscribe()
     }
   }, [loadProfile])
 
-  const signInWithDiscord = useCallback(async () => {
+  const signInWithDiscord = useCallback(async (returnTo) => {
     // DEV-ONLY: re-seed the fake session (e.g. after a mock sign-out).
     if (MOCK_AUTH_ENABLED) {
       setSession(mockSession)
@@ -126,6 +159,14 @@ export function AuthProvider({ children }) {
       alert('Supabase is not configured yet. See README.md to finish setup.')
       return
     }
+    // The OAuth round-trip drops React Router state, so remember where the user
+    // was headed (e.g. a Monopoly room they got redirected away from) and let
+    // AuthCallback restore it after sign-in.
+    try {
+      if (returnTo && typeof returnTo === 'string' && returnTo !== '/login') {
+        sessionStorage.setItem('mjg:returnTo', returnTo)
+      }
+    } catch { /* ignore */ }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'discord',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -145,15 +186,21 @@ export function AuthProvider({ children }) {
     if (session?.user) await loadProfile(session.user)
   }, [session, loadProfile])
 
-  const value = {
-    session,
-    user: session?.user ?? null,
-    profile,
-    loading,
-    signInWithDiscord,
-    signOut,
-    refreshProfile,
-  }
+  // Memoized so a re-render of the provider (e.g. a token refresh firing
+  // setSession with an identical user) doesn't churn every useAuth() consumer —
+  // which would needlessly re-run effects like the Monopoly realtime hook.
+  const value = useMemo(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      profile,
+      loading,
+      signInWithDiscord,
+      signOut,
+      refreshProfile,
+    }),
+    [session, profile, loading, signInWithDiscord, signOut, refreshProfile],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
