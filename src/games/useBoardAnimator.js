@@ -17,9 +17,10 @@ import { tokenMeta } from './monopolyTokens.js'
 // ============================================================================
 
 const STEP_MS = 165 // per-tile dice walk
-const GLIDE_MS = 460 // card/jail relocation glide
+const GLIDE_MS = 460 // card/jail relocation glide (only when too far to walk)
 const HOP_THROTTLE = 70 // min ms between hop ticks so fast walks don't machine-gun
 const FLOAT_TTL = 2200
+const RELOC_WALK_CAP = 13 // a card/jail relocation farther than this glides instead of walking the ring
 
 // A minimal subscribable slice (useSyncExternalStore-compatible). get() returns a
 // stable reference until set() swaps in a new one, so React won't loop.
@@ -95,17 +96,34 @@ const cashMap = (players) => {
   return m
 }
 
+// Append a card/jail RELOCATION as a perimeter walk the SHORT way around the ring
+// (so the piece travels along the board edge, not diagonally through the middle).
+// Forward steps cross GO; a relocation too far to read as a walk falls back to a
+// single glide. Always lands exactly on `to`.
+function appendReloc(out, from, to) {
+  const fwd = (to - from + 40) % 40
+  const bwd = (from - to + 40) % 40
+  const dist = Math.min(fwd, bwd)
+  if (dist === 0) return
+  if (dist > RELOC_WALK_CAP) { out.push({ pos: to, mode: 'glide' }); return }
+  const dir = fwd <= bwd ? 1 : -1
+  let cur = from
+  for (let k = 0; k < dist; k++) {
+    cur = (cur + dir + 40) % 40
+    out.push({ pos: cur, mode: 'hop', go: dir === 1 && cur === 0 })
+  }
+}
+
 // Build the walk from (from, dice, to). Returns { leg1, leg2 }:
 //   LEG 1 — tile-by-tile hop from→…→viaDice (dice total) — only when we TRUST the
 //           dice (a contiguous +1 step whose dice belong to this very move).
-//   LEG 2 — a single glide to the true destination: the second half of a roll+card/
-//           jail relocation, OR the whole move when we DON'T trust the dice (a seq
-//           gap, or no dice). Gliding straight beats walking a bogus dice count
-//           (the "piece walks the wrong way then jumps" bug) and beats an instant
-//           teleport (the "pieces don't move" bug).
+//   LEG 2 — the second half of a roll+card/jail relocation (walked around the ring),
+//           OR the whole move when we DON'T trust the dice (a seq gap / no dice).
+//           Walking/gliding the real path beats walking a bogus dice count (the
+//           "piece walks the wrong way then jumps" bug) and an instant teleport.
 function buildPath(from, dice, to, trustDice) {
   const leg1 = []
-  let leg2 = null
+  const leg2 = []
   const total = Array.isArray(dice) && dice.length === 2 ? dice[0] + dice[1] : null
   if (trustDice && total != null) {
     const viaDice = (from + total) % 40
@@ -116,9 +134,9 @@ function buildPath(from, dice, to, trustDice) {
       leg1.push({ pos: cur, go: cur === 0 })
       guard++
     }
-    if (viaDice !== to) leg2 = { pos: to }
+    if (viaDice !== to) appendReloc(leg2, viaDice, to)
   } else {
-    leg2 = { pos: to }
+    appendReloc(leg2, from, to)
   }
   return { leg1, leg2 }
 }
@@ -310,13 +328,21 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       }, t)
       t += STEP_MS
     })
-    if (leg2) {
+    // Relocation: walk the ring the short way (or glide if far). The card/jail SOUND
+    // is already played by fireEventSounds when the log tail is consumed, so we don't
+    // re-play it here (that was a double-trigger); only the movement cues fire.
+    leg2.forEach((s) => {
+      const glide = s.mode === 'glide'
       schedule(() => {
-        store.setTokenPos(primary.profile_id, leg2.pos, { glide: true })
-        p?.(leg2.pos === 10 ? 'jail' : 'card')
-      }, t + 40)
-      t += GLIDE_MS + 40
-    }
+        store.setTokenPos(primary.profile_id, s.pos, glide ? { glide: true } : { hop: true })
+        if (s.go) p?.('go')
+        if (!glide) {
+          const nowt = Date.now()
+          if (nowt - lastHopRef.current > HOP_THROTTLE) { p?.('hop'); lastHopRef.current = nowt }
+        }
+      }, t + (glide ? 40 : 0))
+      t += glide ? GLIDE_MS + 40 : STEP_MS
+    })
     schedule(() => {
       walkingRef.current = false
       walkTargetRef.current = null
