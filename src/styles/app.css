@@ -663,7 +663,7 @@
 .mono-corner-sub { font-size: clamp(6px, 1.2cqw, 9px); color: #6b6052; margin-top: 1px; }
 
 /* token chips — read RENDERED position from the animator; hop + active glow */
-.mono-token-layer { position: absolute; inset: 8px; pointer-events: none; z-index: 6; }
+.mono-token-layer { position: absolute; inset: 9px; pointer-events: none; z-index: 6; }
 .mono-token-fly { position: absolute; width: clamp(20px, 4.4cqw, 28px); height: clamp(20px, 4.4cqw, 28px); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: clamp(11px, 2.4cqw, 15px); background: radial-gradient(circle at 35% 30%, #2a302b, #0c0f0d); border: 2px solid var(--tok); box-shadow: 0 5px 12px -3px rgba(0,0,0,.7); will-change: left, top; transition: left .16s ease, top .16s ease; }
 .mono-token-fly.active { box-shadow: 0 0 0 3px rgba(212,175,55,.5), 0 0 18px rgba(212,175,55,.35); animation: mono-tok-glow 1.6s ease-in-out infinite; }
 .mono-token-hop { display: inline-block; animation: mono-hop .16s ease; }
@@ -671,7 +671,7 @@
 @keyframes mono-tok-glow { 50% { box-shadow: 0 0 0 3px rgba(212,175,55,.7), 0 0 24px rgba(212,175,55,.5); } }
 
 /* floating +N / −N cash deltas, anchored at the player's token */
-.mono-float-layer { position: absolute; inset: 8px; pointer-events: none; z-index: 7; }
+.mono-float-layer { position: absolute; inset: 9px; pointer-events: none; z-index: 7; }
 .mono-float { position: absolute; transform: translate(-50%, -50%); font-size: 15px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.85); animation: mono-float-up 2.2s ease-out forwards; white-space: nowrap; }
 .mono-float.pos { color: #5fd39a; }
 .mono-float.neg { color: #ff7a8a; }

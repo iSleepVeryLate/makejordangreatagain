@@ -47,6 +47,10 @@ function Face({ n, t }) {
 }
 
 function Dice3D({ value, rolling }) {
+  // value == null between turns (the engine nulls room.dice on handoff) → show a
+  // blank cube at rest instead of a phantom "1", so a fresh turn doesn't read as
+  // a 1+1 roll left over from the previous player.
+  const idle = value == null && !rolling
   const v = value || 1
   return (
     <div className="d3d-scene" aria-hidden>
@@ -54,7 +58,7 @@ function Dice3D({ value, rolling }) {
         className={`d3d-cube${rolling ? ' rolling' : ''}`}
         style={rolling ? undefined : { transform: FACE_ROTATION[v] }}
       >
-        {FACES.map((f) => <Face key={f.n} n={f.n} t={f.t} />)}
+        {FACES.map((f) => <Face key={f.n} n={idle ? 0 : f.n} t={f.t} />)}
       </div>
     </div>
   )

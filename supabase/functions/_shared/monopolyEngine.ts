@@ -194,6 +194,10 @@ function beginTurn(w: W) {
   w.room.dice = null
   w.room.doubles_count = 0
   w.room.pending_purchase = null
+  // Clear the drawn Chance/Chest card on every turn boundary. Without this the
+  // field is sticky for the game's lifetime (only monopoly_reset nulls it), so the
+  // popup pins to the board across turns showing the wrong player's card.
+  w.room.last_card = null
   const cur = w.current()
   if (cur && cur.in_jail) { w.room.phase = 'jail'; w.deadline() }
   else { w.room.phase = 'roll'; w.deadline() }

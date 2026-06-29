@@ -146,65 +146,48 @@ export function useMonopolyRoom(roomId) {
     if (Array.isArray(rows)) setProperties(rows)
   }, [])
 
-  const fetchPlayers = useCallback(async () => {
-    const { data } = await supabase
-      .from('monopoly_players')
-      .select(PLAYER_SEL)
-      .eq('room_id', roomId)
-      .order('seat', { ascending: true })
-    if (data) {
-      const next = withPending(data)
-      playersRef.current = next
-      setPlayers(next)
+  // Apply a full {room,players,properties} snapshot as ONE batched, seq-gated update.
+  // Gating the WHOLE snapshot on rooms.seq (not just the room row) is the fix for the
+  // split-generation desync: a single server action commits seq/dice/positions in one
+  // transaction, so the client must apply them together. Applying the room instantly
+  // while players lag (the old debounced refetch) let the animator see a new seq next
+  // to stale positions (or vice-versa) → stale dice/card, banner flip-flop, teleports.
+  const applySnapshot = useCallback((roomRow, playersRows, propsRows) => {
+    if (!roomRow) return
+    const cur = roomRef.current
+    if (cur && typeof roomRow.seq === 'number' && typeof cur.seq === 'number' && roomRow.seq < cur.seq) return
+    applyRoom(roomRow)
+    if (Array.isArray(playersRows)) applyPlayers(playersRows)
+    if (Array.isArray(propsRows)) applyProperties(propsRows)
+  }, [applyRoom, applyPlayers, applyProperties])
+
+  // Atomic resync: fetch all three tables together and apply them as ONE seq-gated
+  // snapshot. This is the safety-net/realtime reconcile path — every realtime table
+  // change and the poll funnel through here so the client never assembles its UI from
+  // two different server generations.
+  const fetchAll = useCallback(async () => {
+    const [rRes, plRes, prRes] = await Promise.all([
+      supabase.from('monopoly_rooms').select('*').eq('id', roomId).maybeSingle(),
+      supabase.from('monopoly_players').select(PLAYER_SEL).eq('room_id', roomId).order('seat', { ascending: true }),
+      supabase.from('monopoly_properties').select('*').eq('room_id', roomId).order('tile_index', { ascending: true }),
+    ])
+    if (rRes.error) {
+      if (!everLoadedRef.current) { setError(rRes.error.message); setLoading(false) }
+      return
     }
-  }, [roomId, withPending])
+    const roomRow = rRes.data
+    if (!roomRow) {
+      missesRef.current += 1
+      if (!everLoadedRef.current && missesRef.current >= 2) { setError('Room not found'); setLoading(false) }
+      return
+    }
+    everLoadedRef.current = true
+    missesRef.current = 0
+    applySnapshot(roomRow, plRes.data, prRes.data)
+    setLoading(false)
+  }, [roomId, applySnapshot])
 
-  const fetchProperties = useCallback(async () => {
-    const { data } = await supabase
-      .from('monopoly_properties')
-      .select('*')
-      .eq('room_id', roomId)
-      .order('tile_index', { ascending: true })
-    if (data) setProperties(data)
-  }, [roomId])
-
-  const fetchRoom = useCallback(
-    async () => {
-      const { data, error: err } = await supabase
-        .from('monopoly_rooms')
-        .select('*')
-        .eq('id', roomId)
-        .maybeSingle()
-      if (err) {
-        // Surface a real DB/RLS error only before we've ever loaded the room; once
-        // we're in the room, let the poll/realtime recover rather than ejecting.
-        if (!everLoadedRef.current) { setError(err.message); setLoading(false) }
-        return
-      }
-      if (!data) {
-        // A null is often transient (mid-reconnect, or an RLS race in the instant
-        // right after a join). Only commit a hard not-found after a couple of
-        // consecutive misses, and never once we've successfully loaded the room —
-        // so a momentary miss can't bounce a player out to a dead-end.
-        missesRef.current += 1
-        if (!everLoadedRef.current && missesRef.current >= 2) {
-          setError('Room not found'); setLoading(false)
-        }
-        return
-      }
-      everLoadedRef.current = true
-      missesRef.current = 0
-      noteServerClock(data.updated_at)
-      roomRef.current = data
-      setRoom(data)
-      setLoading(false)
-    },
-    [roomId, noteServerClock],
-  )
-
-  const refetch = useCallback(async () => {
-    await Promise.all([fetchRoom(), fetchPlayers(), fetchProperties()])
-  }, [fetchRoom, fetchPlayers, fetchProperties])
+  const refetch = fetchAll
 
   // Optimistic lobby token pick: flip my token locally at 0ms, then persist.
   // A monotonic seq tags each pick so a slow/failed earlier RPC can't revert a
@@ -259,32 +242,28 @@ export function useMonopolyRoom(roomId) {
       // A racing / duplicate submit (someone else's action won the seq race):
       // reconcile silently from the snapshot, never surface as an error.
       if (data?.conflict) {
+        applySnapshot(data.room, data.players, data.properties)
         refetch()
-        applyRoom(data.room)
-        applyPlayers(data.players)
-        applyProperties(data.properties)
         return { conflict: true }
       }
       // An expected rule rejection ("Not your turn", "Not enough cash", …): resync
       // from the returned snapshot so a stale UI self-corrects, then bubble the
       // reason up so the caller can toast it.
       if (data?.rejected) {
-        applyRoom(data.room)
-        applyPlayers(data.players)
-        applyProperties(data.properties)
+        applySnapshot(data.room, data.players, data.properties)
         return { error: data.error || 'That move isn’t allowed' }
       }
-      if (data?.room) applyRoom(data.room)
-      if (data?.players) applyPlayers(data.players)
-      if (data?.properties) applyProperties(data.properties)
-      // Push the freshly-committed snapshot to peers on the realtime channel so they
-      // update in ~50-100ms instead of waiting ~300-700ms for the postgres_changes
-      // echo. The DB echo + 4s poll stay as the safety net; the seq guards make the
-      // redundant delivery a no-op. Peers skip our own echo via `by`.
+      // Apply the freshly-committed snapshot atomically (room+players+properties in one
+      // batched, seq-gated update — never split across generations).
+      if (data?.room) applySnapshot(data.room, data.players, data.properties)
+      // Push it to peers on the realtime channel so they update in ~50-100ms instead of
+      // waiting ~300-700ms for the postgres_changes echo. The DB echo + 4s poll stay as
+      // the safety net; the seq guards make the redundant delivery a no-op. Peers skip
+      // our own echo via `by`.
       if (data?.room) broadcast('snap', { by: myId, room: data.room, players: data.players, properties: data.properties })
       return { data }
     },
-    [roomId, myId, applyRoom, applyPlayers, applyProperties, refetch, broadcast],
+    [roomId, myId, applySnapshot, refetch, broadcast],
   )
 
   // Is THIS client the elected timer pumper? Current player if present, else the
@@ -308,21 +287,29 @@ export function useMonopolyRoom(roomId) {
   // backstop), so a frozen/backgrounded pumper can never stall the table. Safe to
   // call from both the 1s interval and on tab-focus, since advancedForRef + the
   // server seq-check make a duplicate tick idempotent.
-  const pumpIfDue = useCallback(() => {
+  const pumpIfDue = useCallback(async () => {
     const r = roomRef.current
     if (!r || r.status !== 'playing' || !r.phase_ends_at) return
     const overdue = (Date.now() + serverOffsetRef.current) - new Date(r.phase_ends_at).getTime()
     if (overdue < 0) return
-    if (advancedForRef.current === r.phase_ends_at) return
+    const deadline = r.phase_ends_at
+    if (advancedForRef.current === deadline) return
+    const me = playersRef.current.find((p) => p.profile_id === myId)
+    if (!me || me.bankrupt) return
     if (!isPumper()) {
-      // Backstop path: only present, non-bankrupt members, after the grace window.
-      const me = playersRef.current.find((p) => p.profile_id === myId)
-      if (!me || me.bankrupt || !onlineRef.current.includes(myId)) return
+      // Backstop: ANY non-bankrupt client may take over after a seat-staggered grace,
+      // REGARDLESS of realtime presence — presence rides the same WebSocket the VPN
+      // degrades, so it can't gate liveness. The tick is an HTTP Edge call (works even
+      // when the socket is down), and a duplicate is harmless (server seq-check). This
+      // is what stops the table freezing on "X is taking their turn…".
       const grace = BACKSTOP_BASE_MS + (me.seat || 0) * BACKSTOP_STAGGER_MS
       if (overdue < grace) return
     }
-    advancedForRef.current = r.phase_ends_at
-    sendAction('tick')
+    advancedForRef.current = deadline
+    await sendAction('tick')
+    // Re-arm if the tick did NOT advance the deadline (dropped / failed / no-op) so a
+    // single lost tick can't strand the turn — the next 1s driver pass retries it.
+    if (roomRef.current?.phase_ends_at === deadline) advancedForRef.current = null
   }, [isPumper, myId, sendAction])
 
   useEffect(() => {
@@ -340,14 +327,15 @@ export function useMonopolyRoom(roomId) {
     missesRef.current = 0
     serverOffsetRef.current = 0
     offsetBasisRef.current = 0
-    fetchRoom()
-    fetchPlayers()
-    fetchProperties()
+    fetchAll()
 
-    let pDebounce
-    const refreshPlayers = () => { clearTimeout(pDebounce); pDebounce = setTimeout(fetchPlayers, 250) }
-    let prDebounce
-    const refreshProps = () => { clearTimeout(prDebounce); prDebounce = setTimeout(fetchProperties, 250) }
+    // One coalesced ATOMIC resync for every realtime table change. A single server
+    // action fires up to three postgres_changes (rooms/players/properties) within a
+    // few ms; debouncing them into ONE fetchAll means we always apply a single
+    // consistent {room,players,properties} snapshot instead of three split,
+    // half-stale updates from different generations.
+    let resyncTimer
+    const scheduleResync = () => { clearTimeout(resyncTimer); resyncTimer = setTimeout(fetchAll, 60) }
 
     const ch = supabase.channel(`monopoly-room:${roomId}`, {
       config: { presence: { key: myId || 'anon' } },
@@ -368,21 +356,20 @@ export function useMonopolyRoom(roomId) {
     // Ignore our own echo; gate on seq so a late/stale broadcast can never roll back.
     ch.on('broadcast', { event: 'snap' }, ({ payload }) => {
       if (!payload || payload.by === myId || !payload.room) return
-      const cur = roomRef.current
-      if (cur && typeof payload.room.seq === 'number' && typeof cur.seq === 'number' && payload.room.seq < cur.seq) return
-      applyRoom(payload.room)
-      applyPlayers(payload.players)
-      applyProperties(payload.properties)
+      applySnapshot(payload.room, payload.players, payload.properties)
     })
+    // Every table change funnels through the coalesced atomic resync — we never apply a
+    // bare payload.new on its own (that lone-room application, with players arriving on a
+    // separate debounced refetch, was the split-generation desync that broke the board).
     ch.on('postgres_changes',
       { event: '*', schema: 'public', table: 'monopoly_rooms', filter: `id=eq.${roomId}` },
-      (payload) => applyRoom(payload.new))
+      scheduleResync)
     ch.on('postgres_changes',
       { event: '*', schema: 'public', table: 'monopoly_players', filter: `room_id=eq.${roomId}` },
-      refreshPlayers)
+      scheduleResync)
     ch.on('postgres_changes',
       { event: '*', schema: 'public', table: 'monopoly_properties', filter: `room_id=eq.${roomId}` },
-      refreshProps)
+      scheduleResync)
     ch.on('presence', { event: 'sync' }, () => {
       const ids = Object.keys(ch.presenceState())
       onlineRef.current = ids
@@ -419,8 +406,7 @@ export function useMonopolyRoom(roomId) {
     window.addEventListener('online', onOnline)
 
     return () => {
-      clearTimeout(pDebounce)
-      clearTimeout(prDebounce)
+      clearTimeout(resyncTimer)
       clearTimeout(rollClearRef.current)
       clearInterval(interval)
       clearInterval(driver)
@@ -429,7 +415,7 @@ export function useMonopolyRoom(roomId) {
       channelRef.current = null
       supabase.removeChannel(ch)
     }
-  }, [roomId, myId, fetchRoom, fetchPlayers, fetchProperties, refetch, applyRoom, applyPlayers, applyProperties, setConn, pumpIfDue])
+  }, [roomId, myId, fetchAll, refetch, applySnapshot, setConn, pumpIfDue])
 
   return {
     room, players, properties, online, loading, error, connState, myId, rollingBy,

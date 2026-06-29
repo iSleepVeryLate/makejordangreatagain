@@ -105,6 +105,15 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
   const name = useCallback((id) => profName(playerById[id]), [playerById])
 
+  // Away = the SERVER heartbeat says absent (is_present === false) AND realtime
+  // presence doesn't list them either. Presence rides the same WebSocket the VPN
+  // degrades, so on its own it falsely greys out an opponent who is actively playing
+  // (their HTTP heartbeat + Edge actions land fine). is_present is the reliable signal.
+  const isAway = useCallback(
+    (p) => !!p && p.is_present === false && !(Array.isArray(online) && online.includes(p.profile_id)),
+    [online],
+  )
+
   // The next non-bankrupt player in seat order — surfaced as "up next" so whose
   // turn it is (and who follows) reads at a glance from the player rail.
   const nextTurnId = useMemo(() => {
@@ -199,7 +208,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     // so the table always knows what's happening and whose move it is.
     let statusLine = null
     if (!isMyTurn) {
-      const turnAway = turnId && Array.isArray(online) && !online.includes(turnId)
+      const turnAway = isAway(playerById[turnId])
       if (rollingId && rollingId !== myId) statusLine = t('mono.statusRolling', { name: name(rollingId) })
       else if (turnAway) statusLine = t('mono.statusAway', { name: turnName })
       else if (phase === 'roll') statusLine = t('mono.statusThinking', { name: turnName })
@@ -228,7 +237,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} serverNow={serverNow} />
         )}
 
-        {room.last_card && (
+        {room.last_card && room.last_card.by === turnId && (
           <div className="mono-card-pop"><span className="glabel">{room.last_card.deck === 'chance' ? t('mono.chance') : t('mono.chest')}</span>
             <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p></div>
         )}
@@ -311,7 +320,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         {players.map((p) => (
           <PlayerCard key={p.profile_id} p={p} isTurn={p.profile_id === turnId} isNext={p.profile_id === nextTurnId}
             isMe={p.profile_id === myId} rolling={p.profile_id === rollingId}
-            isOnline={!Array.isArray(online) || online.includes(p.profile_id)} offlineText={t('mono.offline')}
+            isOnline={!isAway(p)} offlineText={t('mono.offline')}
             rollText={t('mono.rolling')} nextText={t('mono.next')} money={money}
             worth={aff.netWorth(p, propByTile)} worthLabel={t('mono.netWorth')} />
         ))}

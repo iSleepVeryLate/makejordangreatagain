@@ -95,26 +95,32 @@ const cashMap = (players) => {
   return m
 }
 
-// Build the two-leg path purely from (from, dice, to):
-//   LEG 1 — walk from→from+1→…→viaDice (dice total), one tile per step.
-//   LEG 2 — if to !== viaDice a card/jail relocation happened: glide there.
-function buildPath(from, dice, to) {
-  const steps = []
-  if (Array.isArray(dice) && dice.length === 2) {
-    const total = dice[0] + dice[1]
+// Build the walk from (from, dice, to). Returns { leg1, leg2 }:
+//   LEG 1 — tile-by-tile hop from→…→viaDice (dice total) — only when we TRUST the
+//           dice (a contiguous +1 step whose dice belong to this very move).
+//   LEG 2 — a single glide to the true destination: the second half of a roll+card/
+//           jail relocation, OR the whole move when we DON'T trust the dice (a seq
+//           gap, or no dice). Gliding straight beats walking a bogus dice count
+//           (the "piece walks the wrong way then jumps" bug) and beats an instant
+//           teleport (the "pieces don't move" bug).
+function buildPath(from, dice, to, trustDice) {
+  const leg1 = []
+  let leg2 = null
+  const total = Array.isArray(dice) && dice.length === 2 ? dice[0] + dice[1] : null
+  if (trustDice && total != null) {
     const viaDice = (from + total) % 40
     let cur = from
     let guard = 0
     while (cur !== viaDice && guard < 45) {
       cur = (cur + 1) % 40
-      steps.push({ pos: cur, leg: 1, go: cur === 0 })
+      leg1.push({ pos: cur, go: cur === 0 })
       guard++
     }
-    if (to !== viaDice) steps.push({ pos: to, leg: 2 })
+    if (viaDice !== to) leg2 = { pos: to }
   } else {
-    steps.push({ pos: to, leg: 2 })
+    leg2 = { pos: to }
   }
-  return steps
+  return { leg1, leg2 }
 }
 
 // Fire +N / −N floats from each player's cash delta, anchored at their token.
@@ -160,6 +166,13 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
   const lastSeqRef = useRef(null)
   const lastLogLenRef = useRef(0)
   const prevCashRef = useRef({})
+  // The AUTHORITATIVE positions we've accepted (committed to rendering toward). The
+  // walk origin — NOT the rendered pos, which after a snap already equals the
+  // destination, so walking from it would step zero tiles or the wrong count.
+  const prevAuthPosRef = useRef(null)
+  // The authoritative positions the in-flight walk is converging to, so a redundant
+  // mid-walk snapshot with the SAME target can let the walk finish instead of snapping.
+  const walkTargetRef = useRef(null)
   const timeoutsRef = useRef([])
   const walkingRef = useRef(false)
   const lastHopRef = useRef(0)
@@ -179,25 +192,31 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const clearTimers = () => { timeoutsRef.current.forEach(clearTimeout); timeoutsRef.current = [] }
     const schedule = (fn, ms) => { const id = setTimeout(fn, ms); timeoutsRef.current.push(id); return id }
 
-    // ---- FIRST PAINT / GAP / BACKWARD seq → SNAP (no replay, no sound) ----
+    // ---- FIRST PAINT or BACKWARD seq → hard SNAP (no replay, no sound) ----
+    // A seq GAP no longer forces a snap (that was the teleport bug under degraded
+    // realtime): we drive the walk off the authoritative position delta below and
+    // glide — not teleport — when the dice can't be trusted.
     const first = lastSeqRef.current === null
-    const gap = !first && (seq < lastSeqRef.current || seq - lastSeqRef.current > 1)
-    if (first || gap) {
-      clearTimers(); walkingRef.current = false
+    const prevSeq = lastSeqRef.current
+    const backward = !first && seq < prevSeq
+    if (first || backward) {
+      clearTimers(); walkingRef.current = false; walkTargetRef.current = null
       store.snapTokens(authPos, turnId)
       if (Array.isArray(room.dice)) store.settleDice(room.dice[0], room.dice[1])
       else store.settleDice(null, null)
       lastSeqRef.current = seq
       lastLogLenRef.current = log.length
+      prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       myTurnSeenRef.current = seq // don't chime on first paint
       return
     }
+    const gap = seq - prevSeq > 1
 
     store.setActive(turnId)
 
-    // ---- NEW SEQ STEP (exactly +1): consume the log tail for dice + sounds ----
-    if (seq > lastSeqRef.current) {
+    // ---- NEW SEQ STEP: consume the log tail for dice + sounds ----
+    if (seq > prevSeq) {
       const events = log.slice(lastLogLenRef.current)
       lastSeqRef.current = seq
       lastLogLenRef.current = log.length
@@ -205,6 +224,12 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       if (rollEv && Array.isArray(room.dice)) {
         store.settleDice(room.dice[0], room.dice[1])
         p?.('diceLand')
+      } else {
+        // No roll on this step (a turn handoff nulls room.dice, or a buy/build/card) —
+        // reconcile the dice faces to authoritative so the previous roller's pips don't
+        // linger into the next player's turn.
+        if (Array.isArray(room.dice)) store.settleDice(room.dice[0], room.dice[1])
+        else store.settleDice(null, null)
       }
       fireEventSounds(events, p)
     }
@@ -215,20 +240,40 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       p?.('turn')
     }
 
-    // ---- WALK (driven by position delta vs what we're rendering) ----
-    const movers = players.filter((pl) => !pl.bankrupt && store.getPos(pl.profile_id) !== pl.position)
+    // ---- WALK (driven by the AUTHORITATIVE position delta, not the rendered pos) ----
+    const prevAuth = prevAuthPosRef.current || authPos
+    const movers = players.filter((pl) => !pl.bankrupt && (prevAuth[pl.profile_id] ?? pl.position) !== pl.position)
     if (movers.length === 0) {
       fireFloats(players, prevCashRef.current, store)
+      prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
     }
 
-    // Already mid-walk, or reduced-motion: snap to the latest, no replay.
-    // (Sounds are independent of motion and already fired above.)
-    if (walkingRef.current || reducedRef.current) {
-      clearTimers(); walkingRef.current = false
+    // Mid-walk: a snapshot landed while a walk is animating. If it does NOT change where
+    // we're heading (the common duplicate-delivery / no-op case), let the walk FINISH
+    // instead of collapsing it into a teleport. Only abort + snap if the target moved.
+    if (walkingRef.current) {
+      const tgt = walkTargetRef.current
+      const sameTarget = tgt && players.every((pl) => pl.bankrupt || (tgt[pl.profile_id] ?? pl.position) === pl.position)
+      if (sameTarget) {
+        prevAuthPosRef.current = authPos
+        prevCashRef.current = authCash
+        return
+      }
+      clearTimers(); walkingRef.current = false; walkTargetRef.current = null
       store.snapTokens(authPos, turnId)
       fireFloats(players, prevCashRef.current, store)
+      prevAuthPosRef.current = authPos
+      prevCashRef.current = authCash
+      return
+    }
+
+    // Reduced-motion: snap to place (sounds already fired).
+    if (reducedRef.current) {
+      store.snapTokens(authPos, turnId)
+      fireFloats(players, prevCashRef.current, store)
+      prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
     }
@@ -240,15 +285,19 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const primary = movers.find((pl) => pl.profile_id === turnId)
     if (!primary) {
       fireFloats(players, prevCashRef.current, store)
+      prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
     }
 
+    // Walk from the AUTHORITATIVE previous tile, and only trust the dice on a
+    // contiguous step (not a gap) — otherwise glide straight to the destination so we
+    // never walk a bogus dice count nor teleport.
     walkingRef.current = true
-    const from = store.getPos(primary.profile_id)
-    const path = buildPath(from, room.dice, primary.position)
-    const leg1 = path.filter((s) => s.leg === 1)
-    const leg2 = path.find((s) => s.leg === 2)
+    walkTargetRef.current = authPos
+    const from = prevAuth[primary.profile_id] ?? primary.position
+    const to = primary.position
+    const { leg1, leg2 } = buildPath(from, room.dice, to, !gap)
     const prevCashSnapshot = prevCashRef.current
 
     let t = 0
@@ -270,9 +319,11 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     }
     schedule(() => {
       walkingRef.current = false
+      walkTargetRef.current = null
       fireFloats(players, prevCashSnapshot, store)
     }, t + 90)
 
+    prevAuthPosRef.current = authPos
     prevCashRef.current = authCash
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room, players])
