@@ -17,7 +17,7 @@ import TokenField from './tokens3d.js'
 import DicePair from './dice3d.js'
 import BuildingsLayer from './buildings3d.js'
 import {
-  BOARD, BOARD_HALF, BOARD_THICKNESS, SURFACE_Y, TILE_CENTERS_3D, tileAtWorld,
+  BOARD, BOARD_HALF, BOARD_THICKNESS, SURFACE_Y, TOKEN_HEIGHT, TILE_CENTERS_3D, tileAtWorld,
 } from './coords3d.js'
 
 const TEX_SIZE = 2048
@@ -50,6 +50,7 @@ export default class Scene3D {
     this._buildings = null // BuildingsLayer (Phase 3)
     this._followX = CAM_TARGET.x // eased camera look-at (camera follows the active token)
     this._followZ = CAM_TARGET.z
+    this._fit = 1 // distance multiplier (>=1) computed per-resize so the WHOLE board fits the container aspect
     this._disposables = new Set() // geometries/materials/textures to free on teardown
 
     this._raf = 0
@@ -111,10 +112,12 @@ export default class Scene3D {
     this._installObservers()
     this.resize()
 
-    // reveal: a short camera ease unless reduced-motion
+    // reveal: a short camera ease unless reduced-motion (resize() above already
+    // computed _fit, so _restPos() reflects the real container aspect).
     if (!this.reducedMotion) {
       this._introUntil = now() + 850
-      camera.position.set(CAM_REST.x, CAM_REST.y + INTRO_DY, CAM_REST.z + INTRO_DZ)
+      const r = this._restPos()
+      camera.position.set(r.x, r.y + INTRO_DY, r.z + INTRO_DZ)
     }
     this._loop()
   }
@@ -221,7 +224,8 @@ export default class Scene3D {
     if (this.reducedMotion && this.camera) {
       if (this._introUntil > 0) {
         this._introUntil = 0
-        this.camera.position.set(CAM_REST.x, CAM_REST.y, CAM_REST.z)
+        const r = this._restPos()
+        this.camera.position.set(r.x, r.y, r.z)
       }
       // snap the camera-follow look-at to centre (no easing)
       this._followX = CAM_TARGET.x; this._followZ = CAM_TARGET.z
@@ -309,7 +313,56 @@ export default class Scene3D {
     this.renderer.setSize(w, h, false)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
+    // Re-fit the framing to the new aspect so the near corners + corner tokens never
+    // crop off the sides (a fixed FOV alone clips them on square/narrow panels).
+    this._computeFit()
+    if (this._introUntil === 0) {
+      const r = this._restPos()
+      this.camera.position.set(r.x, r.y, r.z)
+      this.camera.lookAt(this._followX, 0, this._followZ)
+    }
     this.invalidate()
+  }
+
+  // Distance multiplier so the board's four corners (incl. gold frame) + a token's
+  // height on each fit within the frame at the current aspect. Pure read of a cloned
+  // camera; never mutates the live one.
+  _computeFit() {
+    if (!this.camera) return
+    const t = new THREE.Vector3(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
+    const base = new THREE.Vector3(CAM_REST.x, CAM_REST.y, CAM_REST.z)
+    const dir = base.clone().sub(t).normalize()
+    const baseDist = base.distanceTo(t)
+    const HE = BOARD_HALF + 0.5 // board face + gold frame + a little air
+    const TH = SURFACE_Y + TOKEN_HEIGHT // top of a token standing on a corner tile
+    const pts = []
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      pts.push(new THREE.Vector3(sx * HE, SURFACE_Y, sz * HE))
+      pts.push(new THREE.Vector3(sx * BOARD_HALF, TH, sz * BOARD_HALF))
+    }
+    const probe = this.camera.clone() // copies fov/aspect/near/far
+    let scale = 1
+    for (let i = 0; i < 18; i++) {
+      probe.position.copy(dir).multiplyScalar(baseDist * scale).add(t)
+      probe.lookAt(t)
+      probe.updateMatrixWorld(true)
+      probe.updateProjectionMatrix()
+      let maxN = 0
+      for (const p of pts) { const v = p.clone().project(probe); maxN = Math.max(maxN, Math.abs(v.x), Math.abs(v.y)) }
+      if (maxN <= 0.97) break
+      scale *= maxN / 0.95
+    }
+    this._fit = scale
+  }
+
+  // The resting camera position for the current fit (CAM_REST scaled out from the target).
+  _restPos() {
+    const f = this._fit
+    return {
+      x: CAM_TARGET.x + (CAM_REST.x - CAM_TARGET.x) * f,
+      y: CAM_TARGET.y + (CAM_REST.y - CAM_TARGET.y) * f,
+      z: CAM_TARGET.z + (CAM_REST.z - CAM_TARGET.z) * f,
+    }
   }
 
   // ndc in [-1,1] → perimeter tile index or null
@@ -362,8 +415,9 @@ export default class Scene3D {
   _tickCamera() {
     if (this._introUntil <= 0) return false
     const t = now()
+    const r = this._restPos()
     if (t >= this._introUntil) {
-      this.camera.position.set(CAM_REST.x, CAM_REST.y, CAM_REST.z)
+      this.camera.position.set(r.x, r.y, r.z)
       this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
       this._introUntil = 0
       return false
@@ -371,9 +425,9 @@ export default class Scene3D {
     const k = 1 - (this._introUntil - t) / 850 // 0→1
     const e = 1 - Math.pow(1 - k, 3) // easeOutCubic
     this.camera.position.set(
-      CAM_REST.x,
-      CAM_REST.y + INTRO_DY * (1 - e),
-      CAM_REST.z + INTRO_DZ * (1 - e),
+      r.x,
+      r.y + INTRO_DY * (1 - e),
+      r.z + INTRO_DZ * (1 - e),
     )
     this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
     return true

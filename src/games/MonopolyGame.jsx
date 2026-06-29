@@ -442,7 +442,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             <MonopolyScene3D onTile={onTile} store={animator} reducedMotion={reducedMotion} lang={lang}
               players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
               auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-              myId={myId} onContextLost={onContextLost}>
+              myId={myId} onContextLost={onContextLost} moment={renderMoment()}>
               {renderCenter()}
             </MonopolyScene3D>
             {/* The WebGL canvas is aria-hidden; this narrates board state to AT. */}
@@ -472,11 +472,10 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           <MonopolyBoard players={players} properties={properties} propByTile={propByTile} lang={lang}
             playerColor={playerColor} nameById={nameById} myId={myId} myFullSets={myFullSets}
             auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-            onTile={onTile} store={animator} tt={t}>
+            onTile={onTile} store={animator} tt={t} moment={renderMoment()}>
             {renderCenter()}
           </MonopolyBoard>
         )}
-        {renderMoment()}
       </div>
 
       <div className="mono-side">
