@@ -103,7 +103,7 @@ const Tile = memo(function Tile({ t, prop, lang, ownerColor, owner, active, auct
   )
 })
 
-function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId, myFullSets, auctionTile, activeTile, onTile, store, tt, children }) {
+function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId, myFullSets, auctionTile, activeTile, onTile, store, tt, children, moment }) {
   // Richer hover tooltip via the native title attribute (escapes the tile's
   // overflow:hidden + the dir=ltr/container-query transforms a CSS tooltip can't).
   const tipFor = (t, prop) => {
@@ -151,6 +151,7 @@ function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId,
       {store && <TokenLayer players={players} store={store} />}
       {store && <MoneyFloatLayer store={store} />}
       <div className="mono-center">{children}</div>
+      {moment}
     </div>
   )
 }

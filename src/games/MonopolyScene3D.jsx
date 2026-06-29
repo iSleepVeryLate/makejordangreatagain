@@ -13,7 +13,7 @@ const EMPTY_TOK = Object.freeze({ pos: {}, hopSeq: {}, mode: {}, active: null })
 // The center action UI (renderCenter) is passed as `children` and overlaid as DOM
 // above the canvas — crisp text, same handlers as the 2D path.
 export default function MonopolyScene3D({
-  onTile, store, reducedMotion, lang, onContextLost, children, debug = false,
+  onTile, store, reducedMotion, lang, onContextLost, children, moment = null, debug = false,
   players = [], properties = [], playerColor = {}, activeTile = null, auctionTile = null,
 }) {
   const wrapRef = useRef(null)
@@ -101,6 +101,9 @@ export default function MonopolyScene3D({
     <div className="mono-board-3d" ref={wrapRef} dir="ltr">
       <canvas ref={canvasRef} className="mono-canvas" aria-hidden="true" onClick={handleClick} />
       <div className="mono-center-3d">{children}</div>
+      {/* Decision-moment overlay lives INSIDE the board box so its scrim hugs the
+          board exactly (not the wider stage track). It sets its own dir. */}
+      {moment}
     </div>
   )
 }

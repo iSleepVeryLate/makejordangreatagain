@@ -79,19 +79,24 @@ export default class BuildingsLayer {
   _entry(tile) {
     let e = this.tiles.get(tile)
     if (!e) {
+      // The ring/tint live at the TILE centre (the group stays at the origin, so the
+      // absolutely-placed houses in _buildHouses are unaffected). Without this they
+      // all collapse onto the board centre — a long-standing bug the old steep camera
+      // hid but the clearer framing exposes.
+      const c = TILE_CENTERS_3D[tile] || TILE_CENTERS_3D[0]
       const group = new THREE.Group()
       this.host.scene.add(group)
       // ownership ring (own material so colour can be tinted per owner)
       const ringMat = new THREE.MeshBasicMaterial({ map: this._frameTex, color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })
       this._track(ringMat)
       const ring = new THREE.Mesh(this._ringGeo, ringMat)
-      ring.rotation.x = -Math.PI / 2; ring.position.y = SURFACE_Y + 0.015; ring.visible = false; ring.renderOrder = 2
+      ring.rotation.x = -Math.PI / 2; ring.position.set(c.x, SURFACE_Y + 0.015, c.z); ring.visible = false; ring.renderOrder = 2
       group.add(ring)
       // mortgage tint
       const tintMat = new THREE.MeshBasicMaterial({ color: 0x05080a, transparent: true, opacity: 0.46, depthWrite: false })
       this._track(tintMat)
       const tint = new THREE.Mesh(this._tintGeo, tintMat)
-      tint.rotation.x = -Math.PI / 2; tint.position.y = SURFACE_Y + 0.01; tint.visible = false; tint.renderOrder = 1
+      tint.rotation.x = -Math.PI / 2; tint.position.set(c.x, SURFACE_Y + 0.01, c.z); tint.visible = false; tint.renderOrder = 1
       group.add(tint)
       e = { tile, group, ring, ringMat, tint, ownerKey: null, count: -1, houses: [], hotel: null, popT0: 0, rise: [] }
       this.tiles.set(tile, e)

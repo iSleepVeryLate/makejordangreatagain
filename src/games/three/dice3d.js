@@ -40,7 +40,7 @@ export default class DicePair {
   constructor(host) {
     this.host = host
     this._disposables = new Set()
-    this.S = INNER_TRACK * 0.42
+    this.S = INNER_TRACK * 0.58 // bigger dice read clearly at the 3/4 framing
     this.restY = SURFACE_Y + this.S / 2 + 0.02
 
     const geo = new RoundedBoxGeometry(this.S, this.S, this.S, 3, this.S * 0.14)
@@ -183,8 +183,8 @@ export default class DicePair {
         const k = Math.min(1, (t - die.t0) / SETTLE_MS)
         const e = easeOutBack(k)
         die.mesh.quaternion.copy(die.from).slerp(die.to, Math.min(e, 1.0))
-        // a small drop + settle on landing
-        die.mesh.position.y = this.restY + (1 - k) * this.S * 0.4
+        // a pronounced drop + settle on landing (reads as the dice hitting the board)
+        die.mesh.position.y = this.restY + (1 - k) * this.S * 0.75
         if (k >= 1) { die.mesh.quaternion.copy(die.to); die.mesh.position.y = this.restY; die.settling = false } else animating = true
       }
     }

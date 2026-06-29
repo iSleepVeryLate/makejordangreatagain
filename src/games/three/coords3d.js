@@ -58,7 +58,7 @@ export const INWARD = {
 
 // Token rest height + hop apex (Phase 1 reuses these).
 export const TOKEN_RADIUS = INNER_TRACK * 0.3
-export const TOKEN_HEIGHT = INNER_TRACK * 0.4
+export const TOKEN_HEIGHT = INNER_TRACK * 0.62 // taller than wide → reads as a real game piece, not a chip
 export const TOKEN_REST_Y = SURFACE_Y + TOKEN_HEIGHT / 2
 export const HOP_PEAK_Y = TOKEN_REST_Y + INNER_TRACK * 0.5
 

@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, memo, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Dice5, LogOut, Trophy, RotateCcw, Home, Banknote, Handshake, X,
+  Dice5, LogOut, Trophy, RotateCcw, Banknote, Handshake, X,
   Volume2, VolumeX, Maximize, Landmark, Flag, Box, Layers,
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
@@ -271,12 +271,16 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
   if (!room || room.status !== 'playing') return <div className="page-loader"><div className="spinner" /></div>
 
-  // ---------------- center action area ----------------
+  // ---------------- control dock (slim, non-covering) ----------------
+  // The persistent HUD: whose turn + state, the primary action (roll / end turn) or
+  // a spectator status line, and the timer. Transient DECISIONS (buy / auction / jail
+  // / trade / debt) live in the centred MonoMoment overlay instead, so the board is
+  // never permanently covered. Passed as children into both the 3D and 2D boards.
   const renderCenter = () => {
     const turnName = name(turnId)
     const tileLabel = (i) => (i != null ? tileName(safeTile(i), lang) : '')
-    // What everyone who is NOT the active player sees: one clear, phase-aware line
-    // so the table always knows what's happening and whose move it is.
+    const turnMeta = tokenMeta(playerById[turnId]?.token)
+    // What everyone who is NOT the active player sees: one clear, phase-aware line.
     let statusLine = null
     if (!isMyTurn) {
       const turnAway = isAway(playerById[turnId])
@@ -289,12 +293,17 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
       else if (phase === 'trade_review') statusLine = t('mono.statusTrade', { name: name(room.pending_trade?.to) })
       else if (phase === 'awaiting_debt') statusLine = t('mono.statusDebt', { name: name(room.pending_debt?.debtor) })
     }
+    // Bidi-safe turn label: a token avatar + the player's name on its own + a small
+    // state tag — never the English "{name}'s" possessive glued to an Arabic name.
+    const turnSub = rollingId ? t('mono.rolling') : (isMyTurn ? null : t('mono.turnTag'))
     return (
-      <div className="mono-center-inner" dir={dir}>
-        <div className="mono-title-badge"><Home size={14} /> {t('mono.title')}</div>
-
-        <div className={`mono-turn-banner${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`} aria-live="polite">
-          {isMyTurn ? t('mono.yourTurn') : t('mono.turnOf', { name: turnName })}
+      <div className="mono-dock" dir={dir}>
+        <div className={`mono-turnchip${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`} aria-live="polite">
+          <span className="mono-turnchip-av" style={{ '--tok': turnMeta.color }}>{turnMeta.emoji}</span>
+          <span className="mono-turnchip-txt">
+            <b>{isMyTurn ? t('mono.yourTurn') : turnName}</b>
+            {turnSub && <i>{turnSub}</i>}
+          </span>
         </div>
 
         {!render3D && (
@@ -303,23 +312,9 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             onRoll={() => rollDice('roll')} hint={t('mono.rollHint')} />
         )}
 
-        {isMyTurn && rolling && <div className="mono-rolling-tag"><span className="mono-roll-dot" />{t('mono.rolling')}</div>}
-        {statusLine && <div className="mono-wait-status" aria-live="polite"><span className="mono-roll-dot" />{statusLine}</div>}
-
-        {room.phase_ends_at && (
-          <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} serverNow={serverNow} />
-        )}
-
-        {room.last_card && room.last_card.by === turnId && (
-          <div key={room.last_card.text?.en || room.seq} className={`mono-card-pop ${room.last_card.deck === 'chance' ? 'chance' : 'chest'}`}>
-            <span className="mono-card-deck">{room.last_card.deck === 'chance' ? `❓ ${t('mono.chance')}` : `🎁 ${t('mono.chest')}`}</span>
-            <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p>
-          </div>
-        )}
-
-        <div className="mono-actions">
-          {phase === 'roll' && isMyTurn && (
-            <>
+        <div className="mono-dock-main">
+          {isMyTurn && phase === 'roll' && (
+            <div className="mono-actions">
               {canRollAgain ? (
                 <button className="btn btn-gold" disabled={busy} onClick={() => rollDice('roll')}>
                   <Dice5 size={16} /> {busy ? t('mono.rolling') : (dice ? t('mono.rollAgain') : t('mono.roll'))}
@@ -329,41 +324,73 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               )}
               <button className="btn btn-line btn-sm" onClick={() => setManageOpen(true)}>{t('mono.manage')}</button>
               <button className="btn btn-line btn-sm" onClick={() => setTradeOpen(true)}><Handshake size={14} /> {t('mono.trade')}</button>
-            </>
-          )}
-
-          {phase === 'buy_decision' && isMyTurn && room.pending_purchase && (
-            <BuyPanel pend={room.pending_purchase} lang={lang} t={t} money={money} busy={busy} cash={me?.cash || 0}
-              onBuy={() => act('buy_property')} onDecline={() => act('decline_buy')} />
-          )}
-
-          {phase === 'jail' && isMyTurn && (
-            <div className="mono-jail-actions">
-              <span className="mono-jail-tag">{t('mono.inJail')}</span>
-              <button className="btn btn-line btn-sm" disabled={busy || (me?.cash || 0) < JAIL_FINE} onClick={() => act('pay_jail_fine')}>{t('mono.payFine')}</button>
-              {me?.goojf_cards > 0 && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => act('use_jail_card')}>{t('mono.useCard')}</button>}
-              <button className="btn btn-gold btn-sm" disabled={busy} onClick={() => rollDice('roll_for_jail')}>{t('mono.rollJail')}</button>
             </div>
           )}
-
-          {phase === 'auction' && (
-            <AuctionPanel room={room} myId={myId} name={name} lang={lang} t={t} money={money} busy={busy}
-              onBid={(amt) => act('auction_bid', { amount: amt })} onPass={() => act('auction_pass')} />
-          )}
-
-          {phase === 'trade_review' && room.pending_trade && (
-            <TradePanel tr={room.pending_trade} myId={myId} name={name} lang={lang} t={t} money={money} busy={busy}
-              onAccept={() => act('accept_trade')} onReject={() => act('reject_trade')} onCancel={() => act('cancel_trade')} />
-          )}
-
-          {phase === 'awaiting_debt' && room.pending_debt && room.pending_debt.debtor === myId && (
-            <div className="mono-debt">
-              <p className="mono-owe">{t('mono.youOweShort', { amount: room.pending_debt.amount })}</p>
-              <button className="btn btn-line btn-sm" onClick={() => setManageOpen(true)}>{t('mono.manage')}</button>
-              <button className="btn btn-red btn-sm" disabled={busy} onClick={() => act('declare_bankruptcy')}>{t('mono.declareBankrupt')}</button>
-            </div>
-          )}
+          {statusLine && <div className="mono-wait-status" aria-live="polite"><span className="mono-roll-dot" />{statusLine}</div>}
         </div>
+
+        {room.last_card && room.last_card.by === turnId && (
+          <div key={room.last_card.text?.en || room.seq} className={`mono-card-pop ${room.last_card.deck === 'chance' ? 'chance' : 'chest'}`}>
+            <span className="mono-card-deck">{room.last_card.deck === 'chance' ? `❓ ${t('mono.chance')}` : `🎁 ${t('mono.chest')}`}</span>
+            <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p>
+          </div>
+        )}
+
+        {room.phase_ends_at && (
+          <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} serverNow={serverNow} />
+        )}
+      </div>
+    )
+  }
+
+  // ---------------- decision moment (centred overlay over the board) ----------------
+  // Cinematic, transient. Shown only to players who actually act (auction shows to
+  // everyone — it's a shared event). The board dims gently behind it, like the
+  // official game's property pop-ups; spectators otherwise keep watching the board.
+  const renderMoment = () => {
+    let kind = null
+    let body = null
+    if (phase === 'buy_decision' && isMyTurn && room.pending_purchase) {
+      kind = 'buy'
+      body = <BuyPanel pend={room.pending_purchase} lang={lang} t={t} money={money} busy={busy} cash={me?.cash || 0}
+        onBuy={() => act('buy_property')} onDecline={() => act('decline_buy')} />
+    } else if (phase === 'auction') {
+      kind = 'auction'
+      body = <AuctionPanel room={room} myId={myId} name={name} lang={lang} t={t} money={money} busy={busy}
+        playerById={playerById} playerColor={playerColor}
+        onBid={(amt) => act('auction_bid', { amount: amt })} onPass={() => act('auction_pass')} />
+    } else if (phase === 'jail' && isMyTurn) {
+      kind = 'jail'
+      body = (
+        <div className="mono-jail-moment">
+          <span className="mono-jail-tag">⛓ {t('mono.inJail')}</span>
+          <div className="mono-jail-actions">
+            <button className="btn btn-line btn-sm" disabled={busy || (me?.cash || 0) < JAIL_FINE} onClick={() => act('pay_jail_fine')}>{t('mono.payFine')}</button>
+            {me?.goojf_cards > 0 && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => act('use_jail_card')}>{t('mono.useCard')}</button>}
+            <button className="btn btn-gold btn-sm" disabled={busy} onClick={() => rollDice('roll_for_jail')}>{t('mono.rollJail')}</button>
+          </div>
+        </div>
+      )
+    } else if (phase === 'trade_review' && room.pending_trade && (room.pending_trade.to === myId || room.pending_trade.from === myId)) {
+      kind = 'trade'
+      body = <TradePanel tr={room.pending_trade} myId={myId} name={name} lang={lang} t={t} money={money} busy={busy}
+        onAccept={() => act('accept_trade')} onReject={() => act('reject_trade')} onCancel={() => act('cancel_trade')} />
+    } else if (phase === 'awaiting_debt' && room.pending_debt && room.pending_debt.debtor === myId) {
+      kind = 'debt'
+      body = (
+        <div className="mono-debt">
+          <p className="mono-owe">{t('mono.youOweShort', { amount: room.pending_debt.amount })}</p>
+          <div className="mono-debt-btns">
+            <button className="btn btn-line btn-sm" onClick={() => setManageOpen(true)}>{t('mono.manage')}</button>
+            <button className="btn btn-red btn-sm" disabled={busy} onClick={() => act('declare_bankruptcy')}>{t('mono.declareBankrupt')}</button>
+          </div>
+        </div>
+      )
+    }
+    if (!body) return null
+    return (
+      <div className={`mono-moment-scrim mono-moment-${kind}`} dir={dir}>
+        <div className="mono-moment" role="dialog" aria-modal="false">{body}</div>
       </div>
     )
   }
@@ -415,7 +442,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             <MonopolyScene3D onTile={onTile} store={animator} reducedMotion={reducedMotion} lang={lang}
               players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
               auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-              myId={myId} onContextLost={onContextLost}>
+              myId={myId} onContextLost={onContextLost} moment={renderMoment()}>
               {renderCenter()}
             </MonopolyScene3D>
             {/* The WebGL canvas is aria-hidden; this narrates board state to AT. */}
@@ -445,7 +472,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           <MonopolyBoard players={players} properties={properties} propByTile={propByTile} lang={lang}
             playerColor={playerColor} nameById={nameById} myId={myId} myFullSets={myFullSets}
             auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-            onTile={onTile} store={animator} tt={t}>
+            onTile={onTile} store={animator} tt={t} moment={renderMoment()}>
             {renderCenter()}
           </MonopolyBoard>
         )}
@@ -515,36 +542,67 @@ const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, 
 
 function BuyPanel({ pend, lang, t, money, busy, cash, onBuy, onDecline }) {
   const tile = safeTile(pend?.tile)
+  const afford = cash >= pend.price
   return (
     <div className="mono-buy">
+      <span className="mono-moment-eyebrow">{t('mono.landedOn')}</span>
       <Deed tile={tile} lang={lang} t={t} money={money} />
+      {!afford && <p className="mono-buy-warn">{t('mono.cantAfford')}</p>}
       <div className="mono-buy-btns">
-        <button className="btn btn-gold btn-sm" disabled={busy || cash < pend.price} onClick={onBuy}>{t('mono.buy', { price: pend.price })}</button>
-        <button className="btn btn-line btn-sm" disabled={busy} onClick={onDecline}>{t('mono.decline')}</button>
+        <button className="btn btn-gold" disabled={busy || !afford} onClick={onBuy}>{t('mono.buy', { price: pend.price })}</button>
+        <button className="btn btn-line" disabled={busy} onClick={onDecline}>{t('mono.decline')}</button>
       </div>
     </div>
   )
 }
 
-function AuctionPanel({ room, myId, name, lang, t, money, busy, onBid, onPass }) {
+function AuctionPanel({ room, myId, name, lang, t, money, busy, playerById, playerColor, onBid, onPass }) {
   const a = room.pending_auction
+  const minBid = (a?.high_bid || 0) + 1
   const [amt, setAmt] = useState((a?.high_bid || 0) + 10)
+  // Keep the custom input a sensible step ahead as the high bid climbs.
+  useEffect(() => { setAmt((a?.high_bid || 0) + 10) }, [a?.high_bid])
   if (!a || !Array.isArray(a.active)) return null
   const onClock = a.active[a.on_clock]
   const mine = onClock === myId
-  const minBid = (a.high_bid || 0) + 1
+  const myCash = playerById?.[myId]?.cash || 0
+  const bid = (v) => onBid(Math.max(minBid, Math.floor(v)))
   return (
     <div className="mono-auction">
-      <span className="glabel">{t('mono.auction')} · {tileName(safeTile(a.tile), lang)}</span>
-      <p className="mono-auction-bid">{a.high_bidder ? `${name(a.high_bidder)} · ${money(a.high_bid)}` : '—'}</p>
+      <span className="mono-moment-eyebrow">{t('mono.auction')}</span>
+      <Deed tile={safeTile(a.tile)} lang={lang} t={t} money={money} />
+      <div className="mono-auction-bidbox">
+        <span className="glabel">{t('mono.highBid')}</span>
+        <p className="mono-auction-bid">{a.high_bidder ? money(a.high_bid) : '—'}</p>
+        {a.high_bidder && (
+          <span className="mono-auction-bidder">
+            <span className="mono-owner-dot" style={{ background: playerColor?.[a.high_bidder] }} />{name(a.high_bidder)}
+          </span>
+        )}
+      </div>
+      <div className="mono-auction-players">
+        {a.active.map((id, i) => (
+          <span key={id} className={`mono-auc-chip${i === a.on_clock ? ' clock' : ''}${id === myId ? ' me' : ''}`}>
+            <span className="mono-owner-dot" style={{ background: playerColor?.[id] }} />{id === myId ? t('mono.you') : name(id)}
+          </span>
+        ))}
+      </div>
       {mine ? (
         <div className="mono-auction-act">
-          <input type="number" min={minBid} value={amt} onChange={(e) => setAmt(Number(e.target.value))} />
-          <button className="btn btn-gold btn-sm" disabled={busy} onClick={() => onBid(Math.max(minBid, Math.floor(Number(amt) || 0)))}>{t('mono.bid')}</button>
-          <button className="btn btn-line btn-sm" disabled={busy} onClick={onPass}>{t('mono.pass')}</button>
+          <div className="mono-auction-quick">
+            {[10, 50, 100].map((q) => (
+              <button key={q} className="mono-chip-btn" disabled={busy || a.high_bid + q > myCash} onClick={() => bid(a.high_bid + q)}>+{q}</button>
+            ))}
+            <button className="mono-chip-btn allin" disabled={busy || myCash < minBid} onClick={() => bid(myCash)}>{t('mono.allIn')}</button>
+          </div>
+          <div className="mono-auction-custom">
+            <input type="number" min={minBid} max={myCash} value={amt} onChange={(e) => setAmt(Number(e.target.value))} />
+            <button className="btn btn-gold btn-sm" disabled={busy || amt < minBid || amt > myCash} onClick={() => bid(amt)}>{t('mono.bid')}</button>
+            <button className="btn btn-line btn-sm" disabled={busy} onClick={onPass}>{t('mono.pass')}</button>
+          </div>
         </div>
       ) : (
-        <p className="muted">{name(onClock)}…</p>
+        <p className="mono-auction-wait"><span className="mono-roll-dot" />{t('mono.waitingFor', { name: name(onClock) })}</p>
       )}
     </div>
   )
