@@ -619,6 +619,16 @@
 .mono-board { position: relative; width: 100%; max-width: 760px; margin: 0 auto; aspect-ratio: 1; container-type: inline-size; display: grid; grid-template-columns: 1.42fr repeat(9, 1fr) 1.42fr; grid-template-rows: 1.42fr repeat(9, 1fr) 1.42fr; gap: 3px; background: linear-gradient(145deg, #16201a, #0c130f); border: 1.5px solid rgba(212,175,55,.34); border-radius: 16px; padding: 9px; box-shadow: inset 0 0 40px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.4); }
 .mono-board-watermark { display: none; }
 
+/* screen-reader-only: describes the (aria-hidden) 3D canvas board state */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---- 3D board: WebGL canvas + DOM overlays (the "official-site" renderer) ---- */
+.mono-board-3d { position: relative; width: 100%; max-width: 880px; margin: 0 auto; aspect-ratio: 7 / 6; border-radius: 18px; overflow: hidden; background: radial-gradient(120% 120% at 50% 16%, #0e1813 0%, #070b09 72%); border: 1px solid rgba(212,175,55,.22); box-shadow: inset 0 0 60px rgba(0,0,0,.6), 0 18px 50px -24px rgba(0,0,0,.8); }
+.mono-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+/* center action UI overlaid on the 3D board (bottom-centred HUD panel) */
+.mono-center-3d { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(360px, 92%); z-index: 3; display: flex; justify-content: center; background: linear-gradient(180deg, rgba(10,16,12,.66), rgba(8,12,10,.84)); border: 1px solid rgba(212,175,55,.22); border-radius: 16px; padding: 10px 12px; backdrop-filter: blur(7px); box-shadow: 0 12px 30px -14px rgba(0,0,0,.7); }
+[dir="rtl"] .mono-center-3d { left: 50%; }
+
 /* light parchment tile faces with dark ink — legible like a real Monopoly deed */
 .mono-tile { position: relative; background: linear-gradient(180deg, #f6f1e4, #e7dfca); border: 1px solid #cdc3a6; border-radius: 5px; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1c1a14; min-width: 0; text-align: center; transition: box-shadow .15s ease, transform .1s ease; }
 .mono-tile:hover { box-shadow: 0 0 0 2px rgba(212,175,55,.7); z-index: 3; }
@@ -703,9 +713,16 @@
 .mono-timer-num { font-size: 12px; font-weight: 700; color: var(--txt-dim); font-variant-numeric: tabular-nums; }
 .mono-timer-wrap.low .mono-timer-num { color: #ff7a8a; }
 .mono-timer-wrap.low { animation: mono-pulse 1s ease-in-out infinite; }
-.mono-card-pop { background: var(--ink-3); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; animation: mono-pop .25s ease both; }
-.mono-card-pop p { font-size: 13px; margin-top: 2px; }
+.mono-card-pop { position: relative; background: linear-gradient(180deg, var(--ink-2), var(--ink-3)); border: 1px solid var(--line); border-radius: 12px; padding: 10px 13px; max-width: 280px; transform-origin: top center; animation: mono-card-flip .42s cubic-bezier(.2,.9,.3,1.2) both; box-shadow: 0 10px 26px -12px rgba(0,0,0,.7); }
+.mono-card-pop.chance { border-color: rgba(224,163,60,.55); box-shadow: 0 10px 26px -12px rgba(224,163,60,.5); }
+.mono-card-pop.chest { border-color: rgba(95,211,154,.5); box-shadow: 0 10px 26px -12px rgba(95,211,154,.45); }
+.mono-card-deck { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+.mono-card-pop.chance .mono-card-deck { color: #e0a33c; }
+.mono-card-pop.chest .mono-card-deck { color: #5fd39a; }
+.mono-card-pop p { font-size: 13px; margin-top: 3px; line-height: 1.35; }
 @keyframes mono-pop { from { transform: scale(.9); opacity: 0; } }
+@keyframes mono-card-flip { from { transform: perspective(600px) rotateX(-78deg); opacity: 0; } to { transform: perspective(600px) rotateX(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mono-card-pop { animation: mono-pop .2s ease both; } }
 .mono-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
 
 .mono-jail-actions, .mono-debt, .mono-auction-act, .mono-buy-btns, .mono-trade-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
@@ -714,11 +731,20 @@
 
 /* deed card */
 .mono-buy { display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.mono-deed { width: 150px; background: #fff; color: #111; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px -8px rgba(0,0,0,.6); }
-.mono-deed-head { padding: 8px; font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: .5px; }
-.mono-deed-rent { list-style: none; padding: 6px 10px; margin: 0; font-size: 11px; }
-.mono-deed-rent li { display: flex; justify-content: space-between; padding: 1px 0; }
-.mono-deed-foot { padding: 6px 10px; font-size: 11px; border-top: 1px solid #ddd; color: #333; }
+.mono-deed { width: 158px; background: #fbf7ec; color: #1b1812; border-radius: 9px; overflow: hidden; box-shadow: 0 10px 26px -8px rgba(0,0,0,.65), inset 0 0 0 1px rgba(0,0,0,.18); }
+.mono-deed-head { padding: 9px 8px 8px; font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: .5px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.35); box-shadow: inset 0 -2px 0 rgba(0,0,0,.2); }
+.mono-deed-over { display: block; font-size: 7.5px; letter-spacing: 2px; font-weight: 700; opacity: .9; margin-bottom: 2px; }
+.mono-deed-rent { list-style: none; padding: 7px 11px; margin: 0; font-size: 11px; }
+.mono-deed-rent li { display: flex; justify-content: space-between; padding: 1.5px 0; border-bottom: 1px dotted rgba(0,0,0,.12); }
+.mono-deed-rent li:last-child { border-bottom: none; }
+.mono-deed-rent li b { font-weight: 800; }
+.mono-deed-util { display: block !important; font-size: 10.5px; color: #2a2a2a; }
+.mono-deed-foot { display: flex; flex-wrap: wrap; gap: 3px 10px; justify-content: space-between; padding: 7px 11px; font-size: 10.5px; border-top: 1px solid rgba(0,0,0,.18); color: #3a3a3a; font-weight: 700; }
+
+/* player-card property-group pips (owned groups at a glance; bright = full set) */
+.mono-pcard-pips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.mono-pip { width: 9px; height: 9px; border-radius: 2px; opacity: .5; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+.mono-pip.full { opacity: 1; box-shadow: inset 0 0 0 1px rgba(255,255,255,.65), 0 0 5px rgba(212,175,55,.5); }
 
 /* auction / trade panels */
 .mono-auction, .mono-trade-review { display: flex; flex-direction: column; gap: 6px; align-items: center; width: 100%; }

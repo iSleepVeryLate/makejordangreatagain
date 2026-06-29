@@ -2,12 +2,14 @@ import { useMemo, useState, useCallback, useEffect, useRef, memo, useSyncExterna
 import { Link } from 'react-router-dom'
 import {
   Dice5, LogOut, Trophy, RotateCcw, Home, Banknote, Handshake, X,
-  Volume2, VolumeX, Maximize, Landmark, Flag,
+  Volume2, VolumeX, Maximize, Landmark, Flag, Box, Layers,
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
 import Confetti from '../components/Confetti.jsx'
 import MonopolyBoard from './MonopolyBoard.jsx'
+import MonopolyScene3D from './MonopolyScene3D.jsx'
+import { shouldUse3D, setRenderPref, supportsWebGL } from './three/capability.js'
 import TurnTimer from './TurnTimer.jsx'
 import Dice3D from './Dice3D.jsx'
 import { useSound } from '../hooks/useSound.js'
@@ -29,6 +31,34 @@ function useReducedMotion() {
     return () => mq.removeEventListener?.('change', h)
   }, [])
   return r
+}
+
+// Smoothly counts the displayed number toward `value` (cash ticks up/down instead
+// of snapping). Honors reduced motion (snaps). Format keeps JOD/locale formatting.
+function CountUp({ value, format, reduced }) {
+  const [display, setDisplay] = useState(value)
+  const dispRef = useRef(value) // the value actually on screen right now
+  const rafRef = useRef(0)
+  useEffect(() => {
+    const from = dispRef.current // start from what's shown, not a stale completion value
+    const to = value
+    if (from === to) return undefined
+    if (reduced) { dispRef.current = to; setDisplay(to); return undefined }
+    const start = performance.now()
+    const dur = 600
+    cancelAnimationFrame(rafRef.current)
+    const tick = (t) => {
+      const k = Math.min(1, (t - start) / dur)
+      const e = 1 - Math.pow(1 - k, 3)
+      const v = Math.round(from + (to - from) * e)
+      dispRef.current = v
+      setDisplay(v)
+      if (k < 1) rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [value, reduced])
+  return <>{format ? format(display) : display}</>
 }
 
 // The two 3D dice, fed by the animator's dice slice (reflects broadcast "rolling"
@@ -64,6 +94,10 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const [manageOpen, setManageOpen] = useState(false)
   const [tradeOpen, setTradeOpen] = useState(false)
   const [deedTile, setDeedTile] = useState(null)
+  // Renderer choice: 3D WebGL board vs the retained 2D DOM board ("Lite"). Defaults
+  // per device capability + persisted preference; the header toggle flips it live.
+  const [render3D, setRender3D] = useState(() => shouldUse3D())
+  const canToggle3D = useMemo(() => supportsWebGL(), []) // probe once, never on a render hot path
   const rootRef = useRef(null)
   const busyRef = useRef(false) // synchronous in-flight lock so a double-click can't double-submit
 
@@ -85,6 +119,22 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const holdings = useMemo(() => players
     .map((p) => ({ id: p.profile_id, name: profName(p), color: tokenMeta(p.token).color, count: properties.filter((pr) => pr.owner === p.profile_id).length }))
     .filter((h) => h.count > 0), [players, properties])
+  // Per-player owned colour groups (one pip per group; "full" when the set is complete)
+  // — a glance-able read of who's close to a monopoly. Shown on each player card.
+  const groupsByPlayer = useMemo(() => {
+    const res = {}
+    for (const p of players) {
+      const owned = {}
+      for (const pr of properties) {
+        if (pr.owner !== p.profile_id) continue
+        const c = safeTile(pr.tile_index).color
+        if (c) owned[c] = (owned[c] || 0) + 1
+      }
+      res[p.profile_id] = Object.entries(owned)
+        .map(([c, n]) => ({ hex: COLOR_GROUPS[c]?.hex || '#888', full: n === (COLOR_GROUPS[c]?.size || 99) }))
+    }
+    return res
+  }, [players, properties])
   const lang = dir === 'rtl' ? 'ar' : 'en'
 
   const reversedLog = useMemo(() => (room?.log || []).map((e, i) => ({ e, i })).reverse(), [room?.log])
@@ -163,6 +213,27 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 
   const onTile = useCallback((i) => { if (isOwnable(i)) setDeedTile(i) }, [])
 
+  // WebGL context lost / scene-load failure → fall back to the 2D renderer once.
+  const lostToastRef = useRef(false)
+  const toggle3D = useCallback(() => {
+    setRender3D((on) => {
+      const next = !on
+      if (next) lostToastRef.current = false // re-arm the one-shot fallback toast on re-enable
+      setRenderPref(next ? '3d' : '2d')
+      return next
+    })
+  }, [])
+
+  const onContextLost = useCallback(() => {
+    if (lostToastRef.current) return
+    lostToastRef.current = true
+    // Session-only fallback: a TRANSIENT loss (GPU/driver reset, sleep-wake) or a
+    // one-off chunk-load failure must NOT pin the device to Lite forever. Persistence
+    // is owned solely by the explicit toggle3D — next session retries 3D.
+    setRender3D(false)
+    toast(t('mono.glLost'), 'info')
+  }, [toast, t])
+
   // ---------------- FINISHED ----------------
   if (room?.status === 'finished') {
     const winner = playerById[room.winner]
@@ -226,9 +297,11 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           {isMyTurn ? t('mono.yourTurn') : t('mono.turnOf', { name: turnName })}
         </div>
 
-        <DiceBox store={animator}
-          canRoll={isMyTurn && phase === 'roll' && canRollAgain && !busy}
-          onRoll={() => rollDice('roll')} hint={t('mono.rollHint')} />
+        {!render3D && (
+          <DiceBox store={animator}
+            canRoll={isMyTurn && phase === 'roll' && canRollAgain && !busy}
+            onRoll={() => rollDice('roll')} hint={t('mono.rollHint')} />
+        )}
 
         {isMyTurn && rolling && <div className="mono-rolling-tag"><span className="mono-roll-dot" />{t('mono.rolling')}</div>}
         {statusLine && <div className="mono-wait-status" aria-live="polite"><span className="mono-roll-dot" />{statusLine}</div>}
@@ -238,8 +311,10 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         )}
 
         {room.last_card && room.last_card.by === turnId && (
-          <div className="mono-card-pop"><span className="glabel">{room.last_card.deck === 'chance' ? t('mono.chance') : t('mono.chest')}</span>
-            <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p></div>
+          <div key={room.last_card.text?.en || room.seq} className={`mono-card-pop ${room.last_card.deck === 'chance' ? 'chance' : 'chest'}`}>
+            <span className="mono-card-deck">{room.last_card.deck === 'chance' ? `❓ ${t('mono.chance')}` : `🎁 ${t('mono.chest')}`}</span>
+            <p>{room.last_card.text?.[lang] || room.last_card.text?.en}</p>
+          </div>
         )}
 
         <div className="mono-actions">
@@ -307,6 +382,13 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         </div>
         <div className="mono-header-tools">
           <span className="mono-live-pill"><span className="mono-live-dot" /> {presentCount} · {t('mono.live')}</span>
+          {canToggle3D && (
+            <button className="mono-icon-btn" onClick={toggle3D}
+              aria-label={render3D ? t('mono.liteMode') : t('mono.3dMode')}
+              title={render3D ? t('mono.liteMode') : t('mono.3dMode')}>
+              {render3D ? <Layers size={18} /> : <Box size={18} />}
+            </button>
+          )}
           <button className="mono-icon-btn" onClick={toggleMute} aria-label={muted ? t('mono.soundOff') : t('mono.soundOn')} title={muted ? t('mono.soundOff') : t('mono.soundOn')}>
             {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
@@ -322,17 +404,33 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             isMe={p.profile_id === myId} rolling={p.profile_id === rollingId}
             isOnline={!isAway(p)} offlineText={t('mono.offline')}
             rollText={t('mono.rolling')} nextText={t('mono.next')} money={money}
-            worth={aff.netWorth(p, propByTile)} worthLabel={t('mono.netWorth')} />
+            worth={aff.netWorth(p, propByTile)} worthLabel={t('mono.netWorth')}
+            groups={groupsByPlayer[p.profile_id]} reduced={reducedMotion} />
         ))}
       </div>
 
       <div className="mono-stage">
-        <MonopolyBoard players={players} properties={properties} propByTile={propByTile} lang={lang}
-          playerColor={playerColor} nameById={nameById} myId={myId} myFullSets={myFullSets}
-          auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-          onTile={onTile} store={animator} tt={t}>
-          {renderCenter()}
-        </MonopolyBoard>
+        {render3D ? (
+          <>
+            <MonopolyScene3D onTile={onTile} store={animator} reducedMotion={reducedMotion} lang={lang}
+              players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
+              auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
+              myId={myId} onContextLost={onContextLost}>
+              {renderCenter()}
+            </MonopolyScene3D>
+            {/* The WebGL canvas is aria-hidden; this narrates board state to AT. */}
+            <div className="sr-only" role="status" aria-live="polite">
+              {t('mono.turnOf', { name: name(turnId) })} · {tileName(safeTile(playerById[turnId]?.position), lang)}
+            </div>
+          </>
+        ) : (
+          <MonopolyBoard players={players} properties={properties} propByTile={propByTile} lang={lang}
+            playerColor={playerColor} nameById={nameById} myId={myId} myFullSets={myFullSets}
+            auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
+            onTile={onTile} store={animator} tt={t}>
+            {renderCenter()}
+          </MonopolyBoard>
+        )}
       </div>
 
       <div className="mono-side">
@@ -369,7 +467,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 }
 
 // ---------------- sub-panels ----------------
-const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel }) {
+const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel, groups, reduced }) {
   const meta = tokenMeta(p.token)
   const away = !isOnline && !p.bankrupt
   return (
@@ -380,9 +478,14 @@ const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, 
         <span className="mono-pcard-name">{profName(p)}</span>
         {rolling
           ? <span className="mono-pcard-roll"><span className="mono-roll-dot" />{rollText}</span>
-          : <span className="mono-pcard-cash"><Banknote size={12} /> {money ? money(p.cash) : p.cash}</span>}
+          : <span className="mono-pcard-cash"><Banknote size={12} /> <CountUp value={p.cash} format={money || ((n) => n)} reduced={reduced} /></span>}
         {!rolling && !p.bankrupt && worth != null && (
           <span className="mono-pcard-worth" title={worthLabel}>{worthLabel}: {money ? money(worth) : worth}</span>
+        )}
+        {Array.isArray(groups) && groups.length > 0 && (
+          <span className="mono-pcard-pips" aria-hidden>
+            {groups.map((g, i) => <i key={i} className={`mono-pip${g.full ? ' full' : ''}`} style={{ background: g.hex }} />)}
+          </span>
         )}
       </div>
       {isNext && !isTurn && !p.bankrupt && <span className="mono-pcard-next">{nextText}</span>}
@@ -452,13 +555,18 @@ function TradePanel({ tr, myId, name, lang, t, money, busy, onAccept, onReject, 
   )
 }
 
+// Classic "Title Deed" card — colour header + rent ladder (property), or the
+// station / utility rent structure, plus price, house cost and mortgage value.
 function Deed({ tile, lang, t, money }) {
   if (!tile || tile.type === 'blank') return null
-  const color = tile.color ? COLOR_GROUPS[tile.color]?.hex : '#444'
-  const m = money || ((n) => `${n}`)
+  const color = tile.color ? COLOR_GROUPS[tile.color]?.hex : (tile.type === 'railroad' ? '#1c1c22' : tile.type === 'utility' ? '#2a5e44' : '#444')
+  const head = (tile.color && (COLOR_GROUPS[tile.color]?.hex))
   return (
     <div className="mono-deed">
-      <div className="mono-deed-head" style={{ background: color }}>{tileName(tile, lang)}</div>
+      <div className="mono-deed-head" style={{ background: color, color: head ? undefined : '#f4efe1' }}>
+        <span className="mono-deed-over">{t('mono.titleDeed')}</span>
+        {tileName(tile, lang)}
+      </div>
       {tile.rent && (
         <ul className="mono-deed-rent">
           <li><span>{t('mono.deedRentBase')}</span><b>{tile.rent[0]}</b></li>
@@ -469,7 +577,25 @@ function Deed({ tile, lang, t, money }) {
           <li><span>{t('mono.deedRentHotel')}</span><b>{tile.rent[5]}</b></li>
         </ul>
       )}
-      <div className="mono-deed-foot">{tile.price ? m(tile.price) : ''}{tile.house ? ` · ${t('mono.deedHouseCost', { cost: tile.house })}` : ''}</div>
+      {tile.type === 'railroad' && (
+        <ul className="mono-deed-rent">
+          <li><span>{t('mono.deedStations')} ×1</span><b>25</b></li>
+          <li><span>×2</span><b>50</b></li>
+          <li><span>×3</span><b>100</b></li>
+          <li><span>×4</span><b>200</b></li>
+        </ul>
+      )}
+      {tile.type === 'utility' && (
+        <ul className="mono-deed-rent">
+          <li className="mono-deed-util">{t('mono.deedUtilOne')}</li>
+          <li className="mono-deed-util">{t('mono.deedUtilBoth')}</li>
+        </ul>
+      )}
+      <div className="mono-deed-foot">
+        {tile.price ? <span>{money ? money(tile.price) : tile.price}</span> : <span />}
+        {tile.house ? <span>{t('mono.deedHouseCost', { cost: tile.house })}</span> : null}
+        {tile.mortgage ? <span>{t('mono.deedMortgageVal')} {tile.mortgage}</span> : null}
+      </div>
     </div>
   )
 }
