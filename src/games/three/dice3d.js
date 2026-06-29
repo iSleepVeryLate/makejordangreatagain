@@ -118,9 +118,11 @@ export default class DicePair {
       }
       for (const die of this.dice) die.mesh.visible = true
     } else {
+      // dice cleared between turns — hide. Leave _settledNonce at the last SETTLED
+      // value (not d.nonce): no settle ran here, and overwriting it could suppress a
+      // future same-nonce settle. (Unreachable given the animator's monotonic nonce.)
       this.rolling = false
       for (const die of this.dice) { die.mesh.visible = false; die.settling = false }
-      this._settledNonce = d.nonce
     }
     this.host.invalidate()
   }

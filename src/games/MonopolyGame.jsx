@@ -14,7 +14,7 @@ import TurnTimer from './TurnTimer.jsx'
 import Dice3D from './Dice3D.jsx'
 import { useSound } from '../hooks/useSound.js'
 import { useBoardAnimator } from './useBoardAnimator.js'
-import { COLOR_GROUPS, tileName, JAIL_FINE, isOwnable, safeTile } from './monopolyBoard.js'
+import { COLOR_GROUPS, tileName, JAIL_FINE, isOwnable, safeTile, OWNABLE } from './monopolyBoard.js'
 import { tokenMeta } from './monopolyTokens.js'
 import * as aff from './monopolyAffordance.js'
 
@@ -421,6 +421,24 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             {/* The WebGL canvas is aria-hidden; this narrates board state to AT. */}
             <div className="sr-only" role="status" aria-live="polite">
               {t('mono.turnOf', { name: name(turnId) })} · {tileName(safeTile(playerById[turnId]?.position), lang)}
+            </div>
+            {/* Keyboard/screen-reader parity with the 2D board: a focusable list of
+                ownable tiles that opens the same deed popover via onTile(). */}
+            <div className="sr-only">
+              <h3>{t('mono.title')}</h3>
+              <ul>
+                {OWNABLE.map((i) => {
+                  const prop = propByTile[i]
+                  const owner = prop?.owner ? name(prop.owner) : t('mono.deedUnowned')
+                  return (
+                    <li key={i}>
+                      <button type="button" onClick={() => onTile(i)}>
+                        {tileName(safeTile(i), lang)} — {owner}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           </>
         ) : (
