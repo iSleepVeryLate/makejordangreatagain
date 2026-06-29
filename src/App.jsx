@@ -34,6 +34,9 @@ const Products = lazy(() => import('./pages/Products.jsx'))
 // Admin/ops room dashboard — admin-gated (RequireAdmin + server-side checks).
 const AdminRooms = lazy(() => import('./pages/AdminRooms.jsx'))
 
+// DEV-ONLY: 3D Monopoly renderer harness (route tree-shaken out of prod builds).
+const MonopolyDevHarness = __DEV_SERVER__ ? lazy(() => import('./pages/MonopolyDevHarness.jsx')) : null
+
 function MeRedirect() {
   const { profile, loading } = useAuth()
   if (loading) return null
@@ -141,6 +144,10 @@ export default function App() {
           </RequireAuth>
         }
       />
+
+      {__DEV_SERVER__ && MonopolyDevHarness && (
+        <Route path="/__dev/monopoly3d" element={<MonopolyDevHarness />} />
+      )}
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

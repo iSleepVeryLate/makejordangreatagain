@@ -8,7 +8,10 @@
 // the frozen board data in monopolyBoard.js.)
 
 export const CORNER_FR = 1.42 // must match .mono-board grid-template-* in app.css
-const TOTAL = CORNER_FR * 2 + 9
+// TOTAL/EDGES are exported so the 3D renderer (src/games/three/coords3d.js) derives
+// its world-space tile centres from the SAME track-edge math the 2D board uses —
+// they can never drift. (Display-only geometry; not the frozen board data.)
+export const TOTAL = CORNER_FR * 2 + 9
 
 // Perimeter index → 1-based grid {row,col}. Same mapping as the old duplicated
 // gridPos in MonopolyBoard/TokenLayer, now centralised.
@@ -27,8 +30,9 @@ export function tileSide(i) {
   return 'left' // right col → inward edge is the left
 }
 
-// Cumulative track edges in fr units (12 entries: the 11 boundaries + 0).
-const EDGES = [0]
+// Cumulative track edges in fr units (12 entries: the 11 boundaries + 0). Exported
+// for the 3D coordinate derivation (see TOTAL above).
+export const EDGES = [0]
 for (let k = 0; k < 11; k++) EDGES.push(EDGES[k] + (k === 0 || k === 10 ? CORNER_FR : 1))
 
 const centerPct = (track1based) => ((EDGES[track1based - 1] + EDGES[track1based]) / 2 / TOTAL) * 100
