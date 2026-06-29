@@ -144,20 +144,36 @@ function ChessGame({ fen, orientation, myColor, makeMove, disabled, finished, pg
     return s
   }, [pgnInfo, checkSquare, selected, targetSquares, captureTargets])
 
+  // Seed an engine with the FULL move history when the stored PGN agrees with the
+  // current FEN, so an optimistic move can carry a correct PGN (the move list +
+  // last-move highlight then update instantly, not a beat later on reconcile).
+  // Falls back to the history-less FEN if the PGN is missing (first move) or out
+  // of sync — the move still commits, just without an optimistic PGN.
+  const seedGame = useCallback(() => {
+    if (pgn) {
+      try {
+        const g = new Chess()
+        g.loadPgn(pgn)
+        if (g.fen() === position) return g
+      } catch { /* fall through to the FEN */ }
+    }
+    return new Chess(position)
+  }, [pgn, position])
+
   // The single funnel both click-to-move and drag converge on. promotion may be
   // undefined for non-promoting moves; the chosen piece flows through to the server.
   const commitMove = useCallback(
     (from, to, promotion) => {
-      const g = new Chess(position)
+      const g = seedGame()
       let move
       try { move = g.move({ from, to, promotion }) } catch { return false }
       if (!move) return false
-      makeMove({ from, to, promotion, optimisticFen: g.fen() })
+      makeMove({ from, to, promotion, optimisticFen: g.fen(), optimisticPgn: g.pgn() })
       setSelected(null)
       setPendingPromotion(null)
       return true
     },
-    [position, makeMove],
+    [seedGame, makeMove],
   )
 
   // Click-to-move (your turn only; premoves are drag-based — see render).
@@ -188,17 +204,17 @@ function ChessGame({ fen, orientation, myColor, makeMove, disabled, finished, pg
   const onPieceDrop = useCallback(
     (from, to) => {
       if (finished) return false
-      const g = new Chess(position)
+      const g = seedGame()
       if (g.turn() !== myColor) return false       // not your turn → premove handled upstream
       let move
       try { move = g.move({ from, to, promotion: 'q' }) } catch { return false }
       if (!move) return false
       if (move.flags.includes('p')) return false   // promotion handled by the dialog path
-      makeMove({ from, to, optimisticFen: g.fen() })
+      makeMove({ from, to, optimisticFen: g.fen(), optimisticPgn: g.pgn() })
       setSelected(null)
       return true
     },
-    [finished, position, myColor, makeMove],
+    [finished, seedGame, myColor, makeMove],
   )
 
   // Only show the promotion dialog for genuinely legal promotion drags.

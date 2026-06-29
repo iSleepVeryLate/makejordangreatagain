@@ -52,7 +52,7 @@ export default function Game() {
   const toast = useToast()
   const { t } = useLang()
   const gl = (key) => t(`game.${key}.label`)
-  const { match, players, online, loading, error, connState, myId, applyRow, refetch, matchRef } = useMatch(matchId)
+  const { match, players, online, loading, error, connState, myId, applyRow, refetch, matchRef, nudge, serverNow } = useMatch(matchId)
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState(false)
   const [ratings, setRatings] = useState({})
@@ -134,9 +134,10 @@ export default function Game() {
         return null
       }
       applyRow(data)
+      nudge() // P1: ping the opponent to pull this update now, not on the next poll
       return data
     },
-    [applyRow],
+    [applyRow, nudge],
   )
 
   const makeMove = useCallback((move) => rpc('make_move', { p_match_id: matchId, p_move: move }), [rpc, matchId])
@@ -154,7 +155,14 @@ export default function Game() {
       if (prev && move.optimisticFen) {
         const oppId = prev.player1 === myId ? prev.player2 : prev.player1
         applyRow({
-          board_state: { ...(prev.board_state || {}), fen: move.optimisticFen },
+          board_state: {
+            ...(prev.board_state || {}),
+            fen: move.optimisticFen,
+            // P2: carry the optimistic PGN too so the move list + last-move
+            // highlight update instantly, not a beat later on reconcile. Keep the
+            // prior PGN if the board couldn't build one (it always can).
+            ...(move.optimisticPgn ? { pgn: move.optimisticPgn } : {}),
+          },
           current_turn: oppId, // flips the turn so the board disables immediately
           last_move_at: new Date().toISOString(),
           // Bump the monotonic counter so a poll/realtime read still in flight
@@ -169,6 +177,7 @@ export default function Game() {
       })
       if (!error) {
         applyRow(data) // reconcile to authoritative state (visually a no-op)
+        nudge() // P1: push this move to the opponent immediately
         return data
       }
       // FunctionsHttpError → the function ran and rejected the move (illegal /
@@ -193,7 +202,7 @@ export default function Game() {
       if (!fallback && prev) applyRow(prev, { force: true }) // RPC also failed → undo optimistic move
       return fallback
     },
-    [matchId, applyRow, refetch, matchRef, myId, rpc, toast, t],
+    [matchId, applyRow, refetch, matchRef, myId, rpc, toast, t, nudge],
   )
 
   // Checkers is server-authoritative via the checkers-move Edge Function. The
@@ -210,6 +219,7 @@ export default function Game() {
       })
       if (!error) {
         applyRow(data)
+        nudge() // P1: push this move to the opponent immediately
         return data
       }
       // FunctionsHttpError → the function ran and rejected the move (illegal /
@@ -234,7 +244,7 @@ export default function Game() {
       refetch?.()
       return null
     },
-    [matchId, applyRow, refetch, matchRef, toast, t],
+    [matchId, applyRow, refetch, matchRef, toast, t, nudge],
   )
 
   const resign = async () => {
@@ -373,7 +383,10 @@ export default function Game() {
   // opponent shortens the wait); fall back to the local last_move_at clock (chess
   // 180s / checkers 120s / else 60s) when match_grace_status isn't available.
   const lastMoveMs = match.last_move_at ? new Date(match.last_move_at).getTime() : nowTs
-  const serverNowTs = nowTs + (grace?.offset || 0)
+  // Anchor "now" to SERVER time: the grace RPC's offset when we have it, else
+  // useMatch's last_move_at-derived estimate (P3) — so the fallback countdown
+  // stays honest on a skewed device clock. nowTs ticks 1/s to keep it live.
+  const serverNowTs = grace ? nowTs + grace.offset : (serverNow ? serverNow() : nowTs)
   const claimAtMs = grace?.claimAt ?? lastMoveMs + TIMEOUT_MS(match.game_type)
   const claimRemainMs = Math.max(0, claimAtMs - serverNowTs)
   const claimEligible = !(isTurnGame && isMyTurn)
