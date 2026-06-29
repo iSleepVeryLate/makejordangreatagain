@@ -157,6 +157,10 @@ export default function Game() {
           board_state: { ...(prev.board_state || {}), fen: move.optimisticFen },
           current_turn: oppId, // flips the turn so the board disables immediately
           last_move_at: new Date().toISOString(),
+          // Bump the monotonic counter so a poll/realtime read still in flight
+          // from BEFORE this move can't land afterward and snap the board back.
+          // The server's reconcile carries the same count, so it still applies.
+          move_count: (prev.move_count || 0) + 1,
         })
       }
 
@@ -176,7 +180,7 @@ export default function Game() {
         } catch {
           /* non-JSON body */
         }
-        if (prev) applyRow(prev)
+        if (prev) applyRow(prev, { force: true }) // undo the optimistic move (restores older count)
         else refetch?.()
         setActionError(msg)
         toast(msg, 'error')
@@ -186,7 +190,7 @@ export default function Game() {
       // RPC so honest play keeps working during rollout. Once chess-move is
       // deployed and migration 0004 is applied, this branch is never taken.
       const fallback = await rpc('make_move', { p_match_id: matchId, p_move: move })
-      if (!fallback && prev) applyRow(prev) // RPC also failed → undo optimistic move
+      if (!fallback && prev) applyRow(prev, { force: true }) // RPC also failed → undo optimistic move
       return fallback
     },
     [matchId, applyRow, refetch, matchRef, myId, rpc, toast, t],
@@ -217,7 +221,7 @@ export default function Game() {
         } catch {
           /* non-JSON body */
         }
-        if (prev) applyRow(prev)
+        if (prev) applyRow(prev, { force: true })
         else refetch?.()
         setActionError(msg)
         toast(msg, 'error')

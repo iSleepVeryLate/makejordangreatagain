@@ -17,6 +17,26 @@ const POLL_MS = 5000
 // quiet heartbeat instead of hammering a full fetch every 5s during normal play.
 const HEARTBEAT = 3
 
+// Reject an out-of-order row that would move the game BACKWARD. Realtime events
+// and the safety poll race each other, so a read begun before a move committed
+// (or a late-delivered socket event) can resolve carrying an OLDER board than
+// what's already on screen. Applied blindly it snaps the pieces back to an
+// earlier position — the "pieces jump back to where they were" bug.
+//
+// move_count is the server's monotonic per-ply counter (chess-move /
+// make_move both do move_count + 1), so a strictly-lower count is always
+// stale. A terminal transition (finish/abandon) is never blocked, even if its
+// count looks equal, so a game-ending update can always land.
+function isStale(prev, next) {
+  if (!prev || !next) return false
+  const terminal = next.status === 'finished' || next.status === 'abandoned'
+  const wasTerminal = prev.status === 'finished' || prev.status === 'abandoned'
+  if (terminal && !wasTerminal) return false
+  if (typeof prev.move_count === 'number' && typeof next.move_count === 'number')
+    return next.move_count < prev.move_count
+  return false
+}
+
 // Has anything the UI cares about actually changed? Move count + last_move_at
 // move together on every move, so this also covers board_state without a deep
 // compare. Lets the poll skip setState when the row is identical (no re-render).
@@ -103,6 +123,13 @@ export function useMatch(matchId) {
         return
       }
       cacheProfiles([data.p1, data.p2])
+      // Drop a slow read that resolved AFTER newer state already landed (a
+      // realtime move, or our own optimistic commit) — applying it would roll
+      // the board backward. This is the core "pieces snap back" guard.
+      if (matchRef.current && isStale(matchRef.current, data)) {
+        if (!silent) setLoading(false)
+        return
+      }
       // Skip the state update when a background reconcile returns an identical
       // row — avoids a re-render (and any board repaint) every poll tick.
       if (matchRef.current && silent && !rowChanged(matchRef.current, data)) return
@@ -114,10 +141,15 @@ export function useMatch(matchId) {
   )
 
   // Apply an authoritative row (from realtime or an RPC return) instantly.
+  // Realtime/poll-driven calls are guarded so a stale, out-of-order row can't
+  // roll the board back; the local action path (optimistic commit, authoritative
+  // reconcile, rollback-on-reject) passes { force: true } because it's ordered
+  // and a rollback intentionally restores an EARLIER move_count.
   const applyRow = useCallback(
-    (row) => {
+    (row, { force = false } = {}) => {
       if (!row) return
       setMatch((prev) => {
+        if (!force && isStale(prev, row)) return prev // drop out-of-order update
         const next = { ...(prev || {}), ...row }
         matchRef.current = next
         return next
