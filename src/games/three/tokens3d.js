@@ -37,31 +37,44 @@ export default class TokenField {
     this.activeTile = null
     this._disposables = new Set()
 
-    // Shared geometry across all pieces (one dispose each).
-    this._bodyGeo = new THREE.CylinderGeometry(TOKEN_RADIUS, TOKEN_RADIUS * 0.86, TOKEN_HEIGHT, 36)
-    this._glowGeo = new THREE.CircleGeometry(TOKEN_RADIUS * 1.7, 40)
-    this._track(this._bodyGeo, this._glowGeo)
+    // Shared geometry + colour-independent finishes (one dispose each). Each piece
+    // is a premium stacked medallion: a flared base, a glossy player-colour drum, a
+    // gold trim ring, and a cream cap bearing the embossed token icon.
+    const R = TOKEN_RADIUS; const H = TOKEN_HEIGHT
+    this._baseGeo = new THREE.CylinderGeometry(R * 1.12, R * 1.24, H * 0.20, 48)
+    this._drumGeo = new THREE.CylinderGeometry(R * 0.92, R * 1.0, H * 0.56, 48)
+    this._rimGeo = new THREE.TorusGeometry(R * 0.95, R * 0.06, 16, 48)
+    this._capGeo = new THREE.CylinderGeometry(R * 0.8, R * 0.8, H * 0.14, 44)
+    this._glowGeo = new THREE.CircleGeometry(R * 1.85, 44)
+    this._track(this._baseGeo, this._drumGeo, this._rimGeo, this._capGeo, this._glowGeo)
+    this._goldMat = new THREE.MeshStandardMaterial({ color: 0xd9b84a, roughness: 0.28, metalness: 0.9 })
+    this._capMat = new THREE.MeshStandardMaterial({ color: 0xf3ecda, roughness: 0.55, metalness: 0.08 })
+    this._track(this._goldMat, this._capMat)
     this._motifCache = new Map()
   }
 
   _track(...o) { for (const x of o) if (x) this._disposables.add(x) }
 
+  // Crisp cap face: a cream disc, a player-colour ring just inside the rim, and the
+  // embossed token glyph. 512px + anisotropy so it stays sharp at the 3/4 angle.
   _motifTexture(key, color) {
     if (this._motifCache.has(key)) return this._motifCache.get(key)
     const meta = tokenMeta(key)
-    const SZ = 256
+    const SZ = 512
     const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
     const ctx = cv.getContext('2d')
-    // light dished disc so the coloured rim reads + the glyph pops
-    const g = ctx.createRadialGradient(SZ / 2, SZ * 0.42, SZ * 0.05, SZ / 2, SZ / 2, SZ * 0.55)
-    g.addColorStop(0, '#fbf6ea'); g.addColorStop(1, color)
+    const g = ctx.createRadialGradient(SZ / 2, SZ * 0.4, SZ * 0.04, SZ / 2, SZ / 2, SZ * 0.52)
+    g.addColorStop(0, '#fffaf0'); g.addColorStop(1, '#ece2cb')
     ctx.fillStyle = g
     ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, SZ / 2, 0, Math.PI * 2); ctx.fill()
-    ctx.font = `${Math.round(SZ * 0.56)}px "Segoe UI Emoji", system-ui, sans-serif`
+    ctx.lineWidth = SZ * 0.05; ctx.strokeStyle = color
+    ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, SZ * 0.43, 0, Math.PI * 2); ctx.stroke()
+    ctx.font = `${Math.round(SZ * 0.5)}px "Segoe UI Emoji", system-ui, sans-serif`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText(meta.motif || meta.emoji || '●', SZ / 2, SZ * 0.54)
     const tex = new THREE.CanvasTexture(cv)
     tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 8
     this._motifCache.set(key, tex)
     this._track(tex)
     return tex
@@ -70,14 +83,21 @@ export default class TokenField {
   _make(id, key) {
     const hex = tokenMeta(key).color
     const color = new THREE.Color(hex)
-    const sideMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.35 })
-    const topMat = new THREE.MeshStandardMaterial({ map: this._motifTexture(key, hex), roughness: 0.5, metalness: 0.1 })
-    const botMat = new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.6), roughness: 0.6, metalness: 0.3 })
-    this._track(sideMat, topMat, botMat)
-    // CylinderGeometry material groups: [side, top, bottom]
-    const body = new THREE.Mesh(this._bodyGeo, [sideMat, topMat, botMat])
-    body.castShadow = true
-    body.position.set(0, TOKEN_REST_Y, 0)
+    const H = TOKEN_HEIGHT; const h = H / 2
+    const baseMat = new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.7), roughness: 0.4, metalness: 0.45 })
+    const drumMat = new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.5 })
+    const capTopMat = new THREE.MeshStandardMaterial({ map: this._motifTexture(key, hex), roughness: 0.5, metalness: 0.1 })
+    this._track(baseMat, drumMat, capTopMat)
+
+    const base = new THREE.Mesh(this._baseGeo, baseMat); base.position.y = -h + H * 0.10; base.castShadow = true
+    const drum = new THREE.Mesh(this._drumGeo, drumMat); drum.position.y = -h + H * 0.48; drum.castShadow = true
+    const rim = new THREE.Mesh(this._rimGeo, this._goldMat); rim.position.y = -h + H * 0.76; rim.rotation.x = Math.PI / 2
+    // CylinderGeometry material groups: [side, top, bottom] — icon on the top face.
+    const cap = new THREE.Mesh(this._capGeo, [this._capMat, capTopMat, this._capMat]); cap.position.y = -h + H * 0.83; cap.castShadow = true
+
+    const body = new THREE.Group()
+    body.add(base, drum, rim, cap)
+    body.position.y = TOKEN_REST_Y
 
     const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.5, depthWrite: false })
     this._track(glowMat)
@@ -93,6 +113,7 @@ export default class TokenField {
 
     const entry = {
       id, key, group, body, glow,
+      ownMats: [baseMat, drumMat, capTopMat, glowMat], // per-token mats freed on _remove
       cur: { x: 0, z: 0 }, from: { x: 0, z: 0 }, to: { x: 0, z: 0 },
       t0: 0, dur: 0, arc: false, tweening: false,
       hopSeen: -1, squashT0: 0, tile: -1,
@@ -107,9 +128,8 @@ export default class TokenField {
     if (e.tweening) { e.tweening = false; this.host.popTween() }
     this.host.scene.remove(e.group)
     // Free THIS token's own materials so a mid-game bankruptcy/rejoin doesn't leak
-    // them until full dispose(). The shared geometries and the cached motif texture
-    // (material.map) are NOT freed here — Material.dispose() leaves .map alone.
-    for (const m of [...e.body.material, e.glow.material]) { m.dispose(); this._disposables.delete(m) }
+    // them. Shared geometries + finish mats (gold/cap) + cached icon textures stay.
+    for (const m of e.ownMats) { m.dispose(); this._disposables.delete(m) }
     this.tokens.delete(id)
   }
 

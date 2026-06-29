@@ -611,7 +611,7 @@
 .mono-roll-dot { width: 6px; height: 6px; border-radius: 50%; background: #5fd39a; animation: mono-pulse 1s infinite; }
 .mono-pcard-jail { font-size: 15px; }
 
-.mono-stage { grid-column: 1; }
+.mono-stage { grid-column: 1; position: relative; }
 .mono-side { grid-column: 2; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 78px; }
 .mono-leave { align-self: flex-start; }
 
@@ -623,11 +623,11 @@
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---- 3D board: WebGL canvas + DOM overlays (the "official-site" renderer) ---- */
-.mono-board-3d { position: relative; width: 100%; max-width: 880px; margin: 0 auto; aspect-ratio: 7 / 6; border-radius: 18px; overflow: hidden; background: radial-gradient(120% 120% at 50% 16%, #0e1813 0%, #070b09 72%); border: 1px solid rgba(212,175,55,.22); box-shadow: inset 0 0 60px rgba(0,0,0,.6), 0 18px 50px -24px rgba(0,0,0,.8); }
+.mono-board-3d { position: relative; width: 100%; max-width: 1060px; margin: 0 auto; aspect-ratio: 1 / 1; border-radius: 18px; overflow: hidden; background: radial-gradient(120% 120% at 50% 16%, #0e1813 0%, #070b09 72%); border: 1px solid rgba(212,175,55,.22); box-shadow: inset 0 0 60px rgba(0,0,0,.6), 0 18px 50px -24px rgba(0,0,0,.8); }
 .mono-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-/* center action UI overlaid on the 3D board (bottom-centred HUD panel) */
-.mono-center-3d { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(360px, 92%); z-index: 3; display: flex; justify-content: center; background: linear-gradient(180deg, rgba(10,16,12,.66), rgba(8,12,10,.84)); border: 1px solid rgba(212,175,55,.22); border-radius: 16px; padding: 10px 12px; backdrop-filter: blur(7px); box-shadow: 0 12px 30px -14px rgba(0,0,0,.7); }
-[dir="rtl"] .mono-center-3d { left: 50%; }
+/* control dock overlaid on the 3D board — a SLIM bottom bar that never covers the
+   play area (decisions go to the centred .mono-moment overlay instead). */
+.mono-center-3d { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 94%; z-index: 3; display: flex; justify-content: center; }
 
 /* light parchment tile faces with dark ink — legible like a real Monopoly deed */
 .mono-tile { position: relative; background: linear-gradient(180deg, #f6f1e4, #e7dfca); border: 1px solid #cdc3a6; border-radius: 5px; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1c1a14; min-width: 0; text-align: center; transition: box-shadow .15s ease, transform .1s ease; }
@@ -682,10 +682,16 @@
 
 /* floating +N / −N cash deltas, anchored at the player's token */
 .mono-float-layer { position: absolute; inset: 9px; pointer-events: none; z-index: 7; }
-.mono-float { position: absolute; transform: translate(-50%, -50%); font-size: 15px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.85); animation: mono-float-up 2.2s ease-out forwards; white-space: nowrap; }
-.mono-float.pos { color: #5fd39a; }
-.mono-float.neg { color: #ff7a8a; }
-@keyframes mono-float-up { 0% { opacity: 0; transform: translate(-50%, -40%); } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -150%); } }
+.mono-float { position: absolute; transform: translate(-50%, -50%); font-size: 16px; font-weight: 800; white-space: nowrap; padding: 2px 10px; border-radius: 999px; background: rgba(8,12,10,.72); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 5px 14px -5px rgba(0,0,0,.8); animation: mono-float-up 2.1s cubic-bezier(.22,.7,.3,1) forwards; }
+.mono-float.pos { color: #6ee7a8; }
+.mono-float.neg { color: #ff8a98; }
+@keyframes mono-float-up {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); }
+  14% { opacity: 1; transform: translate(-50%, -56%) scale(1.1); }
+  28% { transform: translate(-50%, -64%) scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -172%) scale(1); }
+}
 
 /* board centre slot */
 .mono-center { grid-row: 2 / 11; grid-column: 2 / 11; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 8px; background: radial-gradient(110% 110% at 50% 30%, rgba(212,175,55,.06), transparent 60%); border-radius: 12px; }
@@ -725,6 +731,63 @@
 @media (prefers-reduced-motion: reduce) { .mono-card-pop { animation: mono-pop .2s ease both; } }
 .mono-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
 
+/* ---------- control dock (slim persistent HUD) ---------- */
+.mono-dock { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 10px 14px;
+  background: linear-gradient(180deg, rgba(10,16,12,.74), rgba(8,12,10,.9)); border: 1px solid rgba(212,175,55,.28);
+  border-radius: 16px; padding: 8px 14px; backdrop-filter: blur(8px); box-shadow: 0 14px 34px -16px rgba(0,0,0,.8); }
+.mono-turnchip { display: inline-flex; align-items: center; gap: 9px; padding: 4px; padding-inline-end: 12px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--mg-line); }
+.mono-turnchip.you { background: linear-gradient(160deg, rgba(52,217,138,.2), rgba(52,217,138,.05)); border-color: rgba(52,217,138,.5); }
+.mono-turnchip.rolling { animation: mono-pulse 1.1s ease-in-out infinite; }
+.mono-turnchip-av { width: 30px; height: 30px; border-radius: 50%; background: var(--tok); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; box-shadow: inset 0 0 0 2px rgba(255,255,255,.28), 0 2px 6px rgba(0,0,0,.5); }
+.mono-turnchip-txt { display: flex; flex-direction: column; line-height: 1.08; text-align: start; min-width: 0; }
+.mono-turnchip-txt b { font-size: 13.5px; font-weight: 700; color: #f3f1ea; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mono-turnchip.you .mono-turnchip-txt b { color: var(--green-bright); }
+.mono-turnchip-txt i { font-size: 10.5px; font-style: normal; color: var(--txt-dim); letter-spacing: .02em; }
+.mono-dock-main { display: flex; align-items: center; }
+.mono-dock .mono-timer-wrap { width: auto; min-width: 116px; max-width: 180px; }
+
+/* ---------- decision moment (centred overlay over the board) ---------- */
+.mono-moment-scrim { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: radial-gradient(80% 80% at 50% 44%, rgba(4,7,5,.5), rgba(4,7,5,.84)); backdrop-filter: blur(2px);
+  border-radius: 18px; animation: mono-scrim-in .18s ease both; }
+@keyframes mono-scrim-in { from { opacity: 0; } }
+.mono-moment { background: linear-gradient(180deg, #1a271f, #0e1611); border: 1px solid rgba(212,175,55,.34); border-radius: 18px;
+  padding: 18px 18px 20px; max-width: min(370px, 96%); max-height: 100%; overflow-y: auto;
+  box-shadow: 0 26px 64px -22px rgba(0,0,0,.88), inset 0 1px 0 rgba(255,255,255,.05);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; animation: mono-moment-in .28s cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes mono-moment-in { from { opacity: 0; transform: translateY(18px) scale(.93); } }
+.mono-moment-eyebrow { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--mg-gold-2); font-weight: 700; }
+.mono-moment .mono-deed { width: 216px; }
+@media (prefers-reduced-motion: reduce) { .mono-moment, .mono-moment-scrim { animation-duration: .12s; } }
+
+/* ---------- buy moment ---------- */
+.mono-buy { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.mono-buy-warn { font-size: 12px; color: #ffb38a; text-align: center; margin: 0; max-width: 220px; }
+.mono-buy-btns { display: flex; gap: 10px; }
+.mono-buy-btns .btn { min-width: 120px; justify-content: center; }
+
+/* ---------- auction moment ---------- */
+.mono-auction-bidbox { text-align: center; }
+.mono-auction-bid { font-size: 27px; font-weight: 800; color: var(--green-bright); margin: 2px 0 0; line-height: 1; font-variant-numeric: tabular-nums; }
+.mono-auction-bidder { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--txt-mid); margin-top: 3px; }
+.mono-auction-players { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.mono-auc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--txt-mid); padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--mg-line); }
+.mono-auc-chip.clock { border-color: var(--mg-gold); color: #f3e6bf; box-shadow: 0 0 0 1px rgba(212,175,55,.4); animation: mono-pulse 1.2s ease-in-out infinite; }
+.mono-auction-act { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.mono-auction-quick { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.mono-chip-btn { font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(212,175,55,.4); background: rgba(212,175,55,.1); color: var(--mg-gold-bright); cursor: pointer; transition: background .12s, transform .08s; }
+.mono-chip-btn:hover:not(:disabled) { background: rgba(212,175,55,.2); }
+.mono-chip-btn:active:not(:disabled) { transform: scale(.94); }
+.mono-chip-btn:disabled { opacity: .4; cursor: not-allowed; }
+.mono-chip-btn.allin { border-color: rgba(255,122,138,.5); background: rgba(255,122,138,.12); color: #ff9aa6; }
+.mono-auction-custom { display: flex; gap: 8px; justify-content: center; align-items: center; }
+.mono-auction-custom input { width: 92px; }
+.mono-auction-wait { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--txt-mid); margin: 0; }
+
+/* ---------- jail / debt moments ---------- */
+.mono-jail-moment { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.mono-debt-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
 .mono-jail-actions, .mono-debt, .mono-auction-act, .mono-buy-btns, .mono-trade-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
 .mono-jail-tag { background: rgba(228,0,43,.16); color: #ff7a8a; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .mono-owe { color: #ff7a8a; font-size: 13px; font-weight: 600; }
@@ -749,7 +812,7 @@
 /* auction / trade panels */
 .mono-auction, .mono-trade-review { display: flex; flex-direction: column; gap: 6px; align-items: center; width: 100%; }
 .mono-auction-bid { font-size: 18px; font-weight: 800; color: var(--green-bright); }
-.mono-auction-act input, .mono-select { background: var(--ink-3); border: 1px solid var(--line); border-radius: 8px; color: #fff; padding: 6px 8px; font-size: 13px; width: 80px; }
+.mono-auction-custom input, .mono-select { background: var(--ink-3); border: 1px solid var(--line); border-radius: 8px; color: #fff; padding: 6px 8px; font-size: 13px; width: 80px; }
 .mono-select { width: 100%; margin: 4px 0 8px; }
 .mono-trade-line { font-size: 13px; }
 

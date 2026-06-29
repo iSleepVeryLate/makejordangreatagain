@@ -23,9 +23,14 @@ import {
 const TEX_SIZE = 2048
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
 
-// Resting camera framing (tuned for the board to fill the frame at a ~48° tilt).
-const CAM_REST = { x: 0, y: 9.6, z: 9.0 }
-const CAM_TARGET = { x: 0, y: 0, z: 0.4 }
+// Resting camera framing. A LONGER lens (narrow FOV) sat FARTHER back flattens the
+// near→far tile-size disparity (the old 44°/short-lens framing shrank the back row
+// to an illegible sliver) while keeping a premium 3/4 "official board game" tilt.
+const CAM_REST = { x: 0, y: 11.7, z: 10.6 }
+const CAM_TARGET = { x: 0, y: 0, z: 0.25 }
+// How far the camera pulls up/back for the intro reveal ease (scaled with the framing).
+const INTRO_DY = 3.7
+const INTRO_DZ = 3.0
 
 export default class Scene3D {
   constructor({ reducedMotion = false, lang = 'en', onContextLost = null, preserveDrawingBuffer = false } = {}) {
@@ -90,7 +95,7 @@ export default class Scene3D {
     const scene = new THREE.Scene()
     this.scene = scene
 
-    const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 120)
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120)
     camera.position.set(CAM_REST.x, CAM_REST.y, CAM_REST.z)
     camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
     this.camera = camera
@@ -109,7 +114,7 @@ export default class Scene3D {
     // reveal: a short camera ease unless reduced-motion
     if (!this.reducedMotion) {
       this._introUntil = now() + 850
-      camera.position.set(CAM_REST.x, CAM_REST.y + 3.2, CAM_REST.z + 2.6)
+      camera.position.set(CAM_REST.x, CAM_REST.y + INTRO_DY, CAM_REST.z + INTRO_DZ)
     }
     this._loop()
   }
@@ -367,8 +372,8 @@ export default class Scene3D {
     const e = 1 - Math.pow(1 - k, 3) // easeOutCubic
     this.camera.position.set(
       CAM_REST.x,
-      CAM_REST.y + 3.2 * (1 - e),
-      CAM_REST.z + 2.6 * (1 - e),
+      CAM_REST.y + INTRO_DY * (1 - e),
+      CAM_REST.z + INTRO_DZ * (1 - e),
     )
     this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
     return true
