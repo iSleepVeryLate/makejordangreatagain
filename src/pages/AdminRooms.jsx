@@ -102,6 +102,17 @@ export default function AdminRooms() {
                   {events.map((e) => {
                     const canClose = SYSTEMS.includes(e.system) && !!e.room_ref
                     const key = `${e.system}:${e.room_ref}`
+                    // A sweep is system-wide (no room): summarize what it closed/reaped.
+                    // Otherwise show the affected room id.
+                    const summary =
+                      e.event_type === 'sweep'
+                        ? Object.entries(e.payload || {})
+                            .filter(([, v]) => Number(v) > 0)
+                            .map(([k, v]) => `${k} ${v}`)
+                            .join(' · ') || 'no changes'
+                        : e.room_ref
+                          ? `${String(e.room_ref).slice(0, 8)}…`
+                          : '—'
                     return (
                       <div className="room-row" key={e.id}>
                         <div className="who">
@@ -111,7 +122,7 @@ export default function AdminRooms() {
                               <span className="tag" style={{ marginInlineStart: 8 }}>{e.system}</span>
                             </div>
                             <div className="meta">
-                              {e.room_ref ? `${String(e.room_ref).slice(0, 8)}…` : '—'} · {timeAgo(e.created_at)}
+                              {summary} · {timeAgo(e.created_at)}
                             </div>
                           </div>
                         </div>
