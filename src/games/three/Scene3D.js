@@ -128,8 +128,9 @@ export default class Scene3D {
     this.camera = camera
 
     this._buildEnvironment() // IBL (procedural RoomEnvironment) — flatters the gold/metal
+    this._buildBackdrop() // F1: graded scene.background so the board sits in a space, not a void
     this._buildLights()
-    this._buildGround()
+    this._buildGround() // F1: dark-walnut PBR tabletop the board rests on (replaces the void plane)
     this._buildBoard()
     this._tokens = new TokenField(this) // host = this (provides scene/invalidate/pushTween/popTween)
     this._dice = new DicePair(this)
@@ -183,15 +184,113 @@ export default class Scene3D {
     this._track(hemi, key, ambient)
   }
 
+  // F1 — the world the board lives in. Two pieces, both static (loop still PARKS):
+  //   1. a large dark-walnut PBR tabletop the board visibly rests on (extends well
+  //      past the board edges → context + a grounded soft contact shadow), and
+  //   2. a graded backdrop (scene.background gradient) so the scene has depth and the
+  //      board reads as the HERO in a space, not a slab floating in the CSS void.
+  // Procedural canvas textures only — no asset files (the real HDRI is a later step).
+  // Soft-degrade: if a texture can't be generated (no document/2d ctx) we fall back to
+  // a flat coloured material / no backdrop — never a crash, never a black screen.
   _buildGround() {
-    const geo = new THREE.PlaneGeometry(80, 80)
-    const mat = new THREE.MeshStandardMaterial({ color: 0x0a120d, roughness: 1, metalness: 0 })
+    const tex = this._makeWoodTexture()
+    const matOpts = { color: 0x6b4a2f, roughness: 0.62, metalness: 0.0, envMapIntensity: 0.5 }
+    if (tex) {
+      // The same grain canvas doubles as a roughness map (lighter grain = a touch
+      // glossier varnish) so raking key light gets micro-variation, not a dead matte.
+      matOpts.map = tex
+      matOpts.roughnessMap = tex
+      matOpts.roughness = 0.78
+      matOpts.color = 0xffffff // let the map carry the colour
+    }
+    const geo = new THREE.PlaneGeometry(60, 60)
+    const mat = new THREE.MeshStandardMaterial(matOpts)
     const ground = new THREE.Mesh(geo, mat)
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -BOARD_THICKNESS / 2 - 0.02
     ground.receiveShadow = true
     this.scene.add(ground)
-    this._track(geo, mat)
+    this._track(geo, mat) // tex is tracked inside _makeWoodTexture
+  }
+
+  // Small procedural dark-walnut grain on a 512² canvas → tiled across the tabletop.
+  // Returns a tracked CanvasTexture, or null if the 2D canvas is unavailable (SSR /
+  // headless without document) so the caller can fall back to a flat material.
+  _makeWoodTexture() {
+    if (typeof document === 'undefined') return null
+    const S = 512
+    const canvas = document.createElement('canvas')
+    canvas.width = S; canvas.height = S
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    // base walnut tone
+    ctx.fillStyle = '#5e3f27'
+    ctx.fillRect(0, 0, S, S)
+    // long vertical grain streaks with gentle wander — cheap, reads as wood under light
+    const streaks = 220
+    for (let i = 0; i < streaks; i++) {
+      const x = Math.random() * S
+      const shade = 0.5 + Math.random() * 0.5
+      const r = Math.round(94 * shade + 18)
+      const g = Math.round(63 * shade + 12)
+      const b = Math.round(39 * shade + 8)
+      ctx.strokeStyle = `rgba(${r},${g},${b},${0.10 + Math.random() * 0.18})`
+      ctx.lineWidth = 0.6 + Math.random() * 1.8
+      ctx.beginPath()
+      let xx = x
+      ctx.moveTo(xx, 0)
+      for (let y = 0; y <= S; y += 16) {
+        xx += (Math.random() - 0.5) * 3
+        ctx.lineTo(xx, y)
+      }
+      ctx.stroke()
+    }
+    // a few soft darker bands for plank/figure variation
+    for (let i = 0; i < 7; i++) {
+      const y = Math.random() * S
+      const grad = ctx.createLinearGradient(0, y - 22, 0, y + 22)
+      grad.addColorStop(0, 'rgba(40,26,15,0)')
+      grad.addColorStop(0.5, `rgba(40,26,15,${0.12 + Math.random() * 0.12})`)
+      grad.addColorStop(1, 'rgba(40,26,15,0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, y - 22, S, 44)
+    }
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.wrapS = THREE.RepeatWrapping
+    tex.wrapT = THREE.RepeatWrapping
+    tex.repeat.set(6, 6) // tile across the 60-unit tabletop so the grain stays fine
+    tex.anisotropy = this.renderer?.capabilities?.getMaxAnisotropy?.() || 1
+    tex.needsUpdate = true
+    this._track(tex)
+    return tex
+  }
+
+  // Graded studio backdrop: a vertical-gradient CanvasTexture set as scene.background
+  // (cheapest "atmosphere" — no extra geometry, stays static so the loop PARKS).
+  // Lighter just above the horizon behind the board, falling to dark at top + bottom
+  // so the eye lands on the board. Tracked + disposed; null-safe soft-degrade (if the
+  // texture can't be built we simply leave the background null → CSS void shows through).
+  _buildBackdrop() {
+    if (!this.scene || typeof document === 'undefined') return
+    const W = 16; const H = 256 // tall + narrow: a pure vertical gradient, cheap to upload
+    const canvas = document.createElement('canvas')
+    canvas.width = W; canvas.height = H
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    // top (far/up) → mid (horizon glow) → bottom (near, settles to dark table shadow)
+    const grad = ctx.createLinearGradient(0, 0, 0, H)
+    grad.addColorStop(0.00, '#05080a') // deep top
+    grad.addColorStop(0.42, '#16242b') // soft cool horizon lift behind the board
+    grad.addColorStop(0.60, '#101a1f')
+    grad.addColorStop(1.00, '#05070a') // dark base
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.needsUpdate = true
+    this.scene.background = tex
+    this._track(tex)
   }
 
   _buildBoard() {
@@ -290,8 +389,9 @@ export default class Scene3D {
 
   // Image-based lighting from a procedural studio room (no asset file → deterministic
   // for the screenshot harness, robust offline). Wrapped: IBL is a bonus, never blocks
-  // mount. scene.background stays null so the canvas is transparent over the CSS void;
-  // cinematic edge darkness comes from the vignette, not a background.
+  // mount. (F1 sets scene.background to a graded backdrop in _buildBackdrop(); this only
+  // drives reflections/environment, not the visible background.) Edge darkness still
+  // comes from the vignette pass on top of the backdrop.
   _buildEnvironment() {
     if (!this.renderer || !this.scene) return
     try {
@@ -688,7 +788,7 @@ export default class Scene3D {
     this.composer = null; this._bloomPass = null; this._vignettePass = null; this._outputPass = null
     try { this._envRT?.dispose?.() } catch { /* gone */ }
     this._envRT = null
-    if (this.scene) this.scene.environment = null
+    if (this.scene) { this.scene.environment = null; this.scene.background = null } // F1 backdrop texture is freed via _disposables
     for (const o of this._disposables) {
       try { o.dispose?.() } catch { /* already gone */ }
     }
