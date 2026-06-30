@@ -320,10 +320,15 @@ export default class Scene3D {
       composer.setSize(w, h)
       composer.addPass(new RenderPass(this.scene, this.camera))
       // strength, radius, threshold — the HIGH threshold IS the selective-bloom
-      // mechanism. Verified in the harness: at 0.82 the bright cream board itself
-      // bloomed and washed out; at 1.0 only genuine HDR highlights (specular gold
-      // trim, the active gold glow, dice glints) push above it and bloom.
-      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.5, 1.0)
+      // mechanism. Harness diagnostic (bloom-bypass + threshold sweep): the diffuse
+      // cream board's linear HDR runs ~1.3-1.5, so at 1.0 the board itself bloomed and
+      // washed out (cream band 118->186); not IBL-driven (board envMapIntensity had no
+      // effect) but the direct-light diffuse. At 1.5 the cream drops back to the clean
+      // bloom-off value (~115) while metal-specular highlights (gold frame, silver
+      // tokens, dice glints, HDR>1.5) still bloom — selective bloom on highlights only.
+      // Raising the threshold is additive-only (can't over-darken); exposure/lights are
+      // confirmed correct by the clean bloom-off render.
+      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.5, 1.5)
       composer.addPass(bloom)
       const vignette = new ShaderPass(VignetteShader)
       vignette.uniforms.offset.value = 0.95
