@@ -211,7 +211,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     else el.requestFullscreen?.()
   }, [])
 
-  const onTile = useCallback((i) => { if (isOwnable(i)) setDeedTile(i) }, [])
+  const onTile = useCallback((i) => { if (isOwnable(i)) { setDeedTile(i); play('select') } }, [play])
 
   // WebGL context lost / scene-load failure → fall back to the 2D renderer once.
   const lostToastRef = useRef(false)
@@ -483,7 +483,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           <span className="glabel">{t('mono.log')}</span>
           <div className="mono-log">
             {reversedLog.map(({ e, i }) => (
-              <div className="mono-log-row" key={`${e.k}-${e.by ?? ''}-${i}`}>{formatLog(e, name, lang, t)}</div>
+              <div className={`mono-log-row mono-ev-${e.k}`} key={`${e.k}-${e.by ?? ''}-${i}`}>{formatLog(e, name, lang, t)}</div>
             ))}
           </div>
         </div>
@@ -831,25 +831,27 @@ function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, o
 function formatLog(e, name, lang, t) {
   const who = e.by ? name(e.by) : ''
   switch (e.k) {
-    case 'start': return '🎲 ' + t('mono.title')
-    case 'roll': return `🎲 ${who}: ${e.d?.[0]} + ${e.d?.[1]}`
-    case 'buy': return `🏠 ${who} → ${tileName(safeTile(e.tile), lang)} (${e.price})`
-    case 'rent': return `💸 ${who} → ${name(e.to)} ${t('mono.amount', { amount: e.amount })}`
-    case 'tax': return `🧾 ${who} −${e.amount}`
-    case 'pass_go': return `✅ ${who} +200 (GO)`
-    case 'card': return `🎴 ${who}: ${e.text?.[lang] || e.text?.en}`
-    case 'jail': return `⛓ ${who}`
-    case 'jail_out': return `🔓 ${who}`
-    case 'build': return `🏗 ${who} → ${tileName(safeTile(e.tile), lang)} (${e.houses === 5 ? '🏨' : '🏠'.repeat(e.houses)})`
-    case 'sell': return `🔨 ${who} → ${tileName(safeTile(e.tile), lang)}`
-    case 'mortgage': return `⌧ ${who} → ${tileName(safeTile(e.tile), lang)}`
-    case 'unmortgage': return `✔ ${who} → ${tileName(safeTile(e.tile), lang)}`
-    case 'trade': return `🤝 ${name(e.from)} ⇄ ${name(e.to)}`
-    case 'auction_win': return `🔨 ${who} → ${tileName(safeTile(e.tile), lang)} (${e.price})`
-    case 'auction_none': return `🔨 ${tileName(safeTile(e.tile), lang)} —`
-    case 'bankrupt': return `💀 ${who}`
-    case 'resign': return `🏳 ${who}`
-    case 'win': return `🏆 ${who}`
+    // Leading icons are now rendered as per-event vector chips via CSS (.mono-ev-*::before),
+    // so the strings carry no leading emoji. Meaningful inline glyphs (house count, ⇄) stay.
+    case 'start': return t('mono.title')
+    case 'roll': return `${who}: ${e.d?.[0]} + ${e.d?.[1]}`
+    case 'buy': return `${who} → ${tileName(safeTile(e.tile), lang)} (${e.price})`
+    case 'rent': return `${who} → ${name(e.to)} ${t('mono.amount', { amount: e.amount })}`
+    case 'tax': return `${who} −${e.amount}`
+    case 'pass_go': return `${who} +200 (GO)`
+    case 'card': return `${who}: ${e.text?.[lang] || e.text?.en}`
+    case 'jail': return `${who}`
+    case 'jail_out': return `${who}`
+    case 'build': return `${who} → ${tileName(safeTile(e.tile), lang)} (${e.houses === 5 ? '🏨' : '🏠'.repeat(e.houses)})`
+    case 'sell': return `${who} → ${tileName(safeTile(e.tile), lang)}`
+    case 'mortgage': return `${who} → ${tileName(safeTile(e.tile), lang)}`
+    case 'unmortgage': return `${who} → ${tileName(safeTile(e.tile), lang)}`
+    case 'trade': return `${name(e.from)} ⇄ ${name(e.to)}`
+    case 'auction_win': return `${who} → ${tileName(safeTile(e.tile), lang)} (${e.price})`
+    case 'auction_none': return `${tileName(safeTile(e.tile), lang)} —`
+    case 'bankrupt': return `${who}`
+    case 'resign': return `${who}`
+    case 'win': return `${who}`
     default: return ''
   }
 }
