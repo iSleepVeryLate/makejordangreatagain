@@ -125,6 +125,14 @@ export default function MonopolyDevHarness() {
         <button onClick={() => reward(75)} style={btn}>rent ＋$75</button>
         <button onClick={() => reward(15)} style={btn}>card ＋$15</button>
       </div>
+      {/* ITEM 2 — fire each action SFX directly so the expanded sound pass is auditable
+          without a live game (each is distinct + brief; unmute + click once to unlock). */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
+        <span style={{ color: '#9a8' }}>sounds:</span>
+        {['buy', 'build', 'buildHotel', 'mortgage', 'unmortgage', 'payOut', 'tax', 'jail', 'jailOut', 'coin'].map((s) => (
+          <button key={s} onClick={() => sound.play(s)} style={btn}>{s}</button>
+        ))}
+      </div>
       {/* The scene + an overlaid MoneyFloatLayer so the "+$N" pop is visible in the
           harness (the 3D scene itself doesn't mount the float layer — that lives in the
           2D-Lite board). The %-anchored floats map to the board face approximately here;

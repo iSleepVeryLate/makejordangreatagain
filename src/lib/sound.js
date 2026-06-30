@@ -106,6 +106,26 @@ const SFX = {
     for (let i = 0; i < 5; i++) noise({ t0: 0.02 + i * 0.045, dur: 0.04, gain: 0.06, type: 'bandpass', freq: 4200 + Math.random() * 1800, q: 2.4 })
   },
   build: () => { noise({ dur: 0.05, gain: 0.28, type: 'lowpass', freq: 420 }); tone({ freq: 150, type: 'square', dur: 0.08, gain: 0.12 }) },
+  // ITEM 2 — a HOTEL is a bigger build than a house: the wooden hammer knock (like
+  // `build`) plus a low confirming "thunk-up" two-note so the upgrade reads as heavier
+  // and more significant than placing a single house. Kept brief.
+  buildHotel: () => { noise({ dur: 0.06, gain: 0.3, type: 'lowpass', freq: 360 }); tone({ freq: 130, type: 'square', dur: 0.1, gain: 0.14 }); tone({ freq: 196, t0: 0.09, type: 'square', dur: 0.13, gain: 0.12 }) },
+  // ITEM 2 — PAY RENT (and any "money leaving you"): a short descending cash-DROP, the
+  // mirror of the rising `coin` gain. A quick downward triangle glide + a soft low
+  // paper/coin shuffle so it reads as "you paid out", clearly distinct from the bright
+  // ka-ching the RECEIVER hears. The payer plays this from the rent/tax log event.
+  payOut: () => { tone({ freq: 880, glideTo: 440, type: 'triangle', dur: 0.18, gain: 0.12 }); noise({ t0: 0.04, dur: 0.12, gain: 0.07, type: 'lowpass', freq: 700, q: 0.8 }) },
+  // ITEM 2 — TAX: a dry "stamp + thud" — a short percussive low knock under a flat
+  // mid square blip, reading as an official levy. Distinct from payOut (rent) so a tax
+  // square and a rent payment don't sound the same.
+  tax: () => { noise({ dur: 0.05, gain: 0.2, type: 'lowpass', freq: 320 }); tone({ freq: 300, type: 'square', dur: 0.07, gain: 0.1 }); tone({ freq: 220, t0: 0.06, type: 'square', dur: 0.1, gain: 0.09 }) },
+  // ITEM 2 — MORTGAGE (raise cash against a deed): a soft "cash-in" — a low paper-rustle
+  // noise + a brief downward sine, reading as "deed handed in for money". Quiet + brief.
+  mortgage: () => { noise({ dur: 0.13, gain: 0.1, type: 'bandpass', freq: 2200, q: 0.9 }); tone({ freq: 420, glideTo: 300, type: 'sine', dur: 0.12, gain: 0.09 }) },
+  // ITEM 2 — UNMORTGAGE (buy a deed back): the inverse — a brief RISING two-note sine
+  // (deed reclaimed) over a light paper shuffle, so lifting a mortgage feels positive and
+  // is clearly the opposite of `mortgage`.
+  unmortgage: () => { tone({ freq: 480, type: 'sine', dur: 0.1, gain: 0.1 }); tone({ freq: 660, t0: 0.08, type: 'sine', dur: 0.13, gain: 0.1 }); noise({ t0: 0.02, dur: 0.1, gain: 0.06, type: 'highpass', freq: 3000 }) },
   card: () => noise({ dur: 0.2, gain: 0.1, type: 'highpass', freq: 3800 }),
   jail: () => { tone({ freq: 220, type: 'sawtooth', dur: 0.32, gain: 0.16, glideTo: 90 }); noise({ dur: 0.14, gain: 0.18, type: 'bandpass', freq: 1100, q: 2 }) },
   jailOut: () => { tone({ freq: 620, type: 'sine', dur: 0.1, gain: 0.12 }); tone({ freq: 880, t0: 0.08, type: 'sine', dur: 0.15, gain: 0.12 }) },

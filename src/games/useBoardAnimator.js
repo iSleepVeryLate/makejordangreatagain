@@ -229,12 +229,17 @@ function fireEventSounds(events, play) {
   for (const e of events) {
     switch (e.k) {
       case 'buy': case 'auction_win': play('buy'); break
-      case 'rent': play('rent'); break
-      case 'tax': play('rent'); break
-      case 'build': play('build'); break
+      // ITEM 2 — `rent` is the PAYER's event (the receiver gains via the coin slice +
+      // ka-ching from fireFloats). So rent fires a descending "pay out", distinct from the
+      // bright rising `coin` gain the receiver hears.
+      case 'rent': play('payOut'); break
+      case 'tax': play('tax'); break // own dry "official levy" stamp (was sharing `rent`)
+      // ITEM 2 — a hotel (houses === 5) is a heavier build than a house.
+      case 'build': play(e.houses === 5 ? 'buildHotel' : 'build'); break
       case 'sell': play('build'); break
+      case 'mortgage': play('mortgage'); break // distinct cash-in (was generic `ui`)
+      case 'unmortgage': play('unmortgage'); break // distinct rising deed-reclaim (was `ui`)
       case 'card': play('card'); break
-      case 'mortgage': case 'unmortgage': play('ui'); break
       case 'jail': play('jail'); break
       case 'jail_out': play('jailOut'); break
       case 'bankrupt': play('bankrupt'); break
