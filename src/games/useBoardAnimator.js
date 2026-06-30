@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { CENTERS } from './monopolyGeometry.js'
 import { tokenMeta } from './monopolyTokens.js'
+import { safeTile } from './monopolyBoard.js'
+import { ownsFullSet } from './monopolyAffordance.js'
 
 // ============================================================================
 // Delta-driven animation orchestrator (the heart of the "pro" upgrade).
@@ -46,6 +48,12 @@ export function createAnimatorStore() {
   // scene.coinReward(id). The 2D-Lite path simply ignores it (the DOM +$N float carries
   // the gain there). Self-clearing isn't needed — it's an edge signal, not held state.
   const coin = makeSlice({ id: null, amount: 0, nonce: 0 })
+  // ITEM 3 — BIG-MOMENT celebration signal. An edge signal (like `coin`): bumped with a
+  // `kind` ('buy' | 'set' | 'go' | 'win') whenever the LOCAL player hits a milestone, so a
+  // celebration overlay (Confetti + gold glow flash + stinger) fires. nonce bumps each time
+  // so back-to-back same-kind moments each celebrate. Renderer-agnostic; the overlay
+  // subscribes. Self-clearing isn't needed — it's an edge, not held state.
+  const celebrate = makeSlice({ kind: null, nonce: 0 })
   // ROLL READOUT + "you'll land here" slice. Populated the moment a roll is known
   // (dice committed + we can read from→to off the authoritative delta) and CLEARED
   // when the move ends. Drives BOTH the DOM readout overlay (MonopolyScene3D) and the
@@ -108,6 +116,13 @@ export function createAnimatorStore() {
     coin.set({ id, amount, nonce: coin.get().nonce + 1 })
   }
 
+  // ITEM 3 — fire a big-moment celebration of `kind`. Edge signal: each call bumps the
+  // nonce so a subscriber re-celebrates even on an identical kind back-to-back.
+  const pushCelebrate = (kind) => {
+    if (!kind) return
+    celebrate.set({ kind, nonce: celebrate.get().nonce + 1 })
+  }
+
   // Show the roll readout + destination/path. Idempotent re-show with the same target is
   // a no-op-ish nonce bump; callers pass a fresh nonce per real roll.
   const showRoll = ({ a, b, from, to, path = [], active = null }) => {
@@ -121,7 +136,7 @@ export function createAnimatorStore() {
     roll.set({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: r.nonce })
   }
 
-  return { tokens, dice, floats, roll, coin, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, pushCoin, showRoll, clearRoll }
+  return { tokens, dice, floats, roll, coin, celebrate, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, pushCoin, pushCelebrate, showRoll, clearRoll }
 }
 
 const posMap = (players) => {
@@ -249,6 +264,28 @@ function fireEventSounds(events, play) {
   }
 }
 
+// ITEM 3 — detect the LOCAL player's big moments in this step's log tail and fire a
+// celebration (Confetti + gold flash + stinger) via the celebrate slice. Gated to myId so
+// an opponent's purchase/GO never celebrates on my screen (it'd be noise). Order matters:
+// a set-completing BUY fires the 'set' celebration (the bigger payoff) INSTEAD of 'buy', so
+// a single purchase never double-pops. propByTile is the NEW snapshot so ownsFullSet sees
+// the just-bought tile. Win/GO are simple per-event checks.
+function detectMilestones(events, properties, myId, store) {
+  if (!myId || !Array.isArray(events) || events.length === 0) return
+  const propByTile = {}
+  for (const p of (properties || [])) propByTile[p.tile_index] = p
+  for (const e of events) {
+    if (e.k === 'win' && e.by === myId) { store.pushCelebrate('win'); continue }
+    if (e.k === 'pass_go' && e.by === myId) { store.pushCelebrate('go'); continue }
+    if ((e.k === 'buy' || e.k === 'auction_win') && e.by === myId) {
+      const color = safeTile(e.tile).color
+      // a set-completing buy is the headline moment → 'set' (not also 'buy')
+      if (color && ownsFullSet(propByTile, color, myId)) store.pushCelebrate('set')
+      else store.pushCelebrate('buy')
+    }
+  }
+}
+
 export function useBoardAnimator(room, players, properties, opts = {}) {
   const { play, reducedMotion = false } = opts
   const storeRef = useRef(null)
@@ -331,6 +368,11 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
         else store.settleDice(null, null)
       }
       fireEventSounds(events, p)
+      // ITEM 3 — big-moment celebrations (Confetti + gold flash + stinger) for MY
+      // milestones in this step's events. Reduced-motion gating lives in the overlay
+      // (Confetti returns null + the flash no-ops); the stinger plays regardless (sound is
+      // motion-independent here, matching the codebase convention).
+      detectMilestones(events, properties, opts.myId, store)
     }
 
     // "It just became your turn" chime — once per turn handoff.

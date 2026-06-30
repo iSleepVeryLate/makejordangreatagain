@@ -7,6 +7,7 @@ import {
 import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
 import Confetti from '../components/Confetti.jsx'
+import MonoCelebration from './MonoCelebration.jsx'
 import MonopolyBoard from './MonopolyBoard.jsx'
 import MonopolyScene3D from './MonopolyScene3D.jsx'
 import { shouldUse3D, setRenderPref, supportsWebGL } from './three/capability.js'
@@ -484,6 +485,10 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             {renderCenter()}
           </MonopolyBoard>
         )}
+        {/* ITEM 3 — big-moment celebration overlay (Confetti + gold flash + stinger) over
+            the board for MY milestones (buy / set / pass GO / win). Pointer-events:none so
+            it never blocks the board or a decision moment. Works for both renderers. */}
+        <MonoCelebration store={animator} reducedMotion={reducedMotion} play={play} />
       </div>
 
       <div className="mono-side">

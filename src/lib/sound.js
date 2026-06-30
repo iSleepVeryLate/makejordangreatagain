@@ -131,6 +131,15 @@ const SFX = {
   jailOut: () => { tone({ freq: 620, type: 'sine', dur: 0.1, gain: 0.12 }); tone({ freq: 880, t0: 0.08, type: 'sine', dur: 0.15, gain: 0.12 }) },
   bankrupt: () => { tone({ freq: 440, type: 'sawtooth', dur: 0.55, gain: 0.2, glideTo: 90 }) },
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, t0: i * 0.13, type: 'triangle', dur: 0.32, gain: 0.17 })) },
+  // ITEM 3 — the BIG-MOMENT stinger: a quick bright triumphant flourish for a milestone
+  // (buy / set / pass GO / win-pop), shorter + snappier than the game-end `win` cadence so
+  // it lands as a "nice!" punctuation rather than a finale. A rising triad with a sparkle of
+  // high coin chinks on top → reads as a celebratory payoff. Brief so repeats don't grate.
+  stinger: () => {
+    [784, 1047, 1319].forEach((f, i) => tone({ freq: f, t0: i * 0.06, type: 'triangle', dur: 0.2, gain: 0.15 }))
+    tone({ freq: 1568, t0: 0.18, type: 'triangle', dur: 0.26, gain: 0.13 }) // a bright top note to cap it
+    for (let i = 0; i < 4; i++) noise({ t0: 0.05 + i * 0.05, dur: 0.04, gain: 0.05, type: 'bandpass', freq: 4600 + Math.random() * 1600, q: 2.4 })
+  },
   turn: () => { tone({ freq: 784, type: 'sine', dur: 0.12, gain: 0.14 }); tone({ freq: 1047, t0: 0.1, type: 'sine', dur: 0.18, gain: 0.14 }) },
   ui: () => tone({ freq: 560, type: 'sine', dur: 0.05, gain: 0.07 }),
   // tile select — a soft, crisp two-note pip when a deed/tile is opened (distinct from `ui`)

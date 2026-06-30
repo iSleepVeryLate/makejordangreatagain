@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import MonopolyScene3D from '../games/MonopolyScene3D.jsx'
 import MoneyFloatLayer from '../games/MoneyFloat.jsx'
+import MonoCelebration from '../games/MonoCelebration.jsx'
 import { createAnimatorStore, ringPath } from '../games/useBoardAnimator.js'
 import { CENTERS } from '../games/monopolyGeometry.js'
 import { tokenMeta } from '../games/monopolyTokens.js'
@@ -129,9 +130,19 @@ export default function MonopolyDevHarness() {
           without a live game (each is distinct + brief; unmute + click once to unlock). */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
         <span style={{ color: '#9a8' }}>sounds:</span>
-        {['buy', 'build', 'buildHotel', 'mortgage', 'unmortgage', 'payOut', 'tax', 'jail', 'jailOut', 'coin'].map((s) => (
+        {['buy', 'build', 'buildHotel', 'mortgage', 'unmortgage', 'payOut', 'tax', 'jail', 'jailOut', 'coin', 'stinger'].map((s) => (
           <button key={s} onClick={() => sound.play(s)} style={btn}>{s}</button>
         ))}
+      </div>
+      {/* ITEM 3 — fire each big-moment celebration (Confetti + gold flash + stinger) via the
+          celebrate slice, exactly as a real milestone would. Reduced-motion → no visuals,
+          stinger only. The overlay is mounted over the scene below. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
+        <span style={{ color: '#9a8' }}>celebrate:</span>
+        <button onClick={() => store.pushCelebrate('buy')} style={btn}>buy</button>
+        <button onClick={() => store.pushCelebrate('set')} style={btn}>set (monopoly)</button>
+        <button onClick={() => store.pushCelebrate('go')} style={btn}>pass GO</button>
+        <button onClick={() => store.pushCelebrate('win')} style={btn}>win</button>
       </div>
       {/* The scene + an overlaid MoneyFloatLayer so the "+$N" pop is visible in the
           harness (the 3D scene itself doesn't mount the float layer — that lives in the
@@ -155,6 +166,9 @@ export default function MonopolyDevHarness() {
           <div className="mono-center-inner"><div className="mono-turn-banner you">3D harness</div></div>
         </MonopolyScene3D>
         <MoneyFloatLayer store={store} />
+        {/* ITEM 3 — the celebration overlay, mounted over the scene so the demo buttons
+            above are visible here (Confetti + gold flash + badge). */}
+        <MonoCelebration store={store} reducedMotion={reduced} play={(n) => sound.play(n)} />
       </div>
     </div>
   )
