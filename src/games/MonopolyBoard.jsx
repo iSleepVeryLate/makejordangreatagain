@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { BOARD, COLOR_GROUPS, tileName } from './monopolyBoard.js'
+import { ownerBorderColor } from './colorUtil.js'
 import { gridPos, tileSide } from './monopolyGeometry.js'
 import { buildableHint, rentNow } from './monopolyAffordance.js'
 import TokenLayer from './TokenLayer.jsx'
@@ -88,7 +89,11 @@ const Tile = memo(function Tile({ t, prop, lang, ownerColor, owner, active, auct
 
       {/* keyed on owner so a change of ownership remounts the stripe and replays
           the "deed stamp" animation (same re-key trick as the token hop). */}
-      {owned && <span key={owner} className="mono-tile-own" style={{ '--ow': ownerColor }} aria-hidden />}
+      {/* ITEM 1 — --ow drives the faint owner-coloured fill; --ow-border drives the
+          border itself. For a LIGHT owner colour the border uses a DARKENED, same-hue
+          variant (ownerBorderColor) so a near-white owner separates from the cream tile;
+          dark owners get their raw colour for both. Mirrors the 3D bake. */}
+      {owned && <span key={owner} className="mono-tile-own" style={{ '--ow': ownerColor, '--ow-border': ownerColor ? ownerBorderColor(ownerColor) : undefined }} aria-hidden />}
 
       {houses > 0 && (
         <span className={`mono-tile-houses ${side}`} aria-hidden>

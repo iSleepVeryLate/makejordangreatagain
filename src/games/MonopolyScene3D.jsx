@@ -16,6 +16,7 @@ const EMPTY_ROLL = Object.freeze({ show: false, a: null, b: null, from: null, to
 export default function MonopolyScene3D({
   onTile, store, reducedMotion, lang, onContextLost, children, moment = null, debug = false,
   players = [], properties = [], playerColor = {}, activeTile = null, auctionTile = null, activeColor = null,
+  sceneApiRef = null,
 }) {
   const wrapRef = useRef(null)
   const canvasRef = useRef(null)
@@ -102,6 +103,28 @@ export default function MonopolyScene3D({
   }, [lang])
 
   useEffect(() => { sceneRef.current?.setReducedMotion(reducedMotion) }, [reducedMotion])
+
+  // ITEM 4 — expose a tiny imperative API to the parent (MonopolyGame) so the HUD can fly
+  // coins FROM a token into its balance card. tokenViewportPos returns the token's screen
+  // position in VIEWPORT px (canvas-relative project() + the canvas rect offset), or null
+  // if unavailable / off-screen → the caller then falls back to the token-side burst.
+  // Populated on mount, cleared on unmount so a stale ref can't point at a disposed scene.
+  useEffect(() => {
+    if (!sceneApiRef) return undefined
+    sceneApiRef.current = {
+      tokenViewportPos: (id) => {
+        const scene = sceneRef.current
+        const canvas = canvasRef.current
+        if (!scene || !canvas) return null
+        const p = scene.tokenScreenPos(id)
+        if (!p || !p.visible) return null
+        const r = canvas.getBoundingClientRect()
+        if (!r.width || !r.height) return null
+        return { x: r.left + p.x, y: r.top + p.y }
+      },
+    }
+    return () => { if (sceneApiRef.current && sceneApiRef.current.tokenViewportPos) sceneApiRef.current = null }
+  }, [sceneApiRef])
 
   // Re-sync pieces when the player list changes (join / bankruptcy) even without a
   // token-slice tick, so meshes are added/removed to match.

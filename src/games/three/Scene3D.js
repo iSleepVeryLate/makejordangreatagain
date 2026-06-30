@@ -510,6 +510,17 @@ export default class Scene3D {
   // reduced motion / low-power (TokenField guards). Transient + park-safe.
   coinReward(id) { this._tokens?.coinReward(id) }
 
+  // ITEM 4 — the screen position (px, RELATIVE TO THE CANVAS, like project()) of a
+  // player's token, so the HUD can fly coins FROM the token into that player's balance
+  // card. Returns { x, y, visible } or null if the token/scene isn't available (caller
+  // then falls back to the token-side burst). visible=false when the point is behind the
+  // camera. Pure read — never mutates the scene, safe to call from the HUD on a coin edge.
+  tokenScreenPos(id) {
+    const w = this._tokens?.tokenWorldPos?.(id)
+    if (!w) return null
+    return this.project(w)
+  }
+
   // Ease the camera's look-at toward the active token's tile (a gentle "follow").
   // Returns true while still easing. Disabled under reduced motion (fixed framing).
   _updateFollow() {
