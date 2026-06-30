@@ -46,11 +46,14 @@ export default class DicePair {
     const geo = new RoundedBoxGeometry(this.S, this.S, this.S, 3, this.S * 0.14)
     this._track(geo)
     const mats = FACE_VALUES.map((v) => {
-      // A5: glossier ivory that picks up the IBL (envMapIntensity 1.0) + a bumpMap so
-      // the pips read as drilled holes, not printed dots.
+      // Satin ivory + bumpMap pips (drilled-hole read). Tuned DOWN from glossy 0.28/1.0:
+      // the near-white face at high gloss/IBL spiked past the bloom threshold (1.5) and
+      // blew the centre to a white starburst when both dice rest over the wordmark. A
+      // higher roughness + lower envMapIntensity keep the specular below the cut so the
+      // dice read as a clean satin highlight, not an over-glow.
       const m = new THREE.MeshStandardMaterial({
         map: this._pipTexture(v), bumpMap: this._pipBumpTexture(v), bumpScale: 0.5,
-        roughness: 0.28, metalness: 0.05, envMapIntensity: 1.0,
+        roughness: 0.42, metalness: 0.05, envMapIntensity: 0.55,
       })
       this._track(m, m.map, m.bumpMap)
       return m
@@ -104,7 +107,10 @@ export default class DicePair {
     const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
     const ctx = cv.getContext('2d')
     const g = ctx.createLinearGradient(0, 0, SZ, SZ)
-    g.addColorStop(0, '#fdfdfb'); g.addColorStop(1, '#e4e4dc')
+    // Softer off-white (was near-white #fdfdfb→#e4e4dc): the bright base sat near 1.0
+    // and pushed the whole face past the bloom cut. This reads as warm ivory dice
+    // without the diffuse surface itself blooming.
+    g.addColorStop(0, '#ece9e0'); g.addColorStop(1, '#cfccc2')
     ctx.fillStyle = g; ctx.fillRect(0, 0, SZ, SZ)
     ctx.fillStyle = '#17150f'
     const cells = PIPS[value] || []
