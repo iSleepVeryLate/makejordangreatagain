@@ -44,6 +44,38 @@ export default class BuildingsLayer {
     this._activeRing = this._makeRing(0xffd36a, 0.7); this._activeRing.visible = false
     this._auctionRing = this._makeRing(0xff9d3c, 0.85); this._auctionRing.visible = false
     host.scene.add(this._activeRing); host.scene.add(this._auctionRing)
+
+    // "YOU ARE HERE" pin — a solid colour-fill disc UNDER the active ring so the current
+    // tile reads boldly even at the play camera (the thin gold frame alone is subtle).
+    // Tinted to the active player's colour per sync. Static (no pulse → loop parks).
+    this._hereGeo = new THREE.CircleGeometry(INNER_TRACK * 0.40, 40)
+    this._hereMat = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.32, depthWrite: false })
+    this._track(this._hereGeo, this._hereMat)
+    this._hereDisc = new THREE.Mesh(this._hereGeo, this._hereMat)
+    this._hereDisc.rotation.x = -Math.PI / 2; this._hereDisc.position.y = SURFACE_Y + 0.018
+    this._hereDisc.renderOrder = 2; this._hereDisc.visible = false
+    host.scene.add(this._hereDisc)
+
+    // "YOU'LL LAND HERE" — a distinct BRIGHT target ring at the destination tile + a pool
+    // of small dot markers tracing the path the token will pass over. Driven by the roll
+    // slice (syncRoll): appears the moment the roll is known, CLEARS when the move ends.
+    // The destination ring PULSES (only while a roll is showing — like the auction ring —
+    // so the loop parks once it clears); under reduced motion it's static.
+    this._destRing = this._makeRing(0x6fe3ff, 0.95); this._destRing.visible = false // bright cyan — reads as a target, distinct from the gold "here"
+    this._destRing.scale.set(1.04, 1.04, 1.04)
+    host.scene.add(this._destRing)
+    this._rollShowing = false
+    // path dot markers (reused; sized for the inner track). A small fixed pool covers a
+    // max dice walk of 12 tiles; never grows in the loop.
+    this._pathGeo = new THREE.CircleGeometry(INNER_TRACK * 0.12, 20)
+    this._pathMat = new THREE.MeshBasicMaterial({ color: 0x9fe9ff, transparent: true, opacity: 0.8, depthWrite: false })
+    this._track(this._pathGeo, this._pathMat)
+    this._pathDots = []
+    for (let k = 0; k < 12; k++) {
+      const d = new THREE.Mesh(this._pathGeo, this._pathMat)
+      d.rotation.x = -Math.PI / 2; d.position.y = SURFACE_Y + 0.016; d.renderOrder = 2; d.visible = false
+      host.scene.add(d); this._pathDots.push(d)
+    }
   }
 
   _track(...o) { for (const x of o) if (x) this._disposables.add(x) }
@@ -153,7 +185,7 @@ export default class BuildingsLayer {
     if (e.rise.length) { if (this.host.reducedMotion) e.rise = []; else this._anim.add(e) }
   }
 
-  sync(properties, playerColor, activeTile, auctionTile) {
+  sync(properties, playerColor, activeTile, auctionTile, activeColor) {
     const seen = new Set()
     for (const p of (properties || [])) {
       const tile = p.tile_index
@@ -191,9 +223,46 @@ export default class BuildingsLayer {
       this.tiles.delete(tile)
     }
 
+    // "You are here": bold the active tile in the active player's colour (the gold
+    // default reads as "highlight"; their colour reads as "this is MY piece's tile").
+    const hereHex = activeColor || '#ffd36a'
+    this._activeRing.material.color.set(hereHex)
+    this._hereMat.color.set(hereHex)
     this._placeRing(this._activeRing, activeTile)
+    if (activeTile == null) { this._hereDisc.visible = false } else {
+      const c = TILE_CENTERS_3D[activeTile] || TILE_CENTERS_3D[0]
+      this._hereDisc.position.set(c.x, SURFACE_Y + 0.018, c.z); this._hereDisc.visible = true
+    }
     this._auctionTile = auctionTile ?? null
     this._placeRing(this._auctionRing, this._auctionTile)
+    this.host.invalidate()
+  }
+
+  // Drive the "you'll land here" destination ring + path dots from the roll slice.
+  // roll = { show, to, path, active } (path excludes the origin, includes the dest).
+  // playerColor maps id→hex but the target is intentionally a BRIGHT distinct colour
+  // (cyan) so it never blends with the player-coloured "here" pin. Pure read; transient.
+  syncRoll(roll, _playerColor) {
+    const show = !!(roll && roll.show && roll.to != null)
+    this._rollShowing = show
+    if (!show) {
+      this._destRing.visible = false
+      for (const d of this._pathDots) d.visible = false
+      this.host.invalidate()
+      return
+    }
+    this._placeRing(this._destRing, roll.to)
+    // path dots on each passed tile EXCEPT the destination (the ring marks that).
+    const path = Array.isArray(roll.path) ? roll.path : []
+    let di = 0
+    for (let i = 0; i < path.length && di < this._pathDots.length; i++) {
+      const tile = path[i]
+      if (tile === roll.to) continue
+      const c = TILE_CENTERS_3D[tile] || TILE_CENTERS_3D[0]
+      const dot = this._pathDots[di++]
+      dot.position.set(c.x, SURFACE_Y + 0.016, c.z); dot.visible = true
+    }
+    for (; di < this._pathDots.length; di++) this._pathDots[di].visible = false
     this.host.invalidate()
   }
 
@@ -225,6 +294,12 @@ export default class BuildingsLayer {
       if (this.host.reducedMotion) this._auctionRing.material.opacity = 0.8
       else { this._auctionRing.material.opacity = 0.5 + 0.35 * (0.5 + 0.5 * Math.sin(t * 0.006)); animating = true }
     }
+    // pulsing destination "land here" ring — ONLY while a roll is showing (it clears when
+    // the move ends, so the loop parks). Static under reduced motion (no pulse → parks).
+    if (this._destRing.visible && this._rollShowing) {
+      if (this.host.reducedMotion) this._destRing.material.opacity = 0.95
+      else { this._destRing.material.opacity = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(t * 0.008)); animating = true }
+    }
     return animating
   }
 
@@ -237,12 +312,16 @@ export default class BuildingsLayer {
     }
     this._anim.clear()
     if (this._auctionRing.visible) this._auctionRing.material.opacity = 0.8
+    if (this._destRing.visible) this._destRing.material.opacity = 0.95 // freeze static — no pulse under reduced motion
   }
 
   dispose() {
     for (const e of this.tiles.values()) this.host.scene.remove(e.group)
     this.tiles.clear(); this._anim.clear()
     this.host.scene.remove(this._activeRing); this.host.scene.remove(this._auctionRing)
+    this.host.scene.remove(this._hereDisc); this.host.scene.remove(this._destRing)
+    for (const d of this._pathDots) this.host.scene.remove(d)
+    this._pathDots = []
     for (const o of this._disposables) { try { o.dispose?.() } catch { /* gone */ } }
     this._disposables.clear()
   }

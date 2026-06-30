@@ -442,6 +442,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             <MonopolyScene3D onTile={onTile} store={animator} reducedMotion={reducedMotion} lang={lang}
               players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
               auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
+              activeColor={playerColor[turnId] ?? null}
               myId={myId} onContextLost={onContextLost} moment={renderMoment()}>
               {renderCenter()}
             </MonopolyScene3D>

@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 
 // Stable empty token slice for the pre-mount / no-store fallback (avoids allocating
 // a fresh literal on every players/store effect run).
 const EMPTY_TOK = Object.freeze({ pos: {}, hopSeq: {}, mode: {}, active: null })
+const EMPTY_ROLL = Object.freeze({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: 0 })
 
 // React wrapper around the framework-agnostic Scene3D. It mounts a <canvas>, and
 // LAZY-imports the Three.js scene (so `three` stays out of the bundle until a 3D
@@ -14,7 +15,7 @@ const EMPTY_TOK = Object.freeze({ pos: {}, hopSeq: {}, mode: {}, active: null })
 // above the canvas — crisp text, same handlers as the 2D path.
 export default function MonopolyScene3D({
   onTile, store, reducedMotion, lang, onContextLost, children, moment = null, debug = false,
-  players = [], properties = [], playerColor = {}, activeTile = null, auctionTile = null,
+  players = [], properties = [], playerColor = {}, activeTile = null, auctionTile = null, activeColor = null,
 }) {
   const wrapRef = useRef(null)
   const canvasRef = useRef(null)
@@ -23,7 +24,15 @@ export default function MonopolyScene3D({
   const onLostRef = useRef(onContextLost); onLostRef.current = onContextLost
   const reducedRef = useRef(reducedMotion); reducedRef.current = reducedMotion
   const playersRef = useRef(players); playersRef.current = players
-  const bldRef = useRef(null); bldRef.current = { properties, playerColor, activeTile, auctionTile }
+  const bldRef = useRef(null); bldRef.current = { properties, playerColor, activeTile, auctionTile, activeColor }
+
+  // The roll readout + destination/path slice. Subscribed here so the DOM readout
+  // overlay re-renders on each roll/clear WITHOUT touching MonopolyGame's render path,
+  // and so the 3D destination/path highlight is fed imperatively to the scene.
+  const roll = useSyncExternalStore(
+    store?.roll?.subscribe || ((cb) => { cb(); return () => {} }),
+    store?.roll?.get || (() => EMPTY_ROLL),
+  )
 
   // Mount (re-mount on language change so the baked tile labels follow the locale).
   useEffect(() => {
@@ -32,6 +41,7 @@ export default function MonopolyScene3D({
     let pump = 0
     let unsub = null
     let unsubDice = null
+    let unsubRoll = null
     import('./three/Scene3D.js').then(({ default: Scene3D }) => {
       if (disposed || !canvasRef.current) return
       scene = new Scene3D({
@@ -56,7 +66,13 @@ export default function MonopolyScene3D({
       }
       // Initial buildings / ownership / highlight state.
       const b = bldRef.current
-      scene.syncBuildings(b.properties, b.playerColor, b.activeTile, b.auctionTile)
+      scene.syncBuildings(b.properties, b.playerColor, b.activeTile, b.auctionTile, b.activeColor)
+      // Drive the destination/path "you'll land here" highlight from the roll slice.
+      // Initial sync + subscribe to every roll/clear.
+      if (store?.roll) {
+        scene.syncRoll(store.roll.get(), b.playerColor)
+        unsubRoll = store.roll.subscribe(() => scene.syncRoll(store.roll.get(), bldRef.current.playerColor))
+      }
       // Dev harness: the headless preview tab pauses rAF, so pump renders on a timer.
       if (debug) pump = setInterval(() => scene.forceRender(), 250)
     }, () => {
@@ -69,6 +85,7 @@ export default function MonopolyScene3D({
       if (pump) clearInterval(pump)
       if (unsub) unsub()
       if (unsubDice) unsubDice()
+      if (unsubRoll) unsubRoll()
       scene?.dispose()
       sceneRef.current = null
       if (__DEV_SERVER__ && typeof window !== 'undefined' && window.__mono3d === scene) window.__mono3d = null
@@ -83,7 +100,7 @@ export default function MonopolyScene3D({
   useEffect(() => { sceneRef.current?.syncTokens(store?.tokens?.get?.() || EMPTY_TOK, players) }, [players, store])
 
   // Re-sync buildings / ownership / mortgage / highlights on any property or turn change.
-  useEffect(() => { sceneRef.current?.syncBuildings(properties, playerColor, activeTile, auctionTile) }, [properties, playerColor, activeTile, auctionTile])
+  useEffect(() => { sceneRef.current?.syncBuildings(properties, playerColor, activeTile, auctionTile, activeColor) }, [properties, playerColor, activeTile, auctionTile, activeColor])
 
   const handleClick = (e) => {
     const scene = sceneRef.current
@@ -100,6 +117,14 @@ export default function MonopolyScene3D({
   return (
     <div className="mono-board-3d" ref={wrapRef} dir="ltr">
       <canvas ref={canvasRef} className="mono-canvas" aria-hidden="true" onClick={handleClick} />
+      {/* PROMINENT ROLL READOUT — pops on dice settle, auto-dismisses when the move ends
+          (the roll slice clears). A pure DOM overlay → no effect on the WebGL loop. */}
+      {roll.show && roll.a != null && roll.b != null && (
+        <div className="mono-roll-readout" role="status" aria-live="polite" key={roll.nonce}>
+          <span className="mono-roll-die">🎲</span>
+          <span className="mono-roll-eq"><b>{roll.a}</b> + <b>{roll.b}</b> = <strong>{roll.a + roll.b}</strong></span>
+        </div>
+      )}
       <div className="mono-center-3d">{children}</div>
       {/* Decision-moment overlay lives INSIDE the board box so its scrim hugs the
           board exactly (not the wider stage track). It sets its own dir. */}

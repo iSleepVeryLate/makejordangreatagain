@@ -30,10 +30,16 @@ import {
 const TEX_SIZE = 2048
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
 
-// Resting camera framing. A LONGER lens (narrow FOV) sat FARTHER back flattens the
-// near→far tile-size disparity (the old 44°/short-lens framing shrank the back row
-// to an illegible sliver) while keeping a premium 3/4 "official board game" tilt.
-const CAM_REST = { x: 0, y: 11.7, z: 10.6 }
+// Resting camera framing (READABILITY pass over F3). The F3 hero angle (y 9.4 ≈40°
+// elevation) read as cinematic but PLAYED badly — too low foreshortens the back row and
+// the wide air-margin pushed the board far away. Raised the eye 9.4→10.7 (≈42–43°: still
+// a premium 3/4 tilt, NOT flat top-down, but the back row no longer collapses) and the
+// fit now frames TIGHT (see _computeFit: air 0.5→0.15, target 0.97→0.99) so the board
+// FILLS the frame with only a sliver of premium table at the edges. NB: _computeFit()/
+// _restPos() derive the look DIRECTION + base distance purely from these two points and
+// scale OUT to fit the aspect, so re-tuning here can never crop the corners — the fit
+// loop pulls back as needed. Keep that contract (probe verified across 32:9 … 9:32).
+const CAM_REST = { x: 0, y: 10.7, z: 11.3 }
 const CAM_TARGET = { x: 0, y: 0, z: 0.25 }
 // How far the camera pulls up/back for the intro reveal ease (scaled with the framing).
 const INTRO_DY = 3.7
@@ -64,6 +70,8 @@ export default class Scene3D {
 
     // Post-processing (A2): composer + its passes. composer===null → plain render
     // (soft degrade; never routed to onContextLost). _envRT is the IBL render target.
+    // (READABILITY pass: the F3 BokehPass/DoF was REMOVED — it blurred the far row of
+    // tiles and hurt play legibility; the whole board now renders crisp edge to edge.)
     this.composer = null
     this._bloomPass = null
     this._vignettePass = null
@@ -122,14 +130,15 @@ export default class Scene3D {
     const scene = new THREE.Scene()
     this.scene = scene
 
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120)
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 120) // F3: widened 38→40 for a touch more cinematic perspective on the lower hero angle
     camera.position.set(CAM_REST.x, CAM_REST.y, CAM_REST.z)
     camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
     this.camera = camera
 
     this._buildEnvironment() // IBL (procedural RoomEnvironment) — flatters the gold/metal
+    this._buildBackdrop() // F1: graded scene.background so the board sits in a space, not a void
     this._buildLights()
-    this._buildGround()
+    this._buildGround() // F1: dark-walnut PBR tabletop the board rests on (replaces the void plane)
     this._buildBoard()
     this._tokens = new TokenField(this) // host = this (provides scene/invalidate/pushTween/popTween)
     this._dice = new DicePair(this)
@@ -183,15 +192,113 @@ export default class Scene3D {
     this._track(hemi, key, ambient)
   }
 
+  // F1 — the world the board lives in. Two pieces, both static (loop still PARKS):
+  //   1. a large dark-walnut PBR tabletop the board visibly rests on (extends well
+  //      past the board edges → context + a grounded soft contact shadow), and
+  //   2. a graded backdrop (scene.background gradient) so the scene has depth and the
+  //      board reads as the HERO in a space, not a slab floating in the CSS void.
+  // Procedural canvas textures only — no asset files (the real HDRI is a later step).
+  // Soft-degrade: if a texture can't be generated (no document/2d ctx) we fall back to
+  // a flat coloured material / no backdrop — never a crash, never a black screen.
   _buildGround() {
-    const geo = new THREE.PlaneGeometry(80, 80)
-    const mat = new THREE.MeshStandardMaterial({ color: 0x0a120d, roughness: 1, metalness: 0 })
+    const tex = this._makeWoodTexture()
+    const matOpts = { color: 0x6b4a2f, roughness: 0.62, metalness: 0.0, envMapIntensity: 0.5 }
+    if (tex) {
+      // The same grain canvas doubles as a roughness map (lighter grain = a touch
+      // glossier varnish) so raking key light gets micro-variation, not a dead matte.
+      matOpts.map = tex
+      matOpts.roughnessMap = tex
+      matOpts.roughness = 0.78
+      matOpts.color = 0xffffff // let the map carry the colour
+    }
+    const geo = new THREE.PlaneGeometry(60, 60)
+    const mat = new THREE.MeshStandardMaterial(matOpts)
     const ground = new THREE.Mesh(geo, mat)
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -BOARD_THICKNESS / 2 - 0.02
     ground.receiveShadow = true
     this.scene.add(ground)
-    this._track(geo, mat)
+    this._track(geo, mat) // tex is tracked inside _makeWoodTexture
+  }
+
+  // Small procedural dark-walnut grain on a 512² canvas → tiled across the tabletop.
+  // Returns a tracked CanvasTexture, or null if the 2D canvas is unavailable (SSR /
+  // headless without document) so the caller can fall back to a flat material.
+  _makeWoodTexture() {
+    if (typeof document === 'undefined') return null
+    const S = 512
+    const canvas = document.createElement('canvas')
+    canvas.width = S; canvas.height = S
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    // base walnut tone
+    ctx.fillStyle = '#5e3f27'
+    ctx.fillRect(0, 0, S, S)
+    // long vertical grain streaks with gentle wander — cheap, reads as wood under light
+    const streaks = 220
+    for (let i = 0; i < streaks; i++) {
+      const x = Math.random() * S
+      const shade = 0.5 + Math.random() * 0.5
+      const r = Math.round(94 * shade + 18)
+      const g = Math.round(63 * shade + 12)
+      const b = Math.round(39 * shade + 8)
+      ctx.strokeStyle = `rgba(${r},${g},${b},${0.10 + Math.random() * 0.18})`
+      ctx.lineWidth = 0.6 + Math.random() * 1.8
+      ctx.beginPath()
+      let xx = x
+      ctx.moveTo(xx, 0)
+      for (let y = 0; y <= S; y += 16) {
+        xx += (Math.random() - 0.5) * 3
+        ctx.lineTo(xx, y)
+      }
+      ctx.stroke()
+    }
+    // a few soft darker bands for plank/figure variation
+    for (let i = 0; i < 7; i++) {
+      const y = Math.random() * S
+      const grad = ctx.createLinearGradient(0, y - 22, 0, y + 22)
+      grad.addColorStop(0, 'rgba(40,26,15,0)')
+      grad.addColorStop(0.5, `rgba(40,26,15,${0.12 + Math.random() * 0.12})`)
+      grad.addColorStop(1, 'rgba(40,26,15,0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, y - 22, S, 44)
+    }
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.wrapS = THREE.RepeatWrapping
+    tex.wrapT = THREE.RepeatWrapping
+    tex.repeat.set(6, 6) // tile across the 60-unit tabletop so the grain stays fine
+    tex.anisotropy = this.renderer?.capabilities?.getMaxAnisotropy?.() || 1
+    tex.needsUpdate = true
+    this._track(tex)
+    return tex
+  }
+
+  // Graded studio backdrop: a vertical-gradient CanvasTexture set as scene.background
+  // (cheapest "atmosphere" — no extra geometry, stays static so the loop PARKS).
+  // Lighter just above the horizon behind the board, falling to dark at top + bottom
+  // so the eye lands on the board. Tracked + disposed; null-safe soft-degrade (if the
+  // texture can't be built we simply leave the background null → CSS void shows through).
+  _buildBackdrop() {
+    if (!this.scene || typeof document === 'undefined') return
+    const W = 16; const H = 256 // tall + narrow: a pure vertical gradient, cheap to upload
+    const canvas = document.createElement('canvas')
+    canvas.width = W; canvas.height = H
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    // top (far/up) → mid (horizon glow) → bottom (near, settles to dark table shadow)
+    const grad = ctx.createLinearGradient(0, 0, 0, H)
+    grad.addColorStop(0.00, '#05080a') // deep top
+    grad.addColorStop(0.42, '#16242b') // soft cool horizon lift behind the board
+    grad.addColorStop(0.60, '#101a1f')
+    grad.addColorStop(1.00, '#05070a') // dark base
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.needsUpdate = true
+    this.scene.background = tex
+    this._track(tex)
   }
 
   _buildBoard() {
@@ -290,8 +397,9 @@ export default class Scene3D {
 
   // Image-based lighting from a procedural studio room (no asset file → deterministic
   // for the screenshot harness, robust offline). Wrapped: IBL is a bonus, never blocks
-  // mount. scene.background stays null so the canvas is transparent over the CSS void;
-  // cinematic edge darkness comes from the vignette, not a background.
+  // mount. (F1 sets scene.background to a graded backdrop in _buildBackdrop(); this only
+  // drives reflections/environment, not the visible background.) Edge darkness still
+  // comes from the vignette pass on top of the backdrop.
   _buildEnvironment() {
     if (!this.renderer || !this.scene) return
     try {
@@ -308,8 +416,10 @@ export default class Scene3D {
 
   // Post-processing chain: RenderPass (linear HDR) → bloom (selective via a high
   // threshold) → vignette → OutputPass (the single ACES + sRGB conversion, reading the
-  // renderer's toneMapping/exposure/outputColorSpace). try/caught → composer=null
-  // transparently degrades to the plain-render path (IBL + materials still apply).
+  // renderer's toneMapping/exposure/outputColorSpace, ALWAYS last). try/caught →
+  // composer=null transparently degrades to the plain-render path (IBL + materials still
+  // apply). READABILITY pass: the F3 BokehPass/DoF was removed — it blurred the far tiles
+  // and hurt play legibility; the board now renders sharp edge to edge.
   _buildComposer() {
     if (!this.renderer || !this.scene || !this.camera) return
     try {
@@ -386,8 +496,13 @@ export default class Scene3D {
   syncDice(d) { if (this._dice && d) this._dice.sync(d) }
 
   // Feed property rows + derived maps to the buildings / tile-state layer (Phase 3).
-  syncBuildings(properties, playerColor, activeTile, auctionTile) {
-    if (this._buildings) this._buildings.sync(properties, playerColor, activeTile, auctionTile)
+  syncBuildings(properties, playerColor, activeTile, auctionTile, activeColor) {
+    if (this._buildings) this._buildings.sync(properties, playerColor, activeTile, auctionTile, activeColor)
+  }
+
+  // Feed the roll slice to the destination/path "you'll land here" highlight (transient).
+  syncRoll(roll, playerColor) {
+    if (this._buildings) this._buildings.syncRoll(roll, playerColor)
   }
 
   // Ease the camera's look-at toward the active token's tile (a gentle "follow").
@@ -433,12 +548,15 @@ export default class Scene3D {
     // ease the roll dolly toward its target
     this._zoomCur += (this._zoomTarget - this._zoomCur) * 0.10
     if (Math.abs(this._zoomCur - this._zoomTarget) < 0.002) this._zoomCur = this._zoomTarget
-    // decaying spring impulse for the dice landing ("nudge", not shake)
+    // decaying spring impulse for the dice/landing payoff ("nudge", not shake). G1/G2:
+    // bumped amplitude 0.13→0.18 + a touch slower decay (−6 vs −7) so the kick reads as a
+    // satisfying THUMP, not a flicker — still finite (settles well under the 0.6s window) so
+    // the loop parks. Shared by the dice-settle punch (G1) and the token-landing punch (G2).
     let punchY = 0; let punchActive = false
     if (this._punchT0) {
       const age = (t - this._punchT0) / 1000
       if (age >= 0.6) this._punchT0 = 0
-      else { punchY = 0.13 * Math.exp(-7 * age) * Math.cos(26 * age); punchActive = true }
+      else { punchY = 0.18 * Math.exp(-6 * age) * Math.cos(26 * age); punchActive = true }
     }
     const zoomActive = Math.abs(this._zoomCur) > 0.002 || this._zoomTarget !== 0
     const r = this._restPos()
@@ -497,7 +615,7 @@ export default class Scene3D {
     // own mip-chain target. No-op when the composer failed to build (plain-render path).
     if (this.composer) {
       this.composer.setPixelRatio(this.renderer.getPixelRatio())
-      this.composer.setSize(w, h) // resizes every pass (incl. bloom) at DEVICE px — single source of truth; a separate bloom.setSize(w,h) here would (re)set it to half-res on HiDPI
+      this.composer.setSize(w, h) // resizes every pass (incl. bloom's own mip-chain target) at DEVICE px — single source of truth; a separate per-pass setSize here would (re)set bloom to half-res on HiDPI
     }
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
@@ -521,7 +639,13 @@ export default class Scene3D {
     const base = new THREE.Vector3(CAM_REST.x, CAM_REST.y, CAM_REST.z)
     const dir = base.clone().sub(t).normalize()
     const baseDist = base.distanceTo(t)
-    const HE = BOARD_HALF + 0.5 // board face + gold frame + a little air
+    // READABILITY: tight framing. Air trimmed 0.5→0.15 (only the gold frame's ~0.17 half-
+    // width + a hair of table) and the fill target raised 0.97→0.99 so the board DOMINATES
+    // the viewport instead of floating in empty tabletop. Probe still bounds all 8 corner
+    // points (board-face corners incl. frame + corner-token tops), so it can NEVER crop at
+    // any aspect — verified 32:9 … 9:32 (worst fill 0.88, binds the near board corner; the
+    // loop pulls back wherever the constraining axis needs it).
+    const HE = BOARD_HALF + 0.15 // board face + gold frame + a sliver of table
     const TH = SURFACE_Y + TOKEN_HEIGHT // top of a token standing on a corner tile
     const pts = []
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
@@ -537,8 +661,8 @@ export default class Scene3D {
       probe.updateProjectionMatrix()
       let maxN = 0
       for (const p of pts) { const v = p.clone().project(probe); maxN = Math.max(maxN, Math.abs(v.x), Math.abs(v.y)) }
-      if (maxN <= 0.97) break
-      scale *= maxN / 0.95
+      if (maxN <= 0.99) break
+      scale *= maxN / 0.975 // gentler step toward the tighter target (avoids overshoot-then-pull cycles)
     }
     this._fit = scale
   }
@@ -688,7 +812,7 @@ export default class Scene3D {
     this.composer = null; this._bloomPass = null; this._vignettePass = null; this._outputPass = null
     try { this._envRT?.dispose?.() } catch { /* gone */ }
     this._envRT = null
-    if (this.scene) this.scene.environment = null
+    if (this.scene) { this.scene.environment = null; this.scene.background = null } // F1 backdrop texture is freed via _disposables
     for (const o of this._disposables) {
       try { o.dispose?.() } catch { /* already gone */ }
     }

@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
 import MonopolyScene3D from '../games/MonopolyScene3D.jsx'
-import { createAnimatorStore } from '../games/useBoardAnimator.js'
+import { createAnimatorStore, ringPath } from '../games/useBoardAnimator.js'
 import { tokenMeta } from '../games/monopolyTokens.js'
+import { sound } from '../lib/sound.js'
 
 // DEV-ONLY visual harness for the 3D Monopoly renderer. Registered in App.jsx only
 // when __DEV_SERVER__ is true (inlined `false` for prod → tree-shaken out). Lets us
@@ -17,6 +18,7 @@ const PLAYER_COLOR = Object.fromEntries(MOCK_PLAYERS.map((p) => [p.profile_id, t
 export default function MonopolyDevHarness() {
   const store = useRef(createAnimatorStore()).current
   const [reduced, setReduced] = useState(false)
+  const [muted, setMutedState] = useState(sound.getMuted())
   const [lastTile, setLastTile] = useState(null)
   const [active, setActive] = useState('p1')
   const [lastRoll, setLastRoll] = useState(null)
@@ -34,24 +36,47 @@ export default function MonopolyDevHarness() {
 
   useEffect(() => {
     store.snapTokens({ p1: 0, p2: 0, p3: 24, p4: 10 }, 'p1')
+    // Arm WebAudio unlock so the G1/G2 juice SFX (land/shimmer/diceImpact) are AUDIBLE in
+    // the harness on the first click — the 3D layers fire these directly on the FX events.
+    sound.installUnlock()
     return () => { timers.current.forEach(clearTimeout) }
   }, [store])
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = [] }
-  const walk = (steps) => {
-    clearTimers()
+  // Walk the active token `steps` tiles forward, hop by hop. Returns the destination.
+  // `onArrive` fires after the last hop (used to clear the roll highlight).
+  const walkSteps = (steps, onArrive) => {
     const cur = store.getPos(active) ?? 0
     for (let k = 1; k <= steps; k++) {
       const pos = (cur + k) % 40
-      timers.current.push(setTimeout(() => { store.setTokenPos(active, pos, { hop: true }); if (k === steps) setActiveTile(pos) }, k * 165))
+      timers.current.push(setTimeout(() => {
+        store.setTokenPos(active, pos, { hop: true })
+        if (k === steps) { setActiveTile(pos); onArrive?.(pos) }
+      }, k * 165))
     }
+    return (cur + steps) % 40
   }
-  const glideTo = (tile) => { clearTimers(); store.setTokenPos(active, tile, { glide: true }); setActiveTile(tile) }
-  const setActiveP = (id) => { setActive(id); store.setActive(id); setActiveTile(store.getPos(id) ?? 0) }
+  const walk = (steps) => { clearTimers(); walkSteps(steps) }
+  const glideTo = (tile) => { clearTimers(); store.clearRoll(); store.setTokenPos(active, tile, { glide: true }); setActiveTile(tile) }
+  const setActiveP = (id) => { setActive(id); store.setActive(id); store.clearRoll(); setActiveTile(store.getPos(id) ?? 0) }
+  // Full "I rolled N → I'm going there → token goes there" demo flow: tumble the dice,
+  // settle them, pop the readout + light the destination/path, THEN walk the token to it
+  // and clear the highlight on arrival (mirrors the real game's roll→walk→clear cycle).
   const rollDice = () => {
+    clearTimers()
+    store.clearRoll()
     store.setRolling(true)
     const a = 1 + Math.floor(Math.random() * 6); const b = 1 + Math.floor(Math.random() * 6)
-    timers.current.push(setTimeout(() => { store.settleDice(a, b); setLastRoll(`${a}+${b}`) }, 850))
+    const total = a + b
+    const from = store.getPos(active) ?? 0
+    const to = (from + total) % 40
+    timers.current.push(setTimeout(() => {
+      store.settleDice(a, b); setLastRoll(`${a}+${b}`)
+      // readout + "you'll land here" the moment the roll is known
+      store.showRoll({ a, b, from, to, path: ringPath(from, total), active })
+      // then walk the token to the destination; clear the highlight on arrival
+      walkSteps(total, () => store.clearRoll())
+    }, 850))
   }
   const buildOn = (tile) => setProps((ps) => ps.map((p) => (p.tile_index === tile ? { ...p, houses: Math.min(5, p.houses + 1) } : p)))
 
@@ -60,6 +85,7 @@ export default function MonopolyDevHarness() {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10, color: '#cdbf8f', flexWrap: 'wrap' }}>
         <strong style={{ letterSpacing: 1 }}>MONOPOLY 3D · DEV HARNESS</strong>
         <label style={{ fontSize: 13 }}><input type="checkbox" checked={reduced} onChange={(e) => setReduced(e.target.checked)} /> reduced motion</label>
+        <label style={{ fontSize: 13 }}><input type="checkbox" checked={muted} onChange={() => { sound.toggleMute(); setMutedState(sound.getMuted()) }} /> mute</label>
         <span style={{ fontSize: 13, opacity: 0.7 }}>clicked: {lastTile ?? '—'} · roll: {lastRoll ?? '—'}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', fontSize: 13 }}>
@@ -83,6 +109,7 @@ export default function MonopolyDevHarness() {
         properties={props}
         playerColor={PLAYER_COLOR}
         activeTile={activeTile}
+        activeColor={PLAYER_COLOR[active] ?? null}
         auctionTile={auctionTile}
         reducedMotion={reduced}
         lang="en"

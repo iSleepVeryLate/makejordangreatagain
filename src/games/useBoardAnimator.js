@@ -40,6 +40,18 @@ export function createAnimatorStore() {
   const tokens = makeSlice({ pos: {}, hopSeq: {}, mode: {}, active: null })
   const dice = makeSlice({ a: null, b: null, rolling: false, nonce: 0 })
   const floats = makeSlice([])
+  // ROLL READOUT + "you'll land here" slice. Populated the moment a roll is known
+  // (dice committed + we can read from→to off the authoritative delta) and CLEARED
+  // when the move ends. Drives BOTH the DOM readout overlay (MonopolyScene3D) and the
+  // 3D destination/path highlight (BuildingsLayer) — presentation only, never gameplay.
+  //   show  — readout visible
+  //   a,b   — the two committed faces (a+b = total)
+  //   from  — the tile the active token started this move from
+  //   to    — the tile it will land on (from + total around the ring)
+  //   path  — the tiles it passes over (exclusive of `from`, inclusive of `to`)
+  //   active— the active player's id (so the highlight tints in their colour)
+  //   nonce — bumps on each new roll so subscribers re-read
+  const roll = makeSlice({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: 0 })
 
   const getPos = (id) => tokens.get().pos[id]
 
@@ -82,7 +94,20 @@ export function createAnimatorStore() {
     setTimeout(() => { floats.set(floats.get().filter((x) => x.key !== key)) }, FLOAT_TTL)
   }
 
-  return { tokens, dice, floats, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat }
+  // Show the roll readout + destination/path. Idempotent re-show with the same target is
+  // a no-op-ish nonce bump; callers pass a fresh nonce per real roll.
+  const showRoll = ({ a, b, from, to, path = [], active = null }) => {
+    roll.set({ show: true, a, b, from, to, path, active, nonce: roll.get().nonce + 1 })
+  }
+  // Clear when the move ends (token arrived). Keeps nonce so a later same-faces roll
+  // still re-renders. No-op if already hidden (avoids a redundant subscriber tick).
+  const clearRoll = () => {
+    const r = roll.get()
+    if (!r.show) return
+    roll.set({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: r.nonce })
+  }
+
+  return { tokens, dice, floats, roll, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, showRoll, clearRoll }
 }
 
 const posMap = (players) => {
@@ -139,6 +164,19 @@ function buildPath(from, dice, to, trustDice) {
     appendReloc(leg2, from, to)
   }
   return { leg1, leg2 }
+}
+
+// The tiles a forward dice walk passes over: from+1 … from+total (mod 40), inclusive
+// of the destination, EXCLUSIVE of the origin. Used to light up "you'll land here" +
+// the path the moment the roll is known (presentation only). total is clamped to a
+// sane dice range so a bad value can never spin a huge array. Exported so the dev
+// harness can drive the same highlight without a live game.
+export function ringPath(from, total) {
+  const out = []
+  if (from == null || !Number.isFinite(total)) return out
+  const n = Math.max(0, Math.min(24, Math.floor(total)))
+  for (let k = 1; k <= n; k++) out.push((from + k) % 40)
+  return out
 }
 
 // Fire +N / −N floats from each player's cash delta, anchored at their token.
@@ -219,6 +257,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const backward = !first && seq < prevSeq
     if (first || backward) {
       clearTimers(); walkingRef.current = false; walkTargetRef.current = null
+      store.clearRoll() // fresh paint / rewind → no stale destination prediction
       store.snapTokens(authPos, turnId)
       if (Array.isArray(room.dice)) store.settleDice(room.dice[0], room.dice[1])
       else store.settleDice(null, null)
@@ -233,6 +272,11 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
 
     store.setActive(turnId)
 
+    // Did THIS step commit a fresh dice roll? Drives the "you'll land here" readout +
+    // destination/path highlight below (we only predict a destination off the dice when
+    // we actually trust them — a real roll this step, contiguous, by the turn player).
+    let rolledThisStep = false
+
     // ---- NEW SEQ STEP: consume the log tail for dice + sounds ----
     if (seq > prevSeq) {
       const events = log.slice(lastLogLenRef.current)
@@ -240,6 +284,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       lastLogLenRef.current = log.length
       const rollEv = events.find((e) => e.k === 'roll')
       if (rollEv && Array.isArray(room.dice)) {
+        rolledThisStep = true
         store.settleDice(room.dice[0], room.dice[1])
         p?.('diceLand')
       } else {
@@ -262,6 +307,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const prevAuth = prevAuthPosRef.current || authPos
     const movers = players.filter((pl) => !pl.bankrupt && (prevAuth[pl.profile_id] ?? pl.position) !== pl.position)
     if (movers.length === 0) {
+      store.clearRoll() // nothing moved → drop any stale destination prediction
       fireFloats(players, prevCashRef.current, store)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
@@ -280,6 +326,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
         return
       }
       clearTimers(); walkingRef.current = false; walkTargetRef.current = null
+      store.clearRoll() // target moved under us → the prediction is stale; drop it
       store.snapTokens(authPos, turnId)
       fireFloats(players, prevCashRef.current, store)
       prevAuthPosRef.current = authPos
@@ -287,8 +334,22 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       return
     }
 
-    // Reduced-motion: snap to place (sounds already fired).
+    // Reduced-motion: snap to place (sounds already fired). Still show the STATIC readout
+    // + destination highlight (no path-trace animation) for a dice-driven move so the
+    // player gets "I rolled N → I'm here now"; a short timer clears it (no walk to end it).
     if (reducedRef.current) {
+      const primaryRM = movers.find((pl) => pl.profile_id === turnId)
+      if (rolledThisStep && !gap && primaryRM && Array.isArray(room.dice)) {
+        const fromRM = prevAuth[primaryRM.profile_id] ?? primaryRM.position
+        const total = room.dice[0] + room.dice[1]
+        const toRM = (fromRM + total) % 40
+        // Only predict when the authoritative landing matches the dice sum (a plain move,
+        // not a card/jail relocation that happens to share this step).
+        if (toRM === primaryRM.position) {
+          store.showRoll({ a: room.dice[0], b: room.dice[1], from: fromRM, to: toRM, path: ringPath(fromRM, total), active: turnId })
+          schedule(() => store.clearRoll(), 2400)
+        } else store.clearRoll()
+      } else store.clearRoll()
       store.snapTokens(authPos, turnId)
       fireFloats(players, prevCashRef.current, store)
       prevAuthPosRef.current = authPos
@@ -302,6 +363,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     }
     const primary = movers.find((pl) => pl.profile_id === turnId)
     if (!primary) {
+      store.clearRoll() // only a non-turn mover relocated → no dice prediction to show
       fireFloats(players, prevCashRef.current, store)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
@@ -317,6 +379,19 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const to = primary.position
     const { leg1, leg2 } = buildPath(from, room.dice, to, !gap)
     const prevCashSnapshot = prevCashRef.current
+
+    // "YOU'LL LAND HERE" — the moment the roll is known, light up the destination + the
+    // path. Only when we TRUST the dice (a real roll this step, contiguous, by the turn
+    // player) AND the dice sum lands exactly where the authoritative move ends (so a
+    // card/jail relocation sharing this step doesn't paint a wrong target). The
+    // destination/path are then CLEARED in the walk-completion schedule below — so the
+    // highlight lives only for the brief roll→arrive window and the WebGL loop can PARK.
+    if (rolledThisStep && !gap && Array.isArray(room.dice)) {
+      const total = room.dice[0] + room.dice[1]
+      const viaDice = (from + total) % 40
+      if (viaDice === to) store.showRoll({ a: room.dice[0], b: room.dice[1], from, to, path: ringPath(from, total), active: turnId })
+      else store.clearRoll()
+    } else store.clearRoll()
 
     let t = 0
     leg1.forEach((s) => {
@@ -346,6 +421,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     schedule(() => {
       walkingRef.current = false
       walkTargetRef.current = null
+      store.clearRoll() // token has ARRIVED → clear the destination/path so the loop parks
       fireFloats(players, prevCashSnapshot, store)
     }, t + 90)
 

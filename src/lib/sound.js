@@ -74,9 +74,24 @@ function noise({ t0 = 0, dur = 0.12, gain = 0.3, type = 'highpass', freq = 1000,
 // name → synth recipe. Kept short and punchy (<~0.6s each).
 const SFX = {
   hop: () => tone({ freq: 300, glideTo: 470, type: 'sine', dur: 0.07, gain: 0.1 }),
+  // G6 — the token's FINAL landing thud (fired by tokens3d once the active piece's hop
+  // sequence ends, NOT on intermediate hops — those keep the lighter `hop`). A soft low
+  // body (lowpass noise) + a short low sine "bump" that settles → a satisfying "it's here"
+  // weight, warmer/heavier than `hop`. Layered with `shimmer` for the gold-sparkle payoff.
+  land: () => { noise({ dur: 0.07, gain: 0.22, type: 'lowpass', freq: 300, q: 0.7 }); tone({ freq: 160, glideTo: 110, type: 'sine', dur: 0.12, gain: 0.16 }); tone({ freq: 92, type: 'sine', dur: 0.14, gain: 0.08 }) },
+  // G6 — a soft gold "shimmer" to voice the sparkle/dust-ring particle pop. A few quiet
+  // high triangle tones fanned out (a tiny upward sparkle) + an airy filtered-noise tail.
+  // Deliberately low-gain + brief so, layered under `land`, it glints rather than chimes —
+  // never annoying on repeat. (Fired alongside `land`; harmless on its own.)
+  shimmer: () => { [1568, 2093, 2637].forEach((f, i) => tone({ freq: f, t0: i * 0.025, type: 'triangle', dur: 0.13, gain: 0.045 })); noise({ t0: 0.02, dur: 0.16, gain: 0.05, type: 'highpass', freq: 5200 }) },
   go: () => { tone({ freq: 660, type: 'triangle', dur: 0.16, gain: 0.16 }); tone({ freq: 990, t0: 0.08, type: 'triangle', dur: 0.22, gain: 0.16 }) },
   diceRoll: () => { for (let i = 0; i < 5; i++) noise({ t0: i * 0.06, dur: 0.05, gain: 0.07, type: 'bandpass', freq: 1600 + Math.random() * 1400, q: 1.3 }) },
   diceLand: () => { noise({ dur: 0.06, gain: 0.24, type: 'highpass', freq: 2600 }); noise({ t0: 0.09, dur: 0.07, gain: 0.22, type: 'highpass', freq: 2100 }) },
+  // G6 — the dice physically HITTING the board on settle (fired by dice3d at the
+  // landing frame, ~half a second after diceLand's roll-commit tick). A short woody
+  // knock (lowpass noise body) + a low square thump → reads as a hard tabletop impact,
+  // distinct from diceLand's bright commit clicks. Kept brief so a repeat roll isn't grating.
+  diceImpact: () => { noise({ dur: 0.05, gain: 0.26, type: 'lowpass', freq: 380, q: 0.8 }); tone({ freq: 130, glideTo: 80, type: 'square', dur: 0.08, gain: 0.13 }); noise({ t0: 0.045, dur: 0.04, gain: 0.12, type: 'bandpass', freq: 900, q: 1.4 }) },
   buy: () => { tone({ freq: 880, type: 'square', dur: 0.08, gain: 0.09 }); tone({ freq: 1320, t0: 0.07, type: 'square', dur: 0.13, gain: 0.11 }); noise({ dur: 0.04, gain: 0.08, type: 'highpass', freq: 3200 }) },
   rent: () => { for (let i = 0; i < 4; i++) tone({ freq: 1180 + i * 130, t0: i * 0.05, type: 'triangle', dur: 0.1, gain: 0.08 }) },
   build: () => { noise({ dur: 0.05, gain: 0.28, type: 'lowpass', freq: 420 }); tone({ freq: 150, type: 'square', dur: 0.08, gain: 0.12 }) },

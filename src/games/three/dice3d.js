@@ -15,6 +15,9 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { SURFACE_Y, INNER_TRACK } from './coords3d.js'
+import { sound } from '../../lib/sound.js'
+import { lowPower } from './capability.js'
+import SparkleBurst from './sparkleBurst.js'
 
 const SETTLE_MS = 540
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
@@ -40,17 +43,25 @@ export default class DicePair {
   constructor(host) {
     this.host = host
     this._disposables = new Set()
-    this.S = INNER_TRACK * 0.58 // bigger dice read clearly at the 3/4 framing
+    // READABILITY pass: 0.58→0.80. At the old size the pips were too small to tell what
+    // you rolled at the play camera; this enlarges the faces ~38% so the result reads at a
+    // glance. The ±S*0.72 spacing scales WITH S, so the two dice stay separated (edge gap
+    // grows, never overlap) and centred under the wordmark; the contact-shadow blobs
+    // (S*1.5) and restY (SURFACE_Y + S/2) are both derived from S and follow automatically.
+    this.S = INNER_TRACK * 0.80 // larger dice so the pip faces read clearly at the 3/4 play framing
     this.restY = SURFACE_Y + this.S / 2 + 0.02
 
     const geo = new RoundedBoxGeometry(this.S, this.S, this.S, 3, this.S * 0.14)
     this._track(geo)
     const mats = FACE_VALUES.map((v) => {
-      // A5: glossier ivory that picks up the IBL (envMapIntensity 1.0) + a bumpMap so
-      // the pips read as drilled holes, not printed dots.
+      // Satin ivory + bumpMap pips (drilled-hole read). Tuned DOWN from glossy 0.28/1.0:
+      // the near-white face at high gloss/IBL spiked past the bloom threshold (1.5) and
+      // blew the centre to a white starburst when both dice rest over the wordmark. A
+      // higher roughness + lower envMapIntensity keep the specular below the cut so the
+      // dice read as a clean satin highlight, not an over-glow.
       const m = new THREE.MeshStandardMaterial({
         map: this._pipTexture(v), bumpMap: this._pipBumpTexture(v), bumpScale: 0.5,
-        roughness: 0.28, metalness: 0.05, envMapIntensity: 1.0,
+        roughness: 0.42, metalness: 0.05, envMapIntensity: 0.55,
       })
       this._track(m, m.map, m.bumpMap)
       return m
@@ -95,6 +106,24 @@ export default class DicePair {
     this._everSettled = false // first committed settle snaps (joined mid-game) vs. bounces (post-tumble)
     this._tumbledSinceSettle = false
     this._punchPending = false // A4: fire one camera nudge when a bounced settle lands
+
+    // G1 — optional tiny gold glint when the dice physically settle (same finite,
+    // self-terminating, park-friendly burst the token landing uses). READABILITY pass:
+    // the old count:12 size:0.26 gold burst, additively blended over the centre tray,
+    // stacked its near-white core PAST the bloom threshold (1.5) into a white flare right
+    // where both dice rest under the wordmark — the reported "settle flashes too bright".
+    // Calmed to a SUBTLE glint: fewer (8) + smaller (0.18) particles, a warm AMBER tint
+    // (deep gold, no white channel saturation), and peakOpacity 0.5 so the additive sum
+    // can never reach the bloom cut. The dice already carry the camera punch + impact SFX,
+    // so this is just a hint of sparkle. Skipped on low-power. dispose() frees it.
+    this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 8, size: 0.18, color: 0xe0a23a, peakOpacity: 0.5 })
+  }
+
+  // G1 — fire the dice settle glint at the centre tray, between the two dice. Guarded:
+  // no-op under reduced motion (the host gates the punch too) or when low-power skipped it.
+  _sparkBurst() {
+    if (this.host.reducedMotion || !this._spark) return
+    this._spark.burst(0, SURFACE_Y + 0.02, 0)
   }
 
   _track(...o) { for (const x of o) if (x) this._disposables.add(x) }
@@ -104,7 +133,10 @@ export default class DicePair {
     const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
     const ctx = cv.getContext('2d')
     const g = ctx.createLinearGradient(0, 0, SZ, SZ)
-    g.addColorStop(0, '#fdfdfb'); g.addColorStop(1, '#e4e4dc')
+    // Softer off-white (was near-white #fdfdfb→#e4e4dc): the bright base sat near 1.0
+    // and pushed the whole face past the bloom cut. This reads as warm ivory dice
+    // without the diffuse surface itself blooming.
+    g.addColorStop(0, '#ece9e0'); g.addColorStop(1, '#cfccc2')
     ctx.fillStyle = g; ctx.fillRect(0, 0, SZ, SZ)
     ctx.fillStyle = '#17150f'
     const cells = PIPS[value] || []
@@ -244,15 +276,28 @@ export default class DicePair {
         const k = Math.min(1, (t - die.t0) / SETTLE_MS)
         const e = easeOutBack(k)
         die.mesh.quaternion.copy(die.from).slerp(die.to, Math.min(e, 1.0))
-        // a pronounced drop + settle on landing (reads as the dice hitting the board)
-        die.mesh.position.y = this.restY + (1 - k) * this.S * 0.75
+        // G1 — a punchier drop + settle on landing (reads as the dice hitting the board).
+        // The height now falls along easeInQuad-ish (faster near the floor → harder hit)
+        // and adds one small decaying micro-bounce after touch-down so the die "kisses"
+        // the board twice instead of a single soft glide. All finite (k∈[0,1]) → parks.
+        const drop = (1 - k) * (1 - k) * this.S * 0.92 // steeper, slightly higher than the old linear 0.75
+        const bounce = k > 0.82 ? Math.abs(Math.sin((k - 0.82) * 17)) * (1 - k) * this.S * 0.5 : 0
+        die.mesh.position.y = this.restY + drop + bounce
         if (k >= 1) {
           die.mesh.quaternion.copy(die.to); die.mesh.position.y = this.restY; die.settling = false
-          // First die to land fires the one nudge + releases the dolly (flag guards the pair).
-          if (this._punchPending) { this._punchPending = false; this.host.cameraPunch?.(); this.host.releaseZoom?.() }
+          // First die to land fires the one nudge + releases the dolly + the impact SFX
+          // (flag guards the pair so the punch/sound fire ONCE, not per-die).
+          if (this._punchPending) {
+            this._punchPending = false
+            this.host.cameraPunch?.(); this.host.releaseZoom?.()
+            sound.play('diceImpact') // crisp tabletop hit at the physical landing frame
+            this._sparkBurst?.() // optional tiny gold spark on settle (no-op under reduced motion / low-power)
+          }
         } else animating = true
       }
     }
+    // G1 — advance the dice settle glint (self-terminates + pops its own tween).
+    if (this._spark && this._spark.update(t)) animating = true
     return animating
   }
 
@@ -260,9 +305,12 @@ export default class DicePair {
   snapAll() {
     if (this.rolling) { this.rolling = false; this._maxTumbleUntil = 0; if (this._lastFaces) this._beginSettle(this._lastFaces[0], this._lastFaces[1]) }
     for (const die of this.dice) { if (die.settling) { die.mesh.quaternion.copy(die.to); die.mesh.position.y = this.restY; die.settling = false } }
+    this._spark?.snap() // kill an in-flight glint + release its tween
   }
 
   dispose() {
+    try { this._spark?.dispose() } catch { /* gone */ } // frees its geo/mat/tex + pops any live tween
+    this._spark = null
     for (const die of this.dice) this.host.scene.remove(die.mesh)
     for (const b of (this._blobs || [])) this.host.scene.remove(b)
     this._blobs = []
