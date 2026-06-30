@@ -32,8 +32,9 @@ export default class BuildingsLayer {
 
     this._houseGeo = new THREE.BoxGeometry(HOUSE, HOUSE, HOUSE)
     this._hotelGeo = new THREE.BoxGeometry(HOUSE * 2.2, HOUSE * 1.1, HOUSE * 1.25)
-    this._houseMat = new THREE.MeshStandardMaterial({ color: 0x2f9e54, roughness: 0.5, metalness: 0.05 })
-    this._hotelMat = new THREE.MeshStandardMaterial({ color: 0xd0392b, roughness: 0.5, metalness: 0.05 })
+    // A5: satin plastic that catches the IBL — slightly glossier + a touch metallic.
+    this._houseMat = new THREE.MeshStandardMaterial({ color: 0x2f9e54, roughness: 0.42, metalness: 0.12, envMapIntensity: 0.9 })
+    this._hotelMat = new THREE.MeshStandardMaterial({ color: 0xd0392b, roughness: 0.42, metalness: 0.12, envMapIntensity: 0.9 })
     this._ringGeo = new THREE.PlaneGeometry(INNER_TRACK * 0.95, INNER_TRACK * 0.95)
     this._tintGeo = new THREE.PlaneGeometry(INNER_TRACK * 0.95, INNER_TRACK * 0.95)
     this._frameTex = this._makeFrameTexture()

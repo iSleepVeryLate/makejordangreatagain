@@ -33,9 +33,9 @@
 <meta name="apple-mobile-web-app-title" content="Jordan" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<!-- Fonts are self-hosted (src/styles/fonts.css → /fonts/*.woff2, Latin+Arabic subsets):
+     same-origin so the service worker caches them and the 3D board bake is offline-deterministic,
+     with no third-party CDN dependency at scene-mount. -->
 </head>
 <body>
   <div id="root"></div>

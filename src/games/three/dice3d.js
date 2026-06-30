@@ -46,8 +46,13 @@ export default class DicePair {
     const geo = new RoundedBoxGeometry(this.S, this.S, this.S, 3, this.S * 0.14)
     this._track(geo)
     const mats = FACE_VALUES.map((v) => {
-      const m = new THREE.MeshStandardMaterial({ map: this._pipTexture(v), roughness: 0.34, metalness: 0.05 })
-      this._track(m, m.map)
+      // A5: glossier ivory that picks up the IBL (envMapIntensity 1.0) + a bumpMap so
+      // the pips read as drilled holes, not printed dots.
+      const m = new THREE.MeshStandardMaterial({
+        map: this._pipTexture(v), bumpMap: this._pipBumpTexture(v), bumpScale: 0.5,
+        roughness: 0.28, metalness: 0.05, envMapIntensity: 1.0,
+      })
+      this._track(m, m.map, m.bumpMap)
       return m
     })
 
@@ -65,6 +70,23 @@ export default class DicePair {
       }
     })
 
+    // A3 contact shadows: a soft dark blob under each die so they don't float. Static,
+    // dark (never blooms), depthWrite:false. Positioned under the dice rest spots;
+    // toggled with dice visibility.
+    this._blobTex = this._makeBlobTexture()
+    this._blobGeo = new THREE.PlaneGeometry(this.S * 1.5, this.S * 1.5)
+    this._blobMat = new THREE.MeshBasicMaterial({ map: this._blobTex, transparent: true, opacity: 0.34, depthWrite: false })
+    this._track(this._blobTex, this._blobGeo, this._blobMat)
+    this._blobs = [0, 1].map((i) => {
+      const m = new THREE.Mesh(this._blobGeo, this._blobMat)
+      m.rotation.x = -Math.PI / 2
+      m.position.set((i === 0 ? -1 : 1) * this.S * 0.72, SURFACE_Y + 0.006, 0)
+      m.renderOrder = 0
+      m.visible = false
+      host.scene.add(m)
+      return m
+    })
+
     this.rolling = false
     this._settledNonce = -1
     this._lastT = now()
@@ -72,6 +94,7 @@ export default class DicePair {
     this._lastFaces = null
     this._everSettled = false // first committed settle snaps (joined mid-game) vs. bounces (post-tumble)
     this._tumbledSinceSettle = false
+    this._punchPending = false // A4: fire one camera nudge when a bounced settle lands
   }
 
   _track(...o) { for (const x of o) if (x) this._disposables.add(x) }
@@ -94,6 +117,37 @@ export default class DicePair {
     const tex = new THREE.CanvasTexture(cv)
     tex.colorSpace = THREE.SRGBColorSpace
     return tex
+  }
+
+  // Height/bump field for the same face: white ground with soft dark dimples at the pip
+  // centres → recessed pips under bumpScale. Linear data (no colour space).
+  _pipBumpTexture(value) {
+    const SZ = 160
+    const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
+    const ctx = cv.getContext('2d')
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, SZ, SZ) // raised face
+    const cells = PIPS[value] || []
+    const r = SZ * 0.10
+    for (const c of cells) {
+      const cxp = (0.5 + (c % 3)) * (SZ / 3)
+      const cyp = (0.5 + Math.floor(c / 3)) * (SZ / 3)
+      const g = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, r)
+      g.addColorStop(0, '#202020'); g.addColorStop(0.7, '#606060'); g.addColorStop(1, '#ffffff')
+      ctx.fillStyle = g
+      ctx.beginPath(); ctx.arc(cxp, cyp, r, 0, Math.PI * 2); ctx.fill()
+    }
+    return new THREE.CanvasTexture(cv) // linear by default — correct for a bump map
+  }
+
+  // Shared radial-gradient blob for the dice contact shadow.
+  _makeBlobTexture() {
+    const SZ = 128
+    const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
+    const ctx = cv.getContext('2d')
+    const g = ctx.createRadialGradient(SZ / 2, SZ / 2, 0, SZ / 2, SZ / 2, SZ / 2)
+    g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.6, 'rgba(0,0,0,0.28)'); g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SZ, SZ)
+    return new THREE.CanvasTexture(cv)
   }
 
   // Quaternion that shows `value` on top + a fixed slight yaw so a second face reads.
@@ -123,7 +177,9 @@ export default class DicePair {
       // future same-nonce settle. (Unreachable given the animator's monotonic nonce.)
       this.rolling = false
       for (const die of this.dice) { die.mesh.visible = false; die.settling = false }
+      this.host.releaseZoom?.() // never leave the camera dollied-in if a roll was abandoned
     }
+    for (let i = 0; i < this._blobs.length; i++) this._blobs[i].visible = this.dice[i]?.mesh.visible || false
     this.host.invalidate()
   }
 
@@ -136,6 +192,7 @@ export default class DicePair {
     }
     this._maxTumbleUntil = now() + 3500 // never tumble past this without a committed settle
     this._tumbledSinceSettle = true
+    this.host.pushIn?.() // A4: subtle dolly-in for the duration of the roll
   }
 
   _beginSettle(a, b) {
@@ -146,6 +203,8 @@ export default class DicePair {
     const snap = this.host.reducedMotion || (!this._everSettled && !this._tumbledSinceSettle)
     this._everSettled = true
     this._tumbledSinceSettle = false
+    // A4: a bounced settle earns a camera nudge on landing; a snap just releases the dolly.
+    if (snap) { this._punchPending = false; this.host.releaseZoom?.() } else this._punchPending = true
     for (let i = 0; i < 2; i++) {
       const die = this.dice[i]
       const yaw = (i === 0 ? -0.32 : 0.34)
@@ -185,7 +244,11 @@ export default class DicePair {
         die.mesh.quaternion.copy(die.from).slerp(die.to, Math.min(e, 1.0))
         // a pronounced drop + settle on landing (reads as the dice hitting the board)
         die.mesh.position.y = this.restY + (1 - k) * this.S * 0.75
-        if (k >= 1) { die.mesh.quaternion.copy(die.to); die.mesh.position.y = this.restY; die.settling = false } else animating = true
+        if (k >= 1) {
+          die.mesh.quaternion.copy(die.to); die.mesh.position.y = this.restY; die.settling = false
+          // First die to land fires the one nudge + releases the dolly (flag guards the pair).
+          if (this._punchPending) { this._punchPending = false; this.host.cameraPunch?.(); this.host.releaseZoom?.() }
+        } else animating = true
       }
     }
     return animating
@@ -199,6 +262,8 @@ export default class DicePair {
 
   dispose() {
     for (const die of this.dice) this.host.scene.remove(die.mesh)
+    for (const b of (this._blobs || [])) this.host.scene.remove(b)
+    this._blobs = []
     this.dice = []
     for (const o of this._disposables) { try { o.dispose?.() } catch { /* gone */ } }
     this._disposables.clear()

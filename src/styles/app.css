@@ -674,11 +674,14 @@
 
 /* token chips — read RENDERED position from the animator; hop + active glow */
 .mono-token-layer { position: absolute; inset: 9px; pointer-events: none; z-index: 6; }
-.mono-token-fly { position: absolute; width: clamp(20px, 4.4cqw, 28px); height: clamp(20px, 4.4cqw, 28px); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: clamp(11px, 2.4cqw, 15px); background: radial-gradient(circle at 35% 30%, #2a302b, #0c0f0d); border: 2px solid var(--tok); box-shadow: 0 5px 12px -3px rgba(0,0,0,.7); will-change: left, top; transition: left .16s ease, top .16s ease; }
-.mono-token-fly.active { box-shadow: 0 0 0 3px rgba(212,175,55,.5), 0 0 18px rgba(212,175,55,.35); animation: mono-tok-glow 1.6s ease-in-out infinite; }
-.mono-token-hop { display: inline-block; animation: mono-hop .16s ease; }
+/* 2D-Lite token: a brushed-silver pewter coin (mirrors the 3D silver pieces) with the
+   player colour as the rim, so switching renderers isn't jarring. The glyph reads as
+   engraved metal (desaturated + emboss), not a bright emoji. */
+.mono-token-fly { position: absolute; width: clamp(20px, 4.4cqw, 28px); height: clamp(20px, 4.4cqw, 28px); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: clamp(11px, 2.4cqw, 15px); background: radial-gradient(circle at 36% 28%, #f4f6f9 0%, #ccd0d6 40%, #9ba1ab 72%, #7b818c 100%); border: 2px solid var(--tok); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 4px rgba(0,0,0,.28), 0 5px 12px -3px rgba(0,0,0,.7); will-change: left, top; transition: left .16s ease, top .16s ease; }
+.mono-token-fly.active { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 0 0 3px rgba(212,175,55,.55), 0 0 18px rgba(212,175,55,.4); animation: mono-tok-glow 1.6s ease-in-out infinite; }
+.mono-token-hop { display: inline-block; animation: mono-hop .16s ease; filter: grayscale(.55) contrast(1.05); text-shadow: 0 1px 0 rgba(255,255,255,.55), 0 -1px 1px rgba(0,0,0,.4); }
 @keyframes mono-hop { 0% { transform: translateY(0); } 45% { transform: translateY(-34%); } 100% { transform: translateY(0); } }
-@keyframes mono-tok-glow { 50% { box-shadow: 0 0 0 3px rgba(212,175,55,.7), 0 0 24px rgba(212,175,55,.5); } }
+@keyframes mono-tok-glow { 50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 0 0 3px rgba(212,175,55,.75), 0 0 24px rgba(212,175,55,.55); } }
 
 /* floating +N / −N cash deltas, anchored at the player's token */
 .mono-float-layer { position: absolute; inset: 9px; pointer-events: none; z-index: 7; }
@@ -834,10 +837,17 @@
 .mono-trade-tile { text-align: left; font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--ink-3); color: var(--txt-mid); cursor: pointer; }
 .mono-trade-tile.on { border-color: var(--green); color: var(--green-bright); background: rgba(24,163,97,.12); }
 
-/* finished */
-.mono-finish { text-align: center; gap: 6px; }
-.mono-winner-name { font-size: 20px; font-weight: 800; color: var(--green-bright); }
+/* finished — a real celebratory podium moment */
+.mono-finish { text-align: center; gap: 6px; padding-top: 8px; }
+.mono-finish .draw-podium-trophy { color: var(--mg-gold-bright); filter: drop-shadow(0 0 14px rgba(212,175,55,.55)); animation: mono-trophy-in .6s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes mono-trophy-in { 0% { transform: scale(.4) rotate(-12deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+.mono-winner-name { font-size: 22px; font-weight: 800; background: linear-gradient(100deg, var(--mg-gold-bright), #f4e4a8, var(--mg-gold-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .mono-final-list { display: flex; flex-direction: column; gap: 6px; margin: 16px auto 0; max-width: 360px; width: 100%; }
+.mono-final-list .draw-score-row { background: rgba(255,255,255,.03); border: 1px solid var(--mg-line); border-radius: 10px; padding: 8px 12px; transition: background .2s; }
+.mono-final-list .draw-score-row:nth-child(even) { background: rgba(255,255,255,.055); }
+.mono-final-list .draw-score-row:first-child { background: linear-gradient(100deg, rgba(212,175,55,.18), rgba(212,175,55,.05)); border-color: rgba(212,175,55,.5); box-shadow: 0 4px 16px -8px rgba(212,175,55,.6); }
+.mono-final-list .draw-score-row:first-child .draw-rank { color: var(--mg-gold-bright); }
+.mono-final-list .draw-score-row.me { outline: 1px solid var(--green); }
 
 /* gold primary button + deed popover */
 .btn-gold { background: linear-gradient(160deg, #f0cf6a, #c99f2f); color: #1a1206; font-weight: 700; border: none; box-shadow: 0 10px 24px -10px rgba(212,175,55,.7), inset 0 1px 0 rgba(255,255,255,.4); }

@@ -1,12 +1,17 @@
 // ============================================================================
-// TokenField — the 3D player pieces (Phase 1).
+// TokenField — the 3D player pieces (Phase 1, cinematic rebuild).
 //
-// One "medallion" mesh per non-bankrupt player, in the player's token colour with
-// an embossed motif on its top face. Subscribes (via Scene3D) to the animator's
-// token slice: when a player's rendered tile changes it tweens the mesh there with
-// an arc HOP (STEP_MS) or a flat GLIDE (GLIDE_MS), re-triggering a landing squash
-// on each hopSeq bump. Multiple pieces on a tile fan out. The `active` player's
-// piece gets a gold ground-glow (and Scene3D points the camera at its tile).
+// One sculpted SILVER classic-game piece per non-bankrupt player (hat, car, dog,
+// ship, thimble, boot, iron, wheelbarrow), each standing on a colored base ring in
+// the player's token color. Pieces are built procedurally from primitives — no asset
+// ships — so they pick up the scene IBL for a real pewter look. A dormant GLB hook
+// (tokenModels.js) can swap in hand-authored sculpts later with no code change.
+//
+// Subscribes (via Scene3D) to the animator's token slice: when a player's rendered
+// tile changes it tweens the mesh there with an arc HOP (STEP_MS) or a flat GLIDE
+// (GLIDE_MS), re-triggering a landing squash on each hopSeq bump. Multiple pieces on
+// a tile fan out. The active player's piece gets a gold ground-glow + a contact-shadow
+// blob, and Scene3D points the camera at its tile.
 //
 // Pure draw layer: it READS the slice, never writes it. Timings mirror
 // useBoardAnimator (STEP_MS/GLIDE_MS) so the 3D motion matches the 2D path.
@@ -16,10 +21,19 @@ import {
   TILE_CENTERS_3D, TOKEN_RADIUS, TOKEN_HEIGHT, TOKEN_REST_Y, HOP_PEAK_Y, SURFACE_Y, INNER_TRACK,
 } from './coords3d.js'
 import { tokenMeta } from '../monopolyTokens.js'
+import { lowPower } from './capability.js'
+import { loadTokenModels, modelsReady, getTokenGeometry } from './tokenModels.js'
 
 const STEP_MS = 165 // per-tile hop — matches useBoardAnimator
 const GLIDE_MS = 460 // card/jail relocation glide — matches useBoardAnimator
 const SQUASH_MS = 140
+// Squash amplitudes (named for tuning). Horizontal amplitude is deliberately small —
+// large sideways scaling reads as "crushing" on asymmetric shapes (a car's length, a
+// hat's brim). Vertical settle is kept; horizontal is roughly halved.
+const HOP_LIFT = 0.09 // vertical gain at hop apex
+const HOP_LATERAL = 0.045 // horizontal squeeze at hop apex
+const LAND_BULGE = 0.05 // horizontal bulge at landing dip
+const LAND_SQUASH = 0.10 // vertical squash at landing dip
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
 
 // Fan-out offsets (world units) so stacked pieces don't fully overlap (mirrors
@@ -32,88 +46,374 @@ const lerp = (a, b, k) => a + (b - a) * k
 
 export default class TokenField {
   constructor(host) {
-    this.host = host // { scene, invalidate, pushTween, popTween }
+    this.host = host // { scene, invalidate, pushTween, popTween, focusTile, ... }
     this.tokens = new Map() // profileId -> entry
     this.activeTile = null
     this._disposables = new Set()
+    this._disposed = false
+    this._pieceCache = new Map() // key -> [{ geo, pos, rot }] procedural part specs (shared geos)
 
-    // Shared geometry + colour-independent finishes (one dispose each). Each piece
-    // is a premium stacked medallion: a flared base, a glossy player-colour drum, a
-    // gold trim ring, and a cream cap bearing the embossed token icon.
     const R = TOKEN_RADIUS; const H = TOKEN_HEIGHT
-    this._baseGeo = new THREE.CylinderGeometry(R * 1.12, R * 1.24, H * 0.20, 48)
-    this._drumGeo = new THREE.CylinderGeometry(R * 0.92, R * 1.0, H * 0.56, 48)
-    this._rimGeo = new THREE.TorusGeometry(R * 0.95, R * 0.06, 16, 48)
-    this._capGeo = new THREE.CylinderGeometry(R * 0.8, R * 0.8, H * 0.14, 44)
-    this._glowGeo = new THREE.CircleGeometry(R * 1.85, 44)
-    this._track(this._baseGeo, this._drumGeo, this._rimGeo, this._capGeo, this._glowGeo)
-    this._goldMat = new THREE.MeshStandardMaterial({ color: 0xd9b84a, roughness: 0.28, metalness: 0.9 })
-    this._capMat = new THREE.MeshStandardMaterial({ color: 0xf3ecda, roughness: 0.55, metalness: 0.08 })
-    this._track(this._goldMat, this._capMat)
-    this._motifCache = new Map()
+    // Shared finishes (one dispose each). The silver body material is shared across
+    // ALL pieces and players — only the base ring is tinted per player.
+    this._silverMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc4, metalness: 0.9, roughness: 0.3, envMapIntensity: 1.2 })
+    this._goldMat = new THREE.MeshStandardMaterial({ color: 0xd9b84a, roughness: 0.28, metalness: 0.9, envMapIntensity: 1.1 })
+    this._ringGeo = new THREE.CylinderGeometry(R * 1.15, R * 1.30, H * 0.16, 40)
+    this._trimGeo = new THREE.TorusGeometry(R * 1.16, R * 0.05, 12, 44)
+    this._glowGeo = new THREE.CircleGeometry(R * 1.95, 44)
+    // contact-shadow blob (A3) — kills the "floating" look; dark so it never blooms
+    this._blobTex = this._makeBlobTexture()
+    this._blobGeo = new THREE.PlaneGeometry(R * 3.0, R * 3.0)
+    this._blobMat = new THREE.MeshBasicMaterial({ map: this._blobTex, transparent: true, opacity: 0.32, depthWrite: false })
+    this._track(this._silverMat, this._goldMat, this._ringGeo, this._trimGeo, this._glowGeo, this._blobTex, this._blobGeo, this._blobMat)
+
+    // Kick off the optional GLB load (skipped on clearly low-power devices). On
+    // success, swap the procedural pieces for the real sculpts in place.
+    if (!lowPower()) {
+      loadTokenModels({ TOKEN_RADIUS: R, TOKEN_HEIGHT: H }).then((ok) => { if (ok && !this._disposed) this._swapInModels() }, () => {})
+    }
   }
 
   _track(...o) { for (const x of o) if (x) this._disposables.add(x) }
 
-  // Crisp cap face: a cream disc, a player-colour ring just inside the rim, and the
-  // embossed token glyph. 512px + anisotropy so it stays sharp at the 3/4 angle.
-  _motifTexture(key, color) {
-    if (this._motifCache.has(key)) return this._motifCache.get(key)
-    const meta = tokenMeta(key)
-    const SZ = 512
+  _makeBlobTexture() {
+    const SZ = 128
     const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
     const ctx = cv.getContext('2d')
-    const g = ctx.createRadialGradient(SZ / 2, SZ * 0.4, SZ * 0.04, SZ / 2, SZ / 2, SZ * 0.52)
-    g.addColorStop(0, '#fffaf0'); g.addColorStop(1, '#ece2cb')
-    ctx.fillStyle = g
-    ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, SZ / 2, 0, Math.PI * 2); ctx.fill()
-    ctx.lineWidth = SZ * 0.05; ctx.strokeStyle = color
-    ctx.beginPath(); ctx.arc(SZ / 2, SZ / 2, SZ * 0.43, 0, Math.PI * 2); ctx.stroke()
-    ctx.font = `${Math.round(SZ * 0.5)}px "Segoe UI Emoji", system-ui, sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(meta.motif || meta.emoji || '●', SZ / 2, SZ * 0.54)
+    const g = ctx.createRadialGradient(SZ / 2, SZ / 2, 0, SZ / 2, SZ / 2, SZ / 2)
+    g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.55, 'rgba(0,0,0,0.26)'); g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SZ, SZ)
     const tex = new THREE.CanvasTexture(cv)
-    tex.colorSpace = THREE.SRGBColorSpace
-    tex.anisotropy = 8
-    this._motifCache.set(key, tex)
-    this._track(tex)
     return tex
+  }
+
+  // ---- procedural piece geometry (built once per key, shared across players) ----
+  // Each spec is built with the piece BASE at local y=0; the piece holder is then
+  // positioned to sit on top of the ring. Footprint stays within ~TOKEN_RADIUS so the
+  // camera-fit envelope (SURFACE_Y + TOKEN_HEIGHT) holds.
+  _pieceParts(key) {
+    if (this._pieceCache.has(key)) return this._pieceCache.get(key)
+    const u = TOKEN_RADIUS
+    const parts = []
+    const add = (geo, pos = [0, 0, 0], rot = [0, 0, 0]) => { this._track(geo); parts.push({ geo, pos, rot }) }
+    switch (key) {
+      case 'hat': {
+        const brimR = 1.0 * u;
+        const brimH = 0.12 * u;
+        const brimGeo = new THREE.CylinderGeometry(brimR, brimR, brimH, 48);
+        add(brimGeo, [0, brimH / 2, 0]);
+
+        const crownBotR = 0.6 * u;
+        const crownTopR = 0.66 * u;
+        const crownH = 1.18 * u;
+        const crownGeo = new THREE.CylinderGeometry(crownTopR, crownBotR, crownH, 48);
+        add(crownGeo, [0, brimH + crownH / 2, 0]);
+
+        const topGeo = new THREE.CylinderGeometry(crownTopR, crownTopR, 0.04 * u, 48);
+        add(topGeo, [0, brimH + crownH + 0.02 * u, 0]);
+
+        const bandRadius = crownBotR + 0.03 * u;
+        const bandTube = 0.07 * u;
+        const bandGeo = new THREE.TorusGeometry(bandRadius, bandTube, 16, 48);
+        add(bandGeo, [0, brimH + 0.11 * u, 0], [Math.PI / 2, 0, 0]);
+        break;
+      }
+
+      case 'thimble': {
+        const pts = [];
+        pts.push(new THREE.Vector2(0.0, 0.0));
+        pts.push(new THREE.Vector2(0.62, 0.0));
+        pts.push(new THREE.Vector2(0.78, 0.02));
+        pts.push(new THREE.Vector2(0.82, 0.07));
+        pts.push(new THREE.Vector2(0.80, 0.14));
+        pts.push(new THREE.Vector2(0.74, 0.18));
+        pts.push(new THREE.Vector2(0.70, 0.30));
+        pts.push(new THREE.Vector2(0.66, 0.50));
+        pts.push(new THREE.Vector2(0.62, 0.72));
+        pts.push(new THREE.Vector2(0.57, 0.95));
+        pts.push(new THREE.Vector2(0.50, 1.14));
+        pts.push(new THREE.Vector2(0.40, 1.30));
+        pts.push(new THREE.Vector2(0.27, 1.42));
+        pts.push(new THREE.Vector2(0.14, 1.49));
+        pts.push(new THREE.Vector2(0.05, 1.515));
+        pts.push(new THREE.Vector2(0.0, 1.52));
+        const profile = pts.map(p => new THREE.Vector2(p.x * u, p.y * u));
+        const g = new THREE.LatheGeometry(profile, 64);
+        add(g);
+        break;
+      }
+
+      case 'car': {
+        const wheelR = 0.40 * u; const wheelW = 0.16 * u; const axleY = wheelR; const bodyW = 1.95 * u; const bodyD = 0.78 * u; const bodyH = 0.40 * u; const bodyY = axleY + 0.04 * u;
+        const body = new THREE.BoxGeometry(bodyW, bodyH, bodyD, 1, 1, 1); add(body, [0, bodyY + bodyH / 2, 0]);
+        const hoodW = 0.62 * u; const hoodH = 0.20 * u; const hood = new THREE.BoxGeometry(hoodW, hoodH, bodyD * 0.82); add(hood, [bodyW / 2 - hoodW / 2 + 0.02 * u, bodyY + bodyH / 2 - 0.02 * u, 0]);
+        const cabinW = 0.70 * u; const cabinH = 0.40 * u; const cabin = new THREE.BoxGeometry(cabinW, cabinH, bodyD * 0.74); add(cabin, [-bodyW / 2 + cabinW / 2 + 0.10 * u, bodyY + bodyH + cabinH / 2 - 0.03 * u, 0]);
+        const cowlW = 0.34 * u; const cowl = new THREE.BoxGeometry(cowlW, 0.16 * u, bodyD * 0.70); add(cowl, [-bodyW / 2 + cabinW + cowlW / 2 + 0.06 * u, bodyY + bodyH + 0.05 * u, 0]);
+        const wheel = () => new THREE.CylinderGeometry(wheelR, wheelR, wheelW, 20); const wx = bodyW / 2 - 0.30 * u; const wz = bodyD / 2 - wheelW / 2 + 0.02 * u; const rot = [Math.PI / 2, 0, 0];
+        add(wheel(), [wx, axleY, wz], rot); add(wheel(), [wx, axleY, -wz], rot); add(wheel(), [-wx, axleY, wz], rot); add(wheel(), [-wx, axleY, -wz], rot);
+        const hubR = 0.10 * u; const hub = () => new THREE.CylinderGeometry(hubR, hubR, wheelW + 0.02 * u, 12);
+        add(hub(), [wx, axleY, wz], rot); add(hub(), [wx, axleY, -wz], rot); add(hub(), [-wx, axleY, wz], rot); add(hub(), [-wx, axleY, -wz], rot);
+        break;
+      }
+
+      case 'wheelbarrow': {
+        const wheelR = 0.42 * u;
+        const wheelThick = 0.16 * u;
+        const tubW = 1.05 * u;
+        const tubH = 0.5 * u;
+        const tubD = 0.62 * u;
+        const tubCx = 0.18 * u;
+        const tubCy = wheelR + 0.34 * u;
+        const wheel = new THREE.CylinderGeometry(wheelR, wheelR, wheelThick, 28);
+        add(wheel, [-0.78 * u, wheelR, 0], [Math.PI / 2, 0, 0]);
+        const hubR = wheelR * 0.34;
+        const hub = new THREE.CylinderGeometry(hubR, hubR, wheelThick * 1.25, 18);
+        add(hub, [-0.78 * u, wheelR, 0], [Math.PI / 2, 0, 0]);
+        const fork = new THREE.BoxGeometry(0.5 * u, 0.1 * u, 0.09 * u);
+        add(fork, [-0.5 * u, wheelR + 0.04 * u, 0.2 * u], [0, 0, 0.32]);
+        add(fork.clone(), [-0.5 * u, wheelR + 0.04 * u, -0.2 * u], [0, 0, 0.32]);
+        const tub = new THREE.BoxGeometry(tubW, tubH, tubD);
+        add(tub, [tubCx, tubCy, 0], [0, 0, 0.06]);
+        const innerW = tubW * 0.78;
+        const innerH = tubH * 0.6;
+        const inner = new THREE.BoxGeometry(innerW, innerH, tubD * 0.78);
+        add(inner, [tubCx, tubCy + tubH * 0.34, 0], [0, 0, 0.06]);
+        const leg = new THREE.BoxGeometry(0.1 * u, 0.42 * u, 0.1 * u);
+        add(leg, [0.5 * u, 0.2 * u, 0.24 * u], [0, 0, -0.12]);
+        add(leg.clone(), [0.5 * u, 0.2 * u, -0.24 * u], [0, 0, -0.12]);
+        const handleLen = 0.95 * u;
+        const handle = new THREE.BoxGeometry(handleLen, 0.1 * u, 0.1 * u);
+        add(handle, [0.86 * u, tubCy + 0.1 * u, 0.26 * u], [0, 0, 0.2]);
+        add(handle.clone(), [0.86 * u, tubCy + 0.1 * u, -0.26 * u], [0, 0, 0.2]);
+        const grip = new THREE.CylinderGeometry(0.08 * u, 0.08 * u, 0.16 * u, 14);
+        add(grip, [1.22 * u, tubCy + 0.18 * u, 0.26 * u], [Math.PI / 2, 0, 0]);
+        add(grip.clone(), [1.22 * u, tubCy + 0.18 * u, -0.26 * u], [Math.PI / 2, 0, 0]);
+        break;
+      }
+
+      case 'dog': {
+        const s = new THREE.Shape();
+        s.moveTo(0.02 * u, 0.00 * u);
+        s.lineTo(0.30 * u, 0.00 * u);
+        s.lineTo(0.30 * u, 0.30 * u);
+        s.lineTo(0.46 * u, 0.30 * u);
+        s.lineTo(0.46 * u, 0.00 * u);
+        s.lineTo(0.74 * u, 0.00 * u);
+        s.lineTo(0.74 * u, 0.34 * u);
+        s.lineTo(1.18 * u, 0.34 * u);
+        s.lineTo(1.18 * u, 0.00 * u);
+        s.lineTo(1.46 * u, 0.00 * u);
+        s.lineTo(1.46 * u, 0.30 * u);
+        s.lineTo(1.62 * u, 0.30 * u);
+        s.lineTo(1.62 * u, 0.00 * u);
+        s.lineTo(1.90 * u, 0.00 * u);
+        s.lineTo(1.90 * u, 0.62 * u);
+        s.lineTo(1.82 * u, 0.78 * u);
+        s.lineTo(1.84 * u, 1.02 * u);
+        s.lineTo(1.92 * u, 1.30 * u);
+        s.lineTo(2.00 * u, 1.04 * u);
+        s.lineTo(2.02 * u, 0.84 * u);
+        s.lineTo(2.30 * u, 0.80 * u);
+        s.lineTo(2.42 * u, 0.60 * u);
+        s.lineTo(2.40 * u, 0.34 * u);
+        s.lineTo(2.28 * u, 0.22 * u);
+        s.lineTo(1.98 * u, 0.30 * u);
+        s.lineTo(1.90 * u, 0.42 * u);
+        s.lineTo(1.04 * u, 0.42 * u);
+        s.lineTo(0.70 * u, 0.62 * u);
+        s.lineTo(0.40 * u, 0.92 * u);
+        s.lineTo(0.30 * u, 1.18 * u);
+        s.lineTo(0.16 * u, 1.04 * u);
+        s.lineTo(0.06 * u, 0.78 * u);
+        s.lineTo(0.00 * u, 0.50 * u);
+        s.lineTo(0.02 * u, 0.00 * u);
+        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        g.computeBoundingBox();
+        const b = g.boundingBox;
+        g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+        add(g);
+        break;
+      }
+
+      case 'boot': {
+        const s = new THREE.Shape();
+        s.moveTo(-0.78 * u, 0.00 * u);
+        s.lineTo(0.62 * u, 0.00 * u);
+        s.quadraticCurveTo(0.92 * u, 0.00 * u, 0.94 * u, 0.16 * u);
+        s.quadraticCurveTo(0.95 * u, 0.30 * u, 0.74 * u, 0.34 * u);
+        s.lineTo(0.18 * u, 0.40 * u);
+        s.lineTo(0.02 * u, 0.62 * u);
+        s.lineTo(0.06 * u, 1.18 * u);
+        s.quadraticCurveTo(0.07 * u, 1.34 * u, -0.06 * u, 1.36 * u);
+        s.lineTo(-0.42 * u, 1.38 * u);
+        s.quadraticCurveTo(-0.56 * u, 1.38 * u, -0.56 * u, 1.24 * u);
+        s.lineTo(-0.54 * u, 0.66 * u);
+        s.quadraticCurveTo(-0.54 * u, 0.46 * u, -0.62 * u, 0.40 * u);
+        s.lineTo(-0.78 * u, 0.34 * u);
+        s.quadraticCurveTo(-0.86 * u, 0.30 * u, -0.86 * u, 0.18 * u);
+        s.quadraticCurveTo(-0.86 * u, 0.00 * u, -0.78 * u, 0.00 * u);
+        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        g.computeBoundingBox();
+        const b = g.boundingBox;
+        g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+        add(g);
+        break;
+      }
+
+      case 'iron': {
+        const s = new THREE.Shape();
+        s.moveTo(0.00 * u, 0.00 * u);
+        s.lineTo(1.55 * u, 0.10 * u);
+        s.lineTo(1.62 * u, 0.18 * u);
+        s.lineTo(1.55 * u, 0.26 * u);
+        s.lineTo(0.55 * u, 0.30 * u);
+        s.lineTo(0.45 * u, 0.62 * u);
+        s.lineTo(0.42 * u, 0.74 * u);
+        s.lineTo(0.62 * u, 0.78 * u);
+        s.lineTo(0.95 * u, 0.92 * u);
+        s.lineTo(1.12 * u, 1.14 * u);
+        s.lineTo(1.12 * u, 1.30 * u);
+        s.lineTo(0.96 * u, 1.36 * u);
+        s.lineTo(0.92 * u, 1.22 * u);
+        s.lineTo(0.78 * u, 1.04 * u);
+        s.lineTo(0.58 * u, 0.96 * u);
+        s.lineTo(0.40 * u, 0.96 * u);
+        s.lineTo(0.28 * u, 1.06 * u);
+        s.lineTo(0.24 * u, 1.24 * u);
+        s.lineTo(0.30 * u, 1.38 * u);
+        s.lineTo(0.14 * u, 1.40 * u);
+        s.lineTo(0.06 * u, 1.22 * u);
+        s.lineTo(0.06 * u, 0.92 * u);
+        s.lineTo(0.14 * u, 0.62 * u);
+        s.lineTo(0.18 * u, 0.30 * u);
+        s.lineTo(0.04 * u, 0.24 * u);
+        s.lineTo(0.00 * u, 0.14 * u);
+        s.closePath();
+        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        g.computeBoundingBox();
+        const b = g.boundingBox;
+        g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+        add(g);
+        break;
+      }
+
+      case 'ship': {
+        const s = new THREE.Shape();
+        s.moveTo(-0.90 * u, 0.30 * u);
+        s.lineTo(-0.62 * u, 0.10 * u);
+        s.lineTo(0.55 * u, 0.10 * u);
+        s.lineTo(0.95 * u, 0.46 * u);
+        s.lineTo(0.62 * u, 0.46 * u);
+        s.lineTo(0.50 * u, 0.30 * u);
+        s.lineTo(-0.42 * u, 0.30 * u);
+        s.lineTo(-0.42 * u, 0.52 * u);
+        s.lineTo(0.02 * u, 0.52 * u);
+        s.lineTo(0.02 * u, 0.78 * u);
+        s.lineTo(-0.16 * u, 0.78 * u);
+        s.lineTo(-0.16 * u, 1.34 * u);
+        s.lineTo(-0.05 * u, 1.34 * u);
+        s.lineTo(-0.05 * u, 0.78 * u);
+        s.lineTo(-0.30 * u, 0.78 * u);
+        s.lineTo(-0.30 * u, 0.30 * u);
+        s.closePath();
+        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        g.computeBoundingBox();
+        const b = g.boundingBox;
+        g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+        add(g);
+        break;
+      }
+
+      default: {
+        const baseR = 0.62 * u;
+        const baseTopR = 0.46 * u;
+        const baseH = 0.30 * u;
+        const baseGeo = new THREE.CylinderGeometry(baseTopR, baseR, baseH, 48);
+        add(baseGeo, [0, baseH / 2, 0]);
+
+        const collarGeo = new THREE.CylinderGeometry(0.40 * u, 0.48 * u, 0.10 * u, 48);
+        add(collarGeo, [0, baseH + 0.05 * u, 0]);
+
+        const stemH = 0.70 * u;
+        const stemBotR = 0.26 * u;
+        const stemTopR = 0.20 * u;
+        const stemGeo = new THREE.CylinderGeometry(stemTopR, stemBotR, stemH, 48);
+        const stemY = baseH + 0.10 * u;
+        add(stemGeo, [0, stemY + stemH / 2, 0]);
+
+        const neckGeo = new THREE.CylinderGeometry(0.24 * u, 0.20 * u, 0.10 * u, 48);
+        add(neckGeo, [0, stemY + stemH + 0.05 * u, 0]);
+
+        const ballR = 0.30 * u;
+        const ballGeo = new THREE.SphereGeometry(ballR, 40, 28);
+        add(ballGeo, [0, stemY + stemH + 0.10 * u + ballR, 0]);
+        break;
+      }
+    }
+    this._pieceCache.set(key, parts)
+    return parts
+  }
+
+  // Populate a piece holder group: a single GLB mesh if the models loaded, else the
+  // procedural part meshes. All share the one silver material.
+  _populatePiece(holder, key) {
+    while (holder.children.length) holder.remove(holder.children[0])
+    const glb = modelsReady() ? getTokenGeometry(key) : null
+    if (glb) {
+      const m = new THREE.Mesh(glb, this._silverMat)
+      m.castShadow = true; m.material.shadowSide = THREE.FrontSide
+      holder.add(m)
+    } else {
+      for (const p of this._pieceParts(key)) {
+        const m = new THREE.Mesh(p.geo, this._silverMat)
+        m.position.set(p.pos[0], p.pos[1], p.pos[2])
+        m.rotation.set(p.rot[0], p.rot[1], p.rot[2])
+        m.castShadow = true
+        holder.add(m)
+      }
+    }
   }
 
   _make(id, key) {
     const hex = tokenMeta(key).color
     const color = new THREE.Color(hex)
-    const H = TOKEN_HEIGHT; const h = H / 2
-    const baseMat = new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.7), roughness: 0.4, metalness: 0.45 })
-    const drumMat = new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.5 })
-    const capTopMat = new THREE.MeshStandardMaterial({ map: this._motifTexture(key, hex), roughness: 0.5, metalness: 0.1 })
-    this._track(baseMat, drumMat, capTopMat)
+    const H = TOKEN_HEIGHT
+    const baseY = -H / 2 // bottom of the token envelope, in body-local space
 
-    const base = new THREE.Mesh(this._baseGeo, baseMat); base.position.y = -h + H * 0.10; base.castShadow = true
-    const drum = new THREE.Mesh(this._drumGeo, drumMat); drum.position.y = -h + H * 0.48; drum.castShadow = true
-    const rim = new THREE.Mesh(this._rimGeo, this._goldMat); rim.position.y = -h + H * 0.76; rim.rotation.x = Math.PI / 2
-    // CylinderGeometry material groups: [side, top, bottom] — icon on the top face.
-    const cap = new THREE.Mesh(this._capGeo, [this._capMat, capTopMat, this._capMat]); cap.position.y = -h + H * 0.83; cap.castShadow = true
+    // per-player tinted base ring + shared gold trim
+    const ringMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.35, envMapIntensity: 0.9 })
+    this._track(ringMat)
+    const ring = new THREE.Mesh(this._ringGeo, ringMat)
+    ring.position.y = baseY + H * 0.08; ring.castShadow = true
+    const trim = new THREE.Mesh(this._trimGeo, this._goldMat)
+    trim.rotation.x = Math.PI / 2; trim.position.y = baseY + H * 0.16
+
+    // the sculpted piece sits on top of the ring
+    const pieceHolder = new THREE.Group()
+    pieceHolder.position.y = baseY + H * 0.16
+    this._populatePiece(pieceHolder, key)
 
     const body = new THREE.Group()
-    body.add(base, drum, rim, cap)
+    body.add(ring, trim, pieceHolder)
     body.position.y = TOKEN_REST_Y
 
+    // active gold ground-glow (static — so the loop can PARK)
     const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.5, depthWrite: false })
     this._track(glowMat)
     const glow = new THREE.Mesh(this._glowGeo, glowMat)
-    glow.rotation.x = -Math.PI / 2
-    glow.position.y = SURFACE_Y + 0.012
-    glow.visible = false
-    glow.renderOrder = 2
+    glow.rotation.x = -Math.PI / 2; glow.position.y = SURFACE_Y + 0.012; glow.visible = false; glow.renderOrder = 2
+
+    // contact shadow blob (shared material, under the glow)
+    const blob = new THREE.Mesh(this._blobGeo, this._blobMat)
+    blob.rotation.x = -Math.PI / 2; blob.position.y = SURFACE_Y + 0.006; blob.renderOrder = 1
 
     const group = new THREE.Group()
-    group.add(glow); group.add(body)
+    group.add(blob); group.add(glow); group.add(body)
     this.host.scene.add(group)
 
     const entry = {
-      id, key, group, body, glow,
-      ownMats: [baseMat, drumMat, capTopMat, glowMat], // per-token mats freed on _remove
+      id, key, group, body, glow, ring, pieceHolder,
+      ownMats: [ringMat, glowMat], // per-token mats freed on _remove (silver/gold/blob are shared)
       cur: { x: 0, z: 0 }, from: { x: 0, z: 0 }, to: { x: 0, z: 0 },
       t0: 0, dur: 0, arc: false, tweening: false,
       hopSeen: -1, squashT0: 0, tile: -1,
@@ -122,13 +422,23 @@ export default class TokenField {
     return entry
   }
 
+  // Swap every live piece's sculpt to the freshly-loaded GLB geometry, in place —
+  // preserving position / hop state / glow. One repaint, then re-park.
+  _swapInModels() {
+    if (this._disposed) return
+    for (const e of this.tokens.values()) {
+      if (getTokenGeometry(e.key)) this._populatePiece(e.pieceHolder, e.key)
+    }
+    this.host.invalidate()
+  }
+
   _remove(id) {
     const e = this.tokens.get(id)
     if (!e) return
     if (e.tweening) { e.tweening = false; this.host.popTween() }
     this.host.scene.remove(e.group)
-    // Free THIS token's own materials so a mid-game bankruptcy/rejoin doesn't leak
-    // them. Shared geometries + finish mats (gold/cap) + cached icon textures stay.
+    // Free THIS token's own materials (ring + glow). Shared silver/gold/ring-geo/blob
+    // stay. Per-player piece meshes share geometry, so nothing else to free here.
     for (const m of e.ownMats) { m.dispose(); this._disposables.delete(m) }
     this.tokens.delete(id)
   }
@@ -174,6 +484,8 @@ export default class TokenField {
         // Only arc when the actual tile changed; a pure stack re-shuffle slides flat.
         e.arc = !glide && tileChanged
         if (!e.tweening) { e.tweening = true; this.host.pushTween() }
+        // A4: nudge the camera focus toward the active player's destination on a real move.
+        if (id === activeId && tileChanged) this.host.focusTile?.(newTile)
       }
       e.tile = newTile
       // squash near landing — scheduled off STEP_MS (a stale e.dur from a prior glide
@@ -205,8 +517,11 @@ export default class TokenField {
         if (e.arc) {
           const arcH = HOP_PEAK_Y - TOKEN_REST_Y
           e.body.position.y = TOKEN_REST_Y + arcH * Math.sin(Math.PI * k)
-          const s = 1 + 0.14 * Math.sin(Math.PI * k)
-          e.body.scale.set(2 - s, s, 2 - s)
+          // gentle airborne stretch — small horizontal squeeze so asymmetric shapes
+          // don't look crushed (see HOP_* constants).
+          const sv = 1 + HOP_LIFT * Math.sin(Math.PI * k)
+          const sh = 1 - HOP_LATERAL * Math.sin(Math.PI * k)
+          e.body.scale.set(sh, sv, sh)
         } else {
           e.body.position.y = TOKEN_REST_Y
           e.body.scale.set(1, 1, 1) // glide carries no squash; clear any residual flatten
@@ -224,7 +539,7 @@ export default class TokenField {
           if (sk >= 1) { e.squashT0 = 0; if (!e.tweening) e.body.scale.set(1, 1, 1) }
           else {
             const dip = Math.sin(Math.PI * sk) // 0→1→0
-            e.body.scale.set(1 + 0.12 * dip, 1 - 0.18 * dip, 1 + 0.12 * dip)
+            e.body.scale.set(1 + LAND_BULGE * dip, 1 - LAND_SQUASH * dip, 1 + LAND_BULGE * dip)
             animating = true
           }
         } else {
@@ -248,10 +563,11 @@ export default class TokenField {
   }
 
   dispose() {
+    this._disposed = true
     for (const e of this.tokens.values()) this.host.scene.remove(e.group)
     this.tokens.clear()
     for (const o of this._disposables) { try { o.dispose?.() } catch { /* gone */ } }
     this._disposables.clear()
-    this._motifCache.clear()
+    this._pieceCache.clear()
   }
 }
