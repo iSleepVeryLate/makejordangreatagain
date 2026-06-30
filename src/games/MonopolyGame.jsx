@@ -97,6 +97,12 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const { play, muted, toggleMute } = useSound()
   const reducedMotion = useReducedMotion()
   const animator = useBoardAnimator(room, players, properties, { play, reducedMotion, myId })
+  // ITEM 2 — subscribe to the animator's WALK-IN-PROGRESS signal so MonopolyGame re-renders
+  // the moment the active player's token lands. renderMoment() reads walkActive to GATE the
+  // active player's landing decision card (buy / jail / debt) until the walk finishes, so the
+  // card never pops ~1–1.5s before the piece arrives. The slice flips FALSE on every animator
+  // exit path (see useBoardAnimator), so the card can never get stuck hidden.
+  const walkActive = useSyncExternalStore(animator.walking.subscribe, animator.walking.get).active
 
   const [busy, setBusy] = useState(false)
   const [rolling, setRolling] = useState(false)
@@ -404,6 +410,14 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
       )
     }
     if (!body) return null
+    // ITEM 2 — HOLD the active player's LANDING decision card (buy / jail / debt — the ones
+    // that fire the instant the server flips room.phase, ~1–1.5s before the token finishes
+    // walking) until the walk completes. walkActive is TRUE only during the active player's
+    // own walk and flips FALSE on every animator exit path, so this can never get stuck. The
+    // re-render on that flip (we subscribe to the slice above) reveals the card on arrival.
+    // Auction (shared, post-decision) and trade (UI-initiated, not landing-driven) are not
+    // landing cards, so they're never held; spectators (!isMyTurn) only see a status line.
+    if (walkActive && isMyTurn && (kind === 'buy' || kind === 'jail' || kind === 'debt')) return null
     return (
       <div className={`mono-moment-scrim mono-moment-${kind}`} dir={dir}>
         <div className="mono-moment" role="dialog" aria-modal="false">{body}</div>

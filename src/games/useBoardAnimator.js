@@ -66,6 +66,15 @@ export function createAnimatorStore() {
   //   active— the active player's id (so the highlight tints in their colour)
   //   nonce — bumps on each new roll so subscribers re-read
   const roll = makeSlice({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: 0 })
+  // ITEM 2 — ACTIVE-PLAYER WALK-IN-PROGRESS signal. TRUE only while the active player's
+  // token is actually walking/gliding to its committed tile; FALSE everywhere else. The
+  // decision-card (buy / auction / jail / debt) for the ACTIVE player is gated on this so
+  // the card can't pop ~1–1.5s before the token lands. Mirrors the `roll` slice pattern.
+  //   active — a walk is in flight right now
+  //   nonce  — bumps on each transition so subscribers re-read
+  // CRITICAL: a stuck-true `walking` would HIDE the card forever, which is worse than the
+  // pre-fix jank — so it is set FALSE on EVERY animator exit path (see the effect below).
+  const walking = makeSlice({ active: false, nonce: 0 })
 
   const getPos = (id) => tokens.get().pos[id]
 
@@ -136,7 +145,15 @@ export function createAnimatorStore() {
     roll.set({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: r.nonce })
   }
 
-  return { tokens, dice, floats, roll, coin, celebrate, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, pushCoin, pushCelebrate, showRoll, clearRoll }
+  // ITEM 2 — flip the active-player walk signal. Idempotent (no-op if unchanged) so a
+  // redundant call doesn't tick subscribers; bumps the nonce on a real transition.
+  const setWalking = (active) => {
+    const w = walking.get()
+    if (w.active === active) return
+    walking.set({ active, nonce: w.nonce + 1 })
+  }
+
+  return { tokens, dice, floats, roll, coin, celebrate, walking, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, pushCoin, pushCelebrate, showRoll, clearRoll, setWalking }
 }
 
 const posMap = (players) => {
@@ -331,6 +348,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     if (first || backward) {
       clearTimers(); walkingRef.current = false; walkTargetRef.current = null
       store.clearRoll() // fresh paint / rewind → no stale destination prediction
+      store.setWalking(false) // (c) no walk in flight → the card must not be gated
       store.snapTokens(authPos, turnId)
       if (Array.isArray(room.dice)) store.settleDice(room.dice[0], room.dice[1])
       else store.settleDice(null, null)
@@ -386,6 +404,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const movers = players.filter((pl) => !pl.bankrupt && (prevAuth[pl.profile_id] ?? pl.position) !== pl.position)
     if (movers.length === 0) {
       store.clearRoll() // nothing moved → drop any stale destination prediction
+      store.setWalking(false) // (e) no movement (e.g. a buy/card with no relocation) → ungate
       fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
@@ -399,12 +418,15 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       const tgt = walkTargetRef.current
       const sameTarget = tgt && players.every((pl) => pl.bankrupt || (tgt[pl.profile_id] ?? pl.position) === pl.position)
       if (sameTarget) {
+        // (still walking to the SAME target) — leave store.walking TRUE; the in-flight
+        // walk's own t+90 completion will ungate the card when the token actually lands.
         prevAuthPosRef.current = authPos
         prevCashRef.current = authCash
         return
       }
       clearTimers(); walkingRef.current = false; walkTargetRef.current = null
       store.clearRoll() // target moved under us → the prediction is stale; drop it
+      store.setWalking(false) // (d) mid-walk target changed → snapping, so ungate now
       store.snapTokens(authPos, turnId)
       fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
@@ -428,6 +450,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
           schedule(() => store.clearRoll(), 2400)
         } else store.clearRoll()
       } else store.clearRoll()
+      store.setWalking(false) // (b) reduced-motion snaps — no walk scheduler runs → ungate
       store.snapTokens(authPos, turnId)
       fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
@@ -442,6 +465,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const primary = movers.find((pl) => pl.profile_id === turnId)
     if (!primary) {
       store.clearRoll() // only a non-turn mover relocated → no dice prediction to show
+      store.setWalking(false) // (e) the ACTIVE player isn't walking → never gate their card
       fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
@@ -453,6 +477,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     // never walk a bogus dice count nor teleport.
     walkingRef.current = true
     walkTargetRef.current = authPos
+    store.setWalking(true) // a REAL active-player walk is now scheduled and in flight → gate the card
     const from = prevAuth[primary.profile_id] ?? primary.position
     const to = primary.position
     const { leg1, leg2 } = buildPath(from, room.dice, to, !gap)
@@ -500,6 +525,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       walkingRef.current = false
       walkTargetRef.current = null
       store.clearRoll() // token has ARRIVED → clear the destination/path so the loop parks
+      store.setWalking(false) // (a) walk done → the token has LANDED, so reveal the card now
       fireFloats(players, prevCashSnapshot, store, p)
     }, t + 90)
 
