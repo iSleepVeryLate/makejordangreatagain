@@ -682,7 +682,11 @@
 /* DARK KEYLINE (contrast): a thin near-black ring sits OUTSIDE and INSIDE the owner-
    coloured border. The dark edge is owner-colour-independent, so even a near-white owner
    (the #e9e9ee hat) separates cleanly from the cream tile — mirrors the 3D baked keyline. */
-.mono-tile-own { position: absolute; inset: 0; border: clamp(3px, 1.2cqw, 5px) solid var(--ow); border-radius: 5px; pointer-events: none; z-index: 3; background: color-mix(in srgb, var(--ow) 14%, transparent); box-shadow: inset 0 0 0 1.5px rgba(7,10,12,.85), 0 0 0 1.5px rgba(7,10,12,.8); animation: mono-stamp .4s cubic-bezier(.34,1.5,.5,1); }
+/* ITEM 1 — the BORDER uses --ow-border: a darkened, same-hue variant for LIGHT owners
+   (set in MonopolyBoard.jsx via ownerBorderColor), the raw colour for dark ones. --ow
+   still drives the faint interior fill so the tile carries the owner's true colour at a
+   glance. Falls back to --ow if a caller doesn't set --ow-border. Mirrors the 3D bake. */
+.mono-tile-own { position: absolute; inset: 0; border: clamp(3px, 1.2cqw, 5px) solid var(--ow-border, var(--ow)); border-radius: 5px; pointer-events: none; z-index: 3; background: color-mix(in srgb, var(--ow) 14%, transparent); box-shadow: inset 0 0 0 1.5px rgba(7,10,12,.85), 0 0 0 1.5px rgba(7,10,12,.8); animation: mono-stamp .4s cubic-bezier(.34,1.5,.5,1); }
 @keyframes mono-stamp { 0% { opacity: 0; transform: scale(1.6); } 55% { opacity: 1; } 100% { transform: scale(1); } }
 .mono-tile-houses { position: absolute; z-index: 4; display: flex; gap: 2px; }
 .mono-tile-houses.top { top: 28%; left: 0; right: 0; justify-content: center; }

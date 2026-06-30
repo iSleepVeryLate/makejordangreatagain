@@ -14,6 +14,7 @@
 // ============================================================================
 import * as THREE from 'three'
 import { TILE_CENTERS_3D, INWARD, SURFACE_Y, INNER_TRACK } from './coords3d.js'
+import { ownerBorderColor } from '../colorUtil.js'
 
 const RISE_MS = 280
 const POP_MS = 360
@@ -246,7 +247,13 @@ export default class BuildingsLayer {
       if (ownerKey !== e.ownerKey) {
         e.ownerKey = ownerKey
         if (ownerKey) {
-          e.ringMat.color.set(playerColor?.[ownerKey] || '#ffffff')
+          // ITEM 1 — for a LIGHT owner colour (e.g. the hat #e9e9ee) the white-baked
+          // border tints near-white and washes out against the cream board even with the
+          // dark keyline. ownerBorderColor() returns a DARKENED, same-hue variant for light
+          // owners (raw colour for dark ones) so the border itself reads as a deep version
+          // of "their colour". The texture's white border + faint wash multiply by this, so
+          // the whole stamp deepens together. Mirrors the 2D --ow-border in app.css.
+          e.ringMat.color.set(ownerBorderColor(playerColor?.[ownerKey] || '#ffffff'))
           e.ring.visible = true
           if (this.host.reducedMotion) { e.ring.scale.set(1, 1, 1) }
           else { e.popT0 = now(); this._anim.add(e) }
