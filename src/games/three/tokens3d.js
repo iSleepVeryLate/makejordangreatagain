@@ -17,6 +17,7 @@
 // useBoardAnimator (STEP_MS/GLIDE_MS) so the 3D motion matches the 2D path.
 // ============================================================================
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import {
   TILE_CENTERS_3D, TOKEN_RADIUS, TOKEN_HEIGHT, TOKEN_REST_Y, HOP_PEAK_Y, SURFACE_Y, INNER_TRACK,
 } from './coords3d.js'
@@ -147,7 +148,7 @@ export default class TokenField {
         const wheelR = 0.40 * u; const wheelW = 0.16 * u; const axleY = wheelR; const bodyW = 1.95 * u; const bodyD = 0.78 * u; const bodyH = 0.40 * u; const bodyY = axleY + 0.04 * u;
         const body = new THREE.BoxGeometry(bodyW, bodyH, bodyD, 1, 1, 1); add(body, [0, bodyY + bodyH / 2, 0]);
         const hoodW = 0.62 * u; const hoodH = 0.20 * u; const hood = new THREE.BoxGeometry(hoodW, hoodH, bodyD * 0.82); add(hood, [bodyW / 2 - hoodW / 2 + 0.02 * u, bodyY + bodyH / 2 - 0.02 * u, 0]);
-        const cabinW = 0.70 * u; const cabinH = 0.40 * u; const cabin = new THREE.BoxGeometry(cabinW, cabinH, bodyD * 0.74); add(cabin, [-bodyW / 2 + cabinW / 2 + 0.10 * u, bodyY + bodyH + cabinH / 2 - 0.03 * u, 0]);
+        const cabinW = 0.70 * u; const cabinH = 0.56 * u; const cabin = new THREE.BoxGeometry(cabinW, cabinH, bodyD * 0.74); add(cabin, [-bodyW / 2 + cabinW / 2 + 0.10 * u, bodyY + bodyH + cabinH / 2 - 0.03 * u, 0]);
         const cowlW = 0.34 * u; const cowl = new THREE.BoxGeometry(cowlW, 0.16 * u, bodyD * 0.70); add(cowl, [-bodyW / 2 + cabinW + cowlW / 2 + 0.06 * u, bodyY + bodyH + 0.05 * u, 0]);
         const wheel = () => new THREE.CylinderGeometry(wheelR, wheelR, wheelW, 20); const wx = bodyW / 2 - 0.30 * u; const wz = bodyD / 2 - wheelW / 2 + 0.02 * u; const rot = [Math.PI / 2, 0, 0];
         add(wheel(), [wx, axleY, wz], rot); add(wheel(), [wx, axleY, -wz], rot); add(wheel(), [-wx, axleY, wz], rot); add(wheel(), [-wx, axleY, -wz], rot);
@@ -192,46 +193,17 @@ export default class TokenField {
       }
 
       case 'dog': {
-        const s = new THREE.Shape();
-        s.moveTo(0.02 * u, 0.00 * u);
-        s.lineTo(0.30 * u, 0.00 * u);
-        s.lineTo(0.30 * u, 0.30 * u);
-        s.lineTo(0.46 * u, 0.30 * u);
-        s.lineTo(0.46 * u, 0.00 * u);
-        s.lineTo(0.74 * u, 0.00 * u);
-        s.lineTo(0.74 * u, 0.34 * u);
-        s.lineTo(1.18 * u, 0.34 * u);
-        s.lineTo(1.18 * u, 0.00 * u);
-        s.lineTo(1.46 * u, 0.00 * u);
-        s.lineTo(1.46 * u, 0.30 * u);
-        s.lineTo(1.62 * u, 0.30 * u);
-        s.lineTo(1.62 * u, 0.00 * u);
-        s.lineTo(1.90 * u, 0.00 * u);
-        s.lineTo(1.90 * u, 0.62 * u);
-        s.lineTo(1.82 * u, 0.78 * u);
-        s.lineTo(1.84 * u, 1.02 * u);
-        s.lineTo(1.92 * u, 1.30 * u);
-        s.lineTo(2.00 * u, 1.04 * u);
-        s.lineTo(2.02 * u, 0.84 * u);
-        s.lineTo(2.30 * u, 0.80 * u);
-        s.lineTo(2.42 * u, 0.60 * u);
-        s.lineTo(2.40 * u, 0.34 * u);
-        s.lineTo(2.28 * u, 0.22 * u);
-        s.lineTo(1.98 * u, 0.30 * u);
-        s.lineTo(1.90 * u, 0.42 * u);
-        s.lineTo(1.04 * u, 0.42 * u);
-        s.lineTo(0.70 * u, 0.62 * u);
-        s.lineTo(0.40 * u, 0.92 * u);
-        s.lineTo(0.30 * u, 1.18 * u);
-        s.lineTo(0.16 * u, 1.04 * u);
-        s.lineTo(0.06 * u, 0.78 * u);
-        s.lineTo(0.00 * u, 0.50 * u);
-        s.lineTo(0.02 * u, 0.00 * u);
-        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
-        g.computeBoundingBox();
-        const b = g.boundingBox;
-        g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
-        add(g);
+        // Scottie terrier from rounded primitives — soft (beveled) edges, reads
+        // volumetrically at the 3/4 board angle; no self-intersection risk.
+        const RB = (w, h, d) => new RoundedBoxGeometry(w * u, h * u, d * u, 3, Math.min(w, h, d) * 0.16 * u);
+        const legG = RB(0.18, 0.42, 0.16);
+        for (const sx of [-0.34, 0.42]) for (const sz of [-0.13, 0.13]) add(legG, [sx * u, 0.21 * u, sz * u]);
+        add(RB(1.06, 0.44, 0.40), [0.02 * u, 0.62 * u, 0]);
+        add(RB(0.30, 0.34, 0.13), [-0.58 * u, 0.86 * u, 0], [0, 0, -0.5]);
+        add(RB(0.44, 0.50, 0.36), [0.60 * u, 0.85 * u, 0]);
+        add(RB(0.32, 0.24, 0.30), [0.90 * u, 0.66 * u, 0]);
+        const earG = RB(0.13, 0.22, 0.12);
+        for (const sz of [-0.10, 0.10]) add(earG, [0.52 * u, 1.14 * u, sz * u]);
         break;
       }
 
@@ -252,7 +224,7 @@ export default class TokenField {
         s.lineTo(-0.78 * u, 0.34 * u);
         s.quadraticCurveTo(-0.86 * u, 0.30 * u, -0.86 * u, 0.18 * u);
         s.quadraticCurveTo(-0.86 * u, 0.00 * u, -0.78 * u, 0.00 * u);
-        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        const g = new THREE.ExtrudeGeometry(s, { depth: 0.45 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
         g.computeBoundingBox();
         const b = g.boundingBox;
         g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
@@ -289,7 +261,7 @@ export default class TokenField {
         s.lineTo(0.04 * u, 0.24 * u);
         s.lineTo(0.00 * u, 0.14 * u);
         s.closePath();
-        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        const g = new THREE.ExtrudeGeometry(s, { depth: 0.45 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
         g.computeBoundingBox();
         const b = g.boundingBox;
         g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
@@ -298,29 +270,23 @@ export default class TokenField {
       }
 
       case 'ship': {
+        // hull (extruded silhouette) + volumetric funnels/mast/deckhouse so it reads
+        // as a steamship from any angle (a flat silhouette alone read as a sliver).
         const s = new THREE.Shape();
-        s.moveTo(-0.90 * u, 0.30 * u);
-        s.lineTo(-0.62 * u, 0.10 * u);
-        s.lineTo(0.55 * u, 0.10 * u);
-        s.lineTo(0.95 * u, 0.46 * u);
-        s.lineTo(0.62 * u, 0.46 * u);
-        s.lineTo(0.50 * u, 0.30 * u);
-        s.lineTo(-0.42 * u, 0.30 * u);
-        s.lineTo(-0.42 * u, 0.52 * u);
-        s.lineTo(0.02 * u, 0.52 * u);
-        s.lineTo(0.02 * u, 0.78 * u);
-        s.lineTo(-0.16 * u, 0.78 * u);
-        s.lineTo(-0.16 * u, 1.34 * u);
-        s.lineTo(-0.05 * u, 1.34 * u);
-        s.lineTo(-0.05 * u, 0.78 * u);
-        s.lineTo(-0.30 * u, 0.78 * u);
-        s.lineTo(-0.30 * u, 0.30 * u);
-        s.closePath();
-        const g = new THREE.ExtrudeGeometry(s, { depth: 0.34 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
-        g.computeBoundingBox();
-        const b = g.boundingBox;
-        g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
-        add(g);
+        s.moveTo(-0.95 * u, 0.00 * u);
+        s.lineTo(0.85 * u, 0.00 * u);
+        s.lineTo(1.04 * u, 0.30 * u);
+        s.lineTo(0.72 * u, 0.38 * u);
+        s.lineTo(-0.80 * u, 0.38 * u);
+        s.lineTo(-0.95 * u, 0.00 * u);
+        const hull = new THREE.ExtrudeGeometry(s, { depth: 0.52 * u, bevelEnabled: true, bevelThickness: 0.03 * u, bevelSize: 0.03 * u, bevelSegments: 2, steps: 1 });
+        hull.translate(0, 0, -0.26 * u);
+        add(hull);
+        add(new THREE.BoxGeometry(0.6 * u, 0.22 * u, 0.34 * u), [-0.28 * u, 0.49 * u, 0]);
+        const funnel = () => new THREE.CylinderGeometry(0.12 * u, 0.13 * u, 0.5 * u, 20);
+        add(funnel(), [-0.05 * u, 0.63 * u, 0]);
+        add(funnel(), [0.28 * u, 0.63 * u, 0]);
+        add(new THREE.CylinderGeometry(0.03 * u, 0.04 * u, 0.95 * u, 12), [0.55 * u, 0.85 * u, 0]);
         break;
       }
 
