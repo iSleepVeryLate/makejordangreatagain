@@ -16,7 +16,6 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
-import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { VignetteShader } from 'three/examples/jsm/shaders/VignetteShader.js'
@@ -27,20 +26,20 @@ import BuildingsLayer from './buildings3d.js'
 import {
   BOARD, BOARD_HALF, BOARD_THICKNESS, SURFACE_Y, TOKEN_HEIGHT, TILE_CENTERS_3D, tileAtWorld,
 } from './coords3d.js'
-import { lowPower } from './capability.js'
 
 const TEX_SIZE = 2048
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
 
-// Resting camera framing (F3 — cinematic hero angle). Dropped LOWER + pulled slightly
-// back from the old 11.7/10.6 (≈48° elevation, a bit flat/top-down) to ≈40° — a more
-// dramatic 3/4 "premium board game" tilt where the near rim catches the key and the
-// back row still reads. A longer lens kept FAR back still flattens the near→far
-// tile-size disparity (the original 44°/short-lens framing shrank the back row to a
-// sliver). NB: _computeFit()/_restPos() derive the look DIRECTION + base distance purely
-// from these two points and scale OUT to fit the aspect, so re-tuning here can never crop
-// the corners — the fit loop pulls back as needed. Keep that contract.
-const CAM_REST = { x: 0, y: 9.4, z: 11.3 }
+// Resting camera framing (READABILITY pass over F3). The F3 hero angle (y 9.4 ≈40°
+// elevation) read as cinematic but PLAYED badly — too low foreshortens the back row and
+// the wide air-margin pushed the board far away. Raised the eye 9.4→10.7 (≈42–43°: still
+// a premium 3/4 tilt, NOT flat top-down, but the back row no longer collapses) and the
+// fit now frames TIGHT (see _computeFit: air 0.5→0.15, target 0.97→0.99) so the board
+// FILLS the frame with only a sliver of premium table at the edges. NB: _computeFit()/
+// _restPos() derive the look DIRECTION + base distance purely from these two points and
+// scale OUT to fit the aspect, so re-tuning here can never crop the corners — the fit
+// loop pulls back as needed. Keep that contract (probe verified across 32:9 … 9:32).
+const CAM_REST = { x: 0, y: 10.7, z: 11.3 }
 const CAM_TARGET = { x: 0, y: 0, z: 0.25 }
 // How far the camera pulls up/back for the intro reveal ease (scaled with the framing).
 const INTRO_DY = 3.7
@@ -71,9 +70,10 @@ export default class Scene3D {
 
     // Post-processing (A2): composer + its passes. composer===null → plain render
     // (soft degrade; never routed to onContextLost). _envRT is the IBL render target.
+    // (READABILITY pass: the F3 BokehPass/DoF was REMOVED — it blurred the far row of
+    // tiles and hurt play legibility; the whole board now renders crisp edge to edge.)
     this.composer = null
     this._bloomPass = null
-    this._bokehPass = null // F3: subtle DoF (depth-of-field) — non-low-power only; null on low-power / build failure
     this._vignettePass = null
     this._outputPass = null
     this._envRT = null
@@ -414,12 +414,12 @@ export default class Scene3D {
     }
   }
 
-  // Post-processing chain: RenderPass (linear HDR) → DoF (F3, subtle Bokeh; non-low-power
-  // only) → bloom (selective via a high threshold) → vignette → OutputPass (the single
-  // ACES + sRGB conversion, reading the renderer's toneMapping/exposure/outputColorSpace,
-  // ALWAYS last). try/caught → composer=null transparently degrades to the plain-render
-  // path (IBL + materials still apply). The DoF pass has its OWN inner guard so a Bokeh
-  // failure drops only the blur, never the whole composer.
+  // Post-processing chain: RenderPass (linear HDR) → bloom (selective via a high
+  // threshold) → vignette → OutputPass (the single ACES + sRGB conversion, reading the
+  // renderer's toneMapping/exposure/outputColorSpace, ALWAYS last). try/caught →
+  // composer=null transparently degrades to the plain-render path (IBL + materials still
+  // apply). READABILITY pass: the F3 BokehPass/DoF was removed — it blurred the far tiles
+  // and hurt play legibility; the board now renders sharp edge to edge.
   _buildComposer() {
     if (!this.renderer || !this.scene || !this.camera) return
     try {
@@ -429,25 +429,6 @@ export default class Scene3D {
       composer.setPixelRatio(this.renderer.getPixelRatio())
       composer.setSize(w, h)
       composer.addPass(new RenderPass(this.scene, this.camera))
-      // F3 — subtle depth of field. BokehPass renders its OWN depth (scene.overrideMaterial
-      // → MeshDepthMaterial into a private depth RT) each pass, so it's self-sufficient and
-      // needs nothing extra from RenderPass. Gated behind !lowPower() (it costs a second
-      // scene render). Focus is FIXED on the board centre (distance from the fitted rest pose
-      // to CAM_TARGET) — a STATIC post pass, no per-frame rack-focus, so the loop still PARKS.
-      // SUBTLE on purpose: tiny aperture + modest maxblur so only the far edge softens; over-DoF
-      // reads as gimmicky. Own try/catch: a Bokeh build failure leaves _bokehPass null and the
-      // rest of the chain intact (bloom/vignette/output unaffected). Inserted BEFORE bloom so
-      // bloom blooms the already-defocused far edge and OutputPass stays the single final tone-map.
-      if (!lowPower()) {
-        try {
-          const focus = this._focusDistance()
-          const bokeh = new BokehPass(this.scene, this.camera, { focus, aperture: 0.00038, maxblur: 0.0042 })
-          composer.addPass(bokeh)
-          this._bokehPass = bokeh
-        } catch {
-          this._bokehPass = null // DoF-only soft-degrade: keep bloom/vignette/output
-        }
-      }
       // strength, radius, threshold — the HIGH threshold IS the selective-bloom
       // mechanism. Harness diagnostic (bloom-bypass + threshold sweep): the diffuse
       // cream board's linear HDR runs ~1.3-1.5, so at 1.0 the board itself bloomed and
@@ -629,14 +610,13 @@ export default class Scene3D {
     // own mip-chain target. No-op when the composer failed to build (plain-render path).
     if (this.composer) {
       this.composer.setPixelRatio(this.renderer.getPixelRatio())
-      this.composer.setSize(w, h) // resizes every pass (incl. bloom AND the Bokeh depth RT + its aspect via pass.setSize) at DEVICE px — single source of truth; a separate per-pass setSize here would (re)set bloom to half-res on HiDPI
+      this.composer.setSize(w, h) // resizes every pass (incl. bloom's own mip-chain target) at DEVICE px — single source of truth; a separate per-pass setSize here would (re)set bloom to half-res on HiDPI
     }
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
     // Re-fit the framing to the new aspect so the near corners + corner tokens never
     // crop off the sides (a fixed FOV alone clips them on square/narrow panels).
     this._computeFit()
-    this._syncBokehFocus() // F3: _fit may have changed → refresh the (static) DoF focus on the board centre
     if (this._introUntil === 0) {
       const r = this._restPos()
       this.camera.position.set(r.x, r.y, r.z)
@@ -654,7 +634,13 @@ export default class Scene3D {
     const base = new THREE.Vector3(CAM_REST.x, CAM_REST.y, CAM_REST.z)
     const dir = base.clone().sub(t).normalize()
     const baseDist = base.distanceTo(t)
-    const HE = BOARD_HALF + 0.5 // board face + gold frame + a little air
+    // READABILITY: tight framing. Air trimmed 0.5→0.15 (only the gold frame's ~0.17 half-
+    // width + a hair of table) and the fill target raised 0.97→0.99 so the board DOMINATES
+    // the viewport instead of floating in empty tabletop. Probe still bounds all 8 corner
+    // points (board-face corners incl. frame + corner-token tops), so it can NEVER crop at
+    // any aspect — verified 32:9 … 9:32 (worst fill 0.88, binds the near board corner; the
+    // loop pulls back wherever the constraining axis needs it).
+    const HE = BOARD_HALF + 0.15 // board face + gold frame + a sliver of table
     const TH = SURFACE_Y + TOKEN_HEIGHT // top of a token standing on a corner tile
     const pts = []
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
@@ -670,8 +656,8 @@ export default class Scene3D {
       probe.updateProjectionMatrix()
       let maxN = 0
       for (const p of pts) { const v = p.clone().project(probe); maxN = Math.max(maxN, Math.abs(v.x), Math.abs(v.y)) }
-      if (maxN <= 0.97) break
-      scale *= maxN / 0.95
+      if (maxN <= 0.99) break
+      scale *= maxN / 0.975 // gentler step toward the tighter target (avoids overshoot-then-pull cycles)
     }
     this._fit = scale
   }
@@ -684,24 +670,6 @@ export default class Scene3D {
       y: CAM_TARGET.y + (CAM_REST.y - CAM_TARGET.y) * f,
       z: CAM_TARGET.z + (CAM_REST.z - CAM_TARGET.z) * f,
     }
-  }
-
-  // F3 — fixed DoF focus distance: world distance from the fitted REST pose to the board
-  // centre (CAM_TARGET). Derived from _fit so wider/narrower aspects keep the board centre
-  // sharp. Static (the camera moments only dolly ≤9% toward the target, well inside the
-  // plane-of-focus tolerance at this aperture), so the focus never needs a per-frame update
-  // and the loop can PARK. resize() re-runs _computeFit then _syncBokehFocus() to refresh it.
-  _focusDistance() {
-    const r = this._restPos()
-    const dx = r.x - CAM_TARGET.x; const dy = r.y - CAM_TARGET.y; const dz = r.z - CAM_TARGET.z
-    return Math.sqrt(dx * dx + dy * dy + dz * dz)
-  }
-
-  // Refresh the (static) DoF focus after an aspect re-fit. No-op when DoF is absent
-  // (low-power / build failure / 2D path). Cheap uniform write — no re-render forced here;
-  // the caller (resize) already invalidates.
-  _syncBokehFocus() {
-    if (this._bokehPass?.uniforms?.focus) this._bokehPass.uniforms.focus.value = this._focusDistance()
   }
 
   // ndc in [-1,1] → perimeter tile index or null
@@ -828,16 +796,15 @@ export default class Scene3D {
     try { this._buildings?.dispose() } catch { /* gone */ }
     this._buildings = null
     // Post-processing: composer.dispose() frees only its 2 RTs — free each pass's own
-    // GPU resources (bloom's mip chain, the Bokeh depth RT + its 2 materials + fsQuad,
-    // vignette/output materials) explicitly. Then the IBL render target.
+    // GPU resources (bloom's mip chain, vignette/output materials) explicitly. Then the
+    // IBL render target.
     try {
       this._bloomPass?.dispose?.()
-      this._bokehPass?.dispose?.() // frees its private depth RT + depth/bokeh materials + FullScreenQuad
       this._vignettePass?.dispose?.()
       this._outputPass?.dispose?.()
       this.composer?.dispose?.()
     } catch { /* gone */ }
-    this.composer = null; this._bloomPass = null; this._bokehPass = null; this._vignettePass = null; this._outputPass = null
+    this.composer = null; this._bloomPass = null; this._vignettePass = null; this._outputPass = null
     try { this._envRT?.dispose?.() } catch { /* gone */ }
     this._envRT = null
     if (this.scene) { this.scene.environment = null; this.scene.background = null } // F1 backdrop texture is freed via _disposables

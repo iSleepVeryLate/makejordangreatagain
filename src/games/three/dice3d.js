@@ -43,7 +43,12 @@ export default class DicePair {
   constructor(host) {
     this.host = host
     this._disposables = new Set()
-    this.S = INNER_TRACK * 0.58 // bigger dice read clearly at the 3/4 framing
+    // READABILITY pass: 0.58→0.80. At the old size the pips were too small to tell what
+    // you rolled at the play camera; this enlarges the faces ~38% so the result reads at a
+    // glance. The ±S*0.72 spacing scales WITH S, so the two dice stay separated (edge gap
+    // grows, never overlap) and centred under the wordmark; the contact-shadow blobs
+    // (S*1.5) and restY (SURFACE_Y + S/2) are both derived from S and follow automatically.
+    this.S = INNER_TRACK * 0.80 // larger dice so the pip faces read clearly at the 3/4 play framing
     this.restY = SURFACE_Y + this.S / 2 + 0.02
 
     const geo = new RoundedBoxGeometry(this.S, this.S, this.S, 3, this.S * 0.14)
