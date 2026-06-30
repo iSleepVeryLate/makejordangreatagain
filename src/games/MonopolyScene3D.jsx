@@ -42,6 +42,7 @@ export default function MonopolyScene3D({
     let unsub = null
     let unsubDice = null
     let unsubRoll = null
+    let unsubCoin = null
     import('./three/Scene3D.js').then(({ default: Scene3D }) => {
       if (disposed || !canvasRef.current) return
       scene = new Scene3D({
@@ -73,6 +74,12 @@ export default function MonopolyScene3D({
         scene.syncRoll(store.roll.get(), b.playerColor)
         unsubRoll = store.roll.subscribe(() => scene.syncRoll(store.roll.get(), bldRef.current.playerColor))
       }
+      // G3 — fire the gold coin-reward burst at the gaining token on each cash-gain edge.
+      // Subscribe only (no initial fire — the mount snapshot isn't a "gain"); the nonce
+      // bump on pushCoin re-triggers even for an identical id+amount. Park-safe downstream.
+      if (store?.coin) {
+        unsubCoin = store.coin.subscribe(() => { const c = store.coin.get(); if (c.id) scene.coinReward(c.id) })
+      }
       // Dev harness: the headless preview tab pauses rAF, so pump renders on a timer.
       if (debug) pump = setInterval(() => scene.forceRender(), 250)
     }, () => {
@@ -86,6 +93,7 @@ export default function MonopolyScene3D({
       if (unsub) unsub()
       if (unsubDice) unsubDice()
       if (unsubRoll) unsubRoll()
+      if (unsubCoin) unsubCoin()
       scene?.dispose()
       sceneRef.current = null
       if (__DEV_SERVER__ && typeof window !== 'undefined' && window.__mono3d === scene) window.__mono3d = null

@@ -505,6 +505,11 @@ export default class Scene3D {
     if (this._buildings) this._buildings.syncRoll(roll, playerColor)
   }
 
+  // G3 — fire the gold coin-reward pop at a player's token on a positive cash gain
+  // (delegated to TokenField, which knows the token's world position). No-op under
+  // reduced motion / low-power (TokenField guards). Transient + park-safe.
+  coinReward(id) { this._tokens?.coinReward(id) }
+
   // Ease the camera's look-at toward the active token's tile (a gentle "follow").
   // Returns true while still easing. Disabled under reduced motion (fixed framing).
   _updateFollow() {

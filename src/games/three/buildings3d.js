@@ -105,6 +105,14 @@ export default class BuildingsLayer {
   // plus a faint owner-coloured inner wash (white, tinted per owner via material.color).
   // Premium, not garish — opaque border for the "whose tile" read, low-alpha fill for
   // the at-a-glance group read. Baked once; reused (one texture, tinted per owner).
+  //
+  // CONTRAST: the texture's WHITE pixels tint to the owner colour (material.color
+  // multiplies). For light/near-white owners (e.g. the #e9e9ee hat) a plain white
+  // border tints near-white and vanishes against the cream board. The fix is a DARK
+  // keyline: black pixels stay black through the multiply (0×anything = 0), so we bake
+  // a dark drop-edge JUST OUTSIDE and JUST INSIDE the owner-coloured border. That dark
+  // edge is owner-colour-independent and separates EVERY owner colour — light ones most
+  // of all — from the cream tile. (Mirrors the 2D CSS keyline in .mono-tile-own.)
   _makeOwnFrameTexture() {
     const SZ = 128; const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
     const ctx = cv.getContext('2d')
@@ -113,11 +121,17 @@ export default class BuildingsLayer {
     // faint inner wash so the tile interior carries the owner's colour at a glance
     ctx.fillStyle = 'rgba(255,255,255,0.16)'
     ctx.beginPath(); ctx.roundRect(m, m, SZ - 2 * m, SZ - 2 * m, r); ctx.fill()
-    // thick solid border (the bold "whose tile is this" cue)
+    // DARK outer keyline — a slightly wider near-black ring under the owner border so a
+    // thin dark edge peeks out all around it. Black survives the per-owner colour multiply,
+    // so even a near-white owner border now separates from the cream board.
+    ctx.strokeStyle = 'rgba(6,9,11,0.92)'; ctx.lineWidth = SZ * 0.26
+    ctx.beginPath(); ctx.roundRect(m, m, SZ - 2 * m, SZ - 2 * m, r); ctx.stroke()
+    // thick solid border (the bold "whose tile is this" cue) — drawn OVER the dark ring
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = SZ * 0.18
     ctx.beginPath(); ctx.roundRect(m, m, SZ - 2 * m, SZ - 2 * m, r); ctx.stroke()
-    // a thin bright inner keyline lifts the border off dark/baked tile art
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = SZ * 0.03
+    // a thin DARK inner keyline closes the border on its inner edge too (so the colour band
+    // is framed dark on both sides → reads crisply over the wash + any baked tile art)
+    ctx.strokeStyle = 'rgba(6,9,11,0.9)'; ctx.lineWidth = SZ * 0.035
     const im = m + SZ * 0.105
     ctx.beginPath(); ctx.roundRect(im, im, SZ - 2 * im, SZ - 2 * im, r * 0.6); ctx.stroke()
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace

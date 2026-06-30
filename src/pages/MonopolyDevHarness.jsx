@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
 import MonopolyScene3D from '../games/MonopolyScene3D.jsx'
+import MoneyFloatLayer from '../games/MoneyFloat.jsx'
 import { createAnimatorStore, ringPath } from '../games/useBoardAnimator.js'
+import { CENTERS } from '../games/monopolyGeometry.js'
 import { tokenMeta } from '../games/monopolyTokens.js'
 import { sound } from '../lib/sound.js'
 
@@ -80,6 +82,20 @@ export default function MonopolyDevHarness() {
   }
   const buildOn = (tile) => setProps((ps) => ps.map((p) => (p.tile_index === tile ? { ...p, houses: Math.min(5, p.houses + 1) } : p)))
 
+  // G3 — fire the full cash-GAIN payoff at the active token: the 3D coin burst
+  // (store.coin → scene.coinReward), the floating "+$N" pop (gold + larger for a big
+  // gain, via store.floats → MoneyFloatLayer below), and the ka-ching. Mirrors what
+  // fireFloats does in a real game so the coin juice is testable WITHOUT a live game.
+  // Under reduced motion the burst is gated downstream (TokenField no-ops); the +$N
+  // float still shows (calmer) + the sound still plays — same as the live path.
+  const reward = (amount) => {
+    const pos = store.getPos(active) ?? 0
+    const c = CENTERS[pos] || CENTERS[0]
+    store.pushFloat({ amount, x: c.x, y: c.y, color: PLAYER_COLOR[active], big: amount >= 120 })
+    store.pushCoin(active, amount) // → 3D coin burst at the active token
+    sound.play('coin')
+  }
+
   return (
     <div style={{ maxWidth: 940, margin: '20px auto', padding: '0 16px' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10, color: '#cdbf8f', flexWrap: 'wrap' }}>
@@ -103,22 +119,35 @@ export default function MonopolyDevHarness() {
         <button onClick={() => buildOn(6)} style={btn}>+house tile 6</button>
         <button onClick={() => setAuctionTile(auctionTile == null ? 39 : null)} style={btn}>toggle auction(39)</button>
       </div>
-      <MonopolyScene3D
-        store={store}
-        players={MOCK_PLAYERS}
-        properties={props}
-        playerColor={PLAYER_COLOR}
-        activeTile={activeTile}
-        activeColor={PLAYER_COLOR[active] ?? null}
-        auctionTile={auctionTile}
-        reducedMotion={reduced}
-        lang="en"
-        debug
-        onTile={(i) => setLastTile(i)}
-        onContextLost={() => {}}
-      >
-        <div className="mono-center-inner"><div className="mono-turn-banner you">3D harness</div></div>
-      </MonopolyScene3D>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
+        <span style={{ color: '#9a8' }}>reward:</span>
+        <button onClick={() => reward(200)} style={btn}>＋$200 reward</button>
+        <button onClick={() => reward(75)} style={btn}>rent ＋$75</button>
+        <button onClick={() => reward(15)} style={btn}>card ＋$15</button>
+      </div>
+      {/* The scene + an overlaid MoneyFloatLayer so the "+$N" pop is visible in the
+          harness (the 3D scene itself doesn't mount the float layer — that lives in the
+          2D-Lite board). The %-anchored floats map to the board face approximately here;
+          this is a dev surface to confirm the pop fires, not a pixel-exact placement. */}
+      <div style={{ position: 'relative' }}>
+        <MonopolyScene3D
+          store={store}
+          players={MOCK_PLAYERS}
+          properties={props}
+          playerColor={PLAYER_COLOR}
+          activeTile={activeTile}
+          activeColor={PLAYER_COLOR[active] ?? null}
+          auctionTile={auctionTile}
+          reducedMotion={reduced}
+          lang="en"
+          debug
+          onTile={(i) => setLastTile(i)}
+          onContextLost={() => {}}
+        >
+          <div className="mono-center-inner"><div className="mono-turn-banner you">3D harness</div></div>
+        </MonopolyScene3D>
+        <MoneyFloatLayer store={store} />
+      </div>
     </div>
   )
 }

@@ -94,6 +94,17 @@ const SFX = {
   diceImpact: () => { noise({ dur: 0.05, gain: 0.26, type: 'lowpass', freq: 380, q: 0.8 }); tone({ freq: 130, glideTo: 80, type: 'square', dur: 0.08, gain: 0.13 }); noise({ t0: 0.045, dur: 0.04, gain: 0.12, type: 'bandpass', freq: 900, q: 1.4 }) },
   buy: () => { tone({ freq: 880, type: 'square', dur: 0.08, gain: 0.09 }); tone({ freq: 1320, t0: 0.07, type: 'square', dur: 0.13, gain: 0.11 }); noise({ dur: 0.04, gain: 0.08, type: 'highpass', freq: 3200 }) },
   rent: () => { for (let i = 0; i < 4; i++) tone({ freq: 1180 + i * 130, t0: i * 0.05, type: 'triangle', dur: 0.1, gain: 0.08 }) },
+  // G3 — the CASH-GAIN "ka-ching": a bright struck two-note bell (the classic cash-register
+  // ding) over a quick cascade of metallic coin "chinks" (short bandpass-noise ticks fanned
+  // out). Reads as a satisfying COIN PAYOFF, distinct from `buy`/`rent`. Kept brief + modest
+  // gain so a salary/rent gain firing repeatedly never grates. Fired on a positive cash delta.
+  coin: () => {
+    // bell ding — two struck triangle tones, the second a fifth up (a "ka-CHING")
+    tone({ freq: 1245, type: 'triangle', dur: 0.16, gain: 0.13 })
+    tone({ freq: 1865, t0: 0.07, type: 'triangle', dur: 0.22, gain: 0.13 })
+    // a sparkle of coin chinks raining under the ding (metallic high-bandpass clicks)
+    for (let i = 0; i < 5; i++) noise({ t0: 0.02 + i * 0.045, dur: 0.04, gain: 0.06, type: 'bandpass', freq: 4200 + Math.random() * 1800, q: 2.4 })
+  },
   build: () => { noise({ dur: 0.05, gain: 0.28, type: 'lowpass', freq: 420 }); tone({ freq: 150, type: 'square', dur: 0.08, gain: 0.12 }) },
   card: () => noise({ dur: 0.2, gain: 0.1, type: 'highpass', freq: 3800 }),
   jail: () => { tone({ freq: 220, type: 'sawtooth', dur: 0.32, gain: 0.16, glideTo: 90 }); noise({ dur: 0.14, gain: 0.18, type: 'bandpass', freq: 1100, q: 2 }) },
