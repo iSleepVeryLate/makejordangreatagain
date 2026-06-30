@@ -37,8 +37,17 @@ export default class BuildingsLayer {
     this._hotelMat = new THREE.MeshStandardMaterial({ color: 0xd0392b, roughness: 0.42, metalness: 0.12, envMapIntensity: 0.9 })
     this._ringGeo = new THREE.PlaneGeometry(INNER_TRACK * 0.95, INNER_TRACK * 0.95)
     this._tintGeo = new THREE.PlaneGeometry(INNER_TRACK * 0.95, INNER_TRACK * 0.95)
+    // Ownership covers the FULL tile footprint (not the inset 0.95 plane) so the
+    // owner-coloured edge hugs the tile boundary and reads as "this whole tile is
+    // theirs" from across the board. One shared geometry per side dimension.
+    this._ownGeo = new THREE.PlaneGeometry(INNER_TRACK, INNER_TRACK)
     this._frameTex = this._makeFrameTexture()
-    this._track(this._houseGeo, this._hotelGeo, this._houseMat, this._hotelMat, this._ringGeo, this._tintGeo, this._frameTex)
+    // Bold, high-contrast ownership frame: a thick owner-coloured border with a faint
+    // matching inner fill baked into ONE texture (tinted per owner via material.color),
+    // so a single plane reads boldly at the play camera. Distinct from the thin highlight
+    // rings (_frameTex) and from the property-group colour band (a separate channel).
+    this._ownTex = this._makeOwnFrameTexture()
+    this._track(this._houseGeo, this._hotelGeo, this._houseMat, this._hotelMat, this._ringGeo, this._tintGeo, this._ownGeo, this._frameTex, this._ownTex)
 
     // shared highlight rings (one active, one auction) repositioned per sync
     this._activeRing = this._makeRing(0xffd36a, 0.7); this._activeRing.visible = false
@@ -92,6 +101,29 @@ export default class BuildingsLayer {
     return tex
   }
 
+  // BOLD ownership frame: a thick solid owner-coloured border ringing the whole tile,
+  // plus a faint owner-coloured inner wash (white, tinted per owner via material.color).
+  // Premium, not garish — opaque border for the "whose tile" read, low-alpha fill for
+  // the at-a-glance group read. Baked once; reused (one texture, tinted per owner).
+  _makeOwnFrameTexture() {
+    const SZ = 128; const cv = document.createElement('canvas'); cv.width = SZ; cv.height = SZ
+    const ctx = cv.getContext('2d')
+    ctx.clearRect(0, 0, SZ, SZ)
+    const m = SZ * 0.07; const r = SZ * 0.1
+    // faint inner wash so the tile interior carries the owner's colour at a glance
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'
+    ctx.beginPath(); ctx.roundRect(m, m, SZ - 2 * m, SZ - 2 * m, r); ctx.fill()
+    // thick solid border (the bold "whose tile is this" cue)
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = SZ * 0.18
+    ctx.beginPath(); ctx.roundRect(m, m, SZ - 2 * m, SZ - 2 * m, r); ctx.stroke()
+    // a thin bright inner keyline lifts the border off dark/baked tile art
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = SZ * 0.03
+    const im = m + SZ * 0.105
+    ctx.beginPath(); ctx.roundRect(im, im, SZ - 2 * im, SZ - 2 * im, r * 0.6); ctx.stroke()
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace
+    return tex
+  }
+
   _makeRing(color, opacity) {
     const mat = new THREE.MeshBasicMaterial({ map: this._frameTex, color, transparent: true, opacity, depthWrite: false })
     this._track(mat)
@@ -119,11 +151,13 @@ export default class BuildingsLayer {
       const c = TILE_CENTERS_3D[tile] || TILE_CENTERS_3D[0]
       const group = new THREE.Group()
       this.host.scene.add(group)
-      // ownership ring (own material so colour can be tinted per owner)
-      const ringMat = new THREE.MeshBasicMaterial({ map: this._frameTex, color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })
+      // BOLD ownership frame (own material so colour can be tinted per owner). Uses the
+      // thick owner-frame texture on the full tile footprint at full opacity so it reads
+      // clearly at the play camera. The texture's white border tints to the owner colour.
+      const ringMat = new THREE.MeshBasicMaterial({ map: this._ownTex, color: 0xffffff, transparent: true, opacity: 1, depthWrite: false })
       this._track(ringMat)
-      const ring = new THREE.Mesh(this._ringGeo, ringMat)
-      ring.rotation.x = -Math.PI / 2; ring.position.set(c.x, SURFACE_Y + 0.015, c.z); ring.visible = false; ring.renderOrder = 2
+      const ring = new THREE.Mesh(this._ownGeo, ringMat)
+      ring.rotation.x = -Math.PI / 2; ring.position.set(c.x, SURFACE_Y + 0.016, c.z); ring.visible = false; ring.renderOrder = 2
       group.add(ring)
       // mortgage tint
       const tintMat = new THREE.MeshBasicMaterial({ color: 0x05080a, transparent: true, opacity: 0.46, depthWrite: false })
