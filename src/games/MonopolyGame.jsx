@@ -459,9 +459,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
               auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
               activeColor={playerColor[turnId] ?? null} sceneApiRef={sceneApiRef}
-              myId={myId} onContextLost={onContextLost} moment={renderMoment()}>
-              {renderCenter()}
-            </MonopolyScene3D>
+              myId={myId} onContextLost={onContextLost} moment={renderMoment()} />
             {/* The WebGL canvas is aria-hidden; this narrates board state to AT. */}
             <div className="sr-only" role="status" aria-live="polite">
               {t('mono.turnOf', { name: name(turnId) })} · {tileName(safeTile(playerById[turnId]?.position), lang)}
@@ -489,14 +487,18 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           <MonopolyBoard players={players} properties={properties} propByTile={propByTile} lang={lang}
             playerColor={playerColor} nameById={nameById} myId={myId} myFullSets={myFullSets}
             auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-            onTile={onTile} store={animator} tt={t} moment={renderMoment()}>
-            {renderCenter()}
-          </MonopolyBoard>
+            onTile={onTile} store={animator} tt={t} moment={renderMoment()} />
         )}
         {/* ITEM 3 — big-moment celebration overlay (Confetti + gold flash + stinger) over
             the board for MY milestones (buy / set / pass GO / win). Pointer-events:none so
             it never blocks the board or a decision moment. Works for both renderers. */}
         <MonoCelebration store={animator} reducedMotion={reducedMotion} play={play} />
+        {/* ITEM 1 — the persistent control dock lives OUT of the board canvas, in normal
+            flow BELOW the board (its own reserved row), so the just-added camera orbit can
+            rotate the active player's tile row to the FRONT without the dock ever covering
+            the play area. Identical for the 3D and 2D-Lite paths. Transient decision
+            moments (renderMoment) still overlay the board on purpose. */}
+        <div className="mono-dock-row">{renderCenter()}</div>
       </div>
 
       <div className="mono-side">

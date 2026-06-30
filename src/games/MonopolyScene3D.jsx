@@ -14,7 +14,7 @@ const EMPTY_ROLL = Object.freeze({ show: false, a: null, b: null, from: null, to
 // The center action UI (renderCenter) is passed as `children` and overlaid as DOM
 // above the canvas — crisp text, same handlers as the 2D path.
 export default function MonopolyScene3D({
-  onTile, store, reducedMotion, lang, onContextLost, children, moment = null, debug = false,
+  onTile, store, reducedMotion, lang, onContextLost, moment = null, debug = false,
   players = [], properties = [], playerColor = {}, activeTile = null, auctionTile = null, activeColor = null,
   sceneApiRef = null,
 }) {
@@ -156,7 +156,9 @@ export default function MonopolyScene3D({
           <span className="mono-roll-eq"><b>{roll.a}</b> + <b>{roll.b}</b> = <strong>{roll.a + roll.b}</strong></span>
         </div>
       )}
-      <div className="mono-center-3d">{children}</div>
+      {/* ITEM 1 — the persistent control dock moved OUT of this canvas to a normal-flow
+          row below the board (rendered by MonopolyGame), so the camera orbit can't rotate
+          a tile row UNDER it. Only the transient decision-moment overlay remains here. */}
       {/* Decision-moment overlay lives INSIDE the board box so its scrim hugs the
           board exactly (not the wider stage track). It sets its own dir. */}
       {moment}

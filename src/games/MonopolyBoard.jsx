@@ -108,7 +108,7 @@ const Tile = memo(function Tile({ t, prop, lang, ownerColor, owner, active, auct
   )
 })
 
-function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId, myFullSets, auctionTile, activeTile, onTile, store, tt, children, moment }) {
+function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId, myFullSets, auctionTile, activeTile, onTile, store, tt, moment }) {
   // Richer hover tooltip via the native title attribute (escapes the tile's
   // overflow:hidden + the dir=ltr/container-query transforms a CSS tooltip can't).
   const tipFor = (t, prop) => {
@@ -155,7 +155,9 @@ function MonopolyBoard({ players, propByTile, lang, playerColor, nameById, myId,
       })}
       {store && <TokenLayer players={players} store={store} />}
       {store && <MoneyFloatLayer store={store} />}
-      <div className="mono-center">{children}</div>
+      {/* ITEM 1 — the persistent control dock moved OUT to a normal-flow row below the
+          board (rendered by MonopolyGame). The centre hole now stays clear felt; only the
+          transient decision-moment overlay still renders over the board here. */}
       {moment}
     </div>
   )
