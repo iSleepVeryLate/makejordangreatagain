@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabaseClient.js'
 import { useToast } from '../context/ToastContext.jsx'
 import Confetti from '../components/Confetti.jsx'
 import MonoCelebration from './MonoCelebration.jsx'
+import CoinFlyLayer from './CoinFlyLayer.jsx'
 import MonopolyBoard from './MonopolyBoard.jsx'
 import MonopolyScene3D from './MonopolyScene3D.jsx'
 import { shouldUse3D, setRenderPref, supportsWebGL } from './three/capability.js'
@@ -108,6 +109,13 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const canToggle3D = useMemo(() => supportsWebGL(), []) // probe once, never on a render hot path
   const rootRef = useRef(null)
   const busyRef = useRef(false) // synchronous in-flight lock so a double-click can't double-submit
+  // ITEM 4 — coin-fly plumbing: the 3D scene's imperative API (token→viewport projection)
+  // and a map of player-card DOM elements so coins can fly from a token into its card.
+  const sceneApiRef = useRef(null)
+  const cardRefs = useRef({})
+  const getTokenPos = useCallback((id) => sceneApiRef.current?.tokenViewportPos?.(id) ?? null, [])
+  const getCardEl = useCallback((id) => cardRefs.current[id] ?? null, [])
+  const setCardRef = useCallback((id, el) => { if (el) cardRefs.current[id] = el; else delete cardRefs.current[id] }, [])
 
   const money = useCallback((n) => t('mono.amount', { amount: n }), [t])
 
@@ -440,7 +448,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             isOnline={!isAway(p)} offlineText={t('mono.offline')}
             rollText={t('mono.rolling')} nextText={t('mono.next')} money={money}
             worth={aff.netWorth(p, propByTile)} worthLabel={t('mono.netWorth')}
-            groups={groupsByPlayer[p.profile_id]} reduced={reducedMotion} />
+            groups={groupsByPlayer[p.profile_id]} reduced={reducedMotion} setCardRef={setCardRef} />
         ))}
       </div>
 
@@ -450,7 +458,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             <MonopolyScene3D onTile={onTile} store={animator} reducedMotion={reducedMotion} lang={lang}
               players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
               auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-              activeColor={playerColor[turnId] ?? null}
+              activeColor={playerColor[turnId] ?? null} sceneApiRef={sceneApiRef}
               myId={myId} onContextLost={onContextLost} moment={renderMoment()}>
               {renderCenter()}
             </MonopolyScene3D>
@@ -517,6 +525,11 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
         <Link className="btn btn-line btn-sm mono-leave" to="/monopoly"><LogOut size={14} /> {t('mono.leave')}</Link>
       </div>
 
+      {/* ITEM 4 — coins fly from a gaining player's token into their balance card on a
+          positive cash gain. Degrades to the existing token-side burst when there's no
+          projection (2D-Lite / off-screen) or no card ref; no fly under reduced motion. */}
+      <CoinFlyLayer store={animator} getTokenPos={getTokenPos} getCardEl={getCardEl} reducedMotion={reducedMotion} />
+
       {manageOpen && <ManageModal room={room} me={me} properties={properties} propByTile={propByTile} lang={lang} t={t} busy={busy} act={act} onClose={() => setManageOpen(false)} />}
       {tradeOpen && <TradeModal room={room} me={me} players={players} properties={properties} lang={lang} t={t} myId={myId} name={name} busy={busy} act={act} onClose={() => setTradeOpen(false)} />}
       {deedTile !== null && <DeedPopover tileIndex={deedTile} propByTile={propByTile} lang={lang} t={t} money={money} name={name} playerColor={playerColor} room={room} myId={myId} isMyTurn={isMyTurn} cash={me?.cash || 0} busy={busy} act={act} onClose={() => setDeedTile(null)} />}
@@ -525,11 +538,14 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 }
 
 // ---------------- sub-panels ----------------
-const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel, groups, reduced }) {
+const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel, groups, reduced, setCardRef }) {
   const meta = tokenMeta(p.token)
   const away = !isOnline && !p.bankrupt
+  // ITEM 4 — register this card's DOM node so coins can fly into it; de-register on unmount.
+  const id = p.profile_id
+  const onRef = useCallback((el) => { setCardRef?.(id, el) }, [id, setCardRef])
   return (
-    <div className={`mono-pcard${isTurn ? ' turn' : ''}${isNext ? ' next' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`}
+    <div ref={onRef} className={`mono-pcard${isTurn ? ' turn' : ''}${isNext ? ' next' : ''}${p.bankrupt ? ' bankrupt' : ''}${isMe ? ' me' : ''}`}
       style={{ '--tok': meta.color, ...(away ? { opacity: 0.55 } : null) }}>
       <div className="mono-pcard-av">{meta.emoji}</div>
       <div className="mono-pcard-info">

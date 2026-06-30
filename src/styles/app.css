@@ -744,6 +744,18 @@
 @keyframes mono-hop { 0% { transform: translateY(0); } 45% { transform: translateY(-34%); } 100% { transform: translateY(0); } }
 @keyframes mono-tok-glow { 50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 0 0 3px rgba(212,175,55,.75), 0 0 24px rgba(212,175,55,.55); } }
 
+/* ITEM 4 — coins flying from a token into a balance card. A viewport-fixed overlay we
+   append coin nodes into; each coin animates via the Web Animations API (set in JS), so
+   these rules are just the look. Finite DOM (JS removes nodes on finish/TTL) → no loop. */
+.mono-coinfly-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.mono-coinfly {
+  position: fixed; width: 16px; height: 16px; border-radius: 50%; will-change: transform, opacity;
+  background: radial-gradient(circle at 36% 30%, #fff8d4 0%, #ffd66a 45%, #c48c28 100%);
+  border: 1px solid rgba(255,245,200,.85);
+  box-shadow: 0 0 8px rgba(255,206,84,.7), inset 0 1px 0 rgba(255,255,255,.6);
+}
+@media (prefers-reduced-motion: reduce) { .mono-coinfly-layer { display: none !important; } }
+
 /* floating +N / −N cash deltas, anchored at the player's token */
 .mono-float-layer { position: absolute; inset: 9px; pointer-events: none; z-index: 7; }
 .mono-float { position: absolute; transform: translate(-50%, -50%); font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 3px 11px; border-radius: 999px; background: rgba(8,12,10,.78); border: 1px solid rgba(212,175,55,.22); box-shadow: 0 6px 16px -5px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.1); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); animation: mono-float-up 2.1s cubic-bezier(.22,.7,.3,1) forwards; }

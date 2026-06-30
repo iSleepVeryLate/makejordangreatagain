@@ -526,6 +526,15 @@ export default class TokenField {
     this._coins.burst(e.group.position.x, SURFACE_Y + TOKEN_HEIGHT * 0.5, e.group.position.z)
   }
 
+  // ITEM 4 — the current WORLD position of a player's token (mid-piece height), so the
+  // HUD can project it to the screen and fly coins from the token into the balance card.
+  // Returns { x, y, z } or null if the token isn't live. Pure read.
+  tokenWorldPos(id) {
+    const e = this.tokens.get(id)
+    if (!e) return null
+    return { x: e.group.position.x, y: SURFACE_Y + TOKEN_HEIGHT * 0.5, z: e.group.position.z }
+  }
+
   // Advance tweens; returns true while anything is animating.
   update(t) {
     let animating = false
