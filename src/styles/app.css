@@ -853,7 +853,7 @@
 .btn-gold { background: linear-gradient(160deg, #f0cf6a, #c99f2f); color: #1a1206; font-weight: 700; border: none; box-shadow: 0 10px 24px -10px rgba(212,175,55,.7), inset 0 1px 0 rgba(255,255,255,.4); }
 .btn-gold:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 28px -10px rgba(212,175,55,.85); background: linear-gradient(160deg, #f4d579, #d4ab38); }
 .btn-gold:active:not(:disabled) { transform: translateY(2px) scale(.98); transition-duration: .05s; box-shadow: 0 4px 12px -8px rgba(212,175,55,.6), inset 0 1px 0 rgba(255,255,255,.4); }
-.mono-deed-pop { background: var(--ink-2); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 240px; animation: mono-pop .2s ease both; }
+/* .mono-deed-pop consolidated → single definition in the D:deed block (slate glass + gold) */
 .mono-deed-pop-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; align-items: center; font-size: 13px; color: var(--txt-mid); }
 .mono-deed-pop-meta b { color: #fff; }
 .mono-mort-tag { color: var(--red); font-weight: 600; }
@@ -1412,9 +1412,9 @@
 .mono-ev-auction_win::before { content: "\25B2"; font-size: 9px; }  /* gavel-win */
 
 /* money OUT — red */
-.mono-ev-rent { --ev: var(--red-bright); --ev-soft: rgba(228,0,43,.13); }
+.mono-ev-rent { --ev: var(--red-bright, #e4002b); --ev-soft: rgba(228,0,43,.13); }
 .mono-ev-rent::before { content: "\2193"; font-size: 13px; }        /* down arrow */
-.mono-ev-tax  { --ev: var(--red-bright); --ev-soft: rgba(228,0,43,.13); }
+.mono-ev-tax  { --ev: var(--red-bright, #e4002b); --ev-soft: rgba(228,0,43,.13); }
 .mono-ev-tax::before  { content: "\0025"; font-size: 11px; }        /* percent (tax) */
 
 /* property acquire — gold */
@@ -1452,7 +1452,7 @@
 .mono-ev-auction_none::before { content: "\2014"; font-size: 12px; }/* em dash */
 
 /* terminal / dramatic — red */
-.mono-ev-bankrupt { --ev: var(--red-bright); --ev-soft: rgba(228,0,43,.15); }
+.mono-ev-bankrupt { --ev: var(--red-bright, #e4002b); --ev-soft: rgba(228,0,43,.15); }
 .mono-ev-bankrupt::before { content: "\2620"; font-size: 12px; }    /* skull */
 .mono-ev-resign   { --ev: var(--txt-mid); --ev-soft: rgba(255,255,255,.06); }
 .mono-ev-resign::before   { content: "\2691"; font-size: 12px; }    /* flag */
@@ -1889,16 +1889,8 @@
 }
 
 /* ---------- MANAGE list + deed popover ---------- */
-.mono-deed-pop {
-  background:
-    radial-gradient(120% 80% at 50% 0%, rgba(212,175,55,.07), rgba(212,175,55,0) 50%),
-    linear-gradient(180deg, #1b2920, #0e1611);
-  border: 1px solid rgba(212,175,55,.4);
-  border-radius: 16px;
-  box-shadow:
-    0 26px 60px -22px rgba(0,0,0,.9),
-    inset 0 1px 0 rgba(255,255,255,.06);
-}
+/* .mono-deed-pop consolidated → single definition in the D:deed block above (slate glass +
+   gold). The manage list reuses that one premium treatment; no felt-green override here. */
 .mono-deed-pop-meta { color: #c9c2b1; }
 .mono-deed-pop-meta b { color: #f3e9cf; }
 .mono-manage-list { gap: 7px; }

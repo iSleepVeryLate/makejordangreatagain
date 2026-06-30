@@ -848,7 +848,7 @@ function formatLog(e, name, lang, t) {
     case 'unmortgage': return `${who} → ${tileName(safeTile(e.tile), lang)}`
     case 'trade': return `${name(e.from)} ⇄ ${name(e.to)}`
     case 'auction_win': return `${who} → ${tileName(safeTile(e.tile), lang)} (${e.price})`
-    case 'auction_none': return `${tileName(safeTile(e.tile), lang)} —`
+    case 'auction_none': return tileName(safeTile(e.tile), lang)
     case 'bankrupt': return `${who}`
     case 'resign': return `${who}`
     case 'win': return `${who}`

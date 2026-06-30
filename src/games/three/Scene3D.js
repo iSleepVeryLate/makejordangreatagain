@@ -279,7 +279,11 @@ export default class Scene3D {
       '400 1em "Plus Jakarta Sans"', '700 1em "Plus Jakarta Sans"', '800 1em "Plus Jakarta Sans"',
       '400 1em "Cairo"', '700 1em "Cairo"', '800 1em "Cairo"',
     ]
-    Promise.all(wanted.map((f) => document.fonts.load(f).catch(() => {}))).then(repaint, () => {})
+    const loads = wanted.map((f) => document.fonts.load(f))
+    // Arabic lives in a SEPARATE Cairo subset; a Latin-only probe never fetches it. When the
+    // board bakes Arabic labels, probe with Arabic text so those glyphs are ready before re-bake.
+    if (this.lang === 'ar') loads.push(document.fonts.load('700 1em "Cairo"', 'الحظ'), document.fonts.load('800 1em "Cairo"', 'الخزينة'))
+    Promise.all(loads.map((p) => p.catch(() => {}))).then(repaint, () => {})
     // and re-bake again once everything settles (covers any face still in flight)
     document.fonts.ready.then(repaint, () => {})
   }
@@ -292,8 +296,10 @@ export default class Scene3D {
     if (!this.renderer || !this.scene) return
     try {
       const pmrem = new THREE.PMREMGenerator(this.renderer)
-      this._envRT = pmrem.fromScene(new RoomEnvironment(), 0.04)
+      const env = new RoomEnvironment()
+      this._envRT = pmrem.fromScene(env, 0.04)
       this.scene.environment = this._envRT.texture
+      env.dispose() // free the throwaway room (BoxGeometry + ~9 materials) — would leak per mount
       pmrem.dispose() // free the generator's scratch RTs immediately; _envRT lives on
     } catch {
       this._envRT = null
@@ -486,8 +492,7 @@ export default class Scene3D {
     // own mip-chain target. No-op when the composer failed to build (plain-render path).
     if (this.composer) {
       this.composer.setPixelRatio(this.renderer.getPixelRatio())
-      this.composer.setSize(w, h)
-      this._bloomPass?.setSize(w, h)
+      this.composer.setSize(w, h) // resizes every pass (incl. bloom) at DEVICE px — single source of truth; a separate bloom.setSize(w,h) here would (re)set it to half-res on HiDPI
     }
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()

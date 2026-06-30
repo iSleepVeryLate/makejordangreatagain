@@ -226,7 +226,9 @@ export default class DicePair {
     if (this.rolling && this._maxTumbleUntil && t > this._maxTumbleUntil) {
       this.rolling = false; this._maxTumbleUntil = 0
       if (this._lastFaces) this._beginSettle(this._lastFaces[0], this._lastFaces[1])
-      else for (const die of this.dice) die.mesh.visible = false
+      // No committed faces to settle to → hide AND release the dolly, else an abandoned
+      // first-ever roll (degraded WS) leaves Scene3D zoom stuck at 1 and the loop never parks.
+      else { for (const die of this.dice) die.mesh.visible = false; this.host.releaseZoom?.() }
       // The snap/hide sub-cases set no animating flag, so force a paint — else the
       // loop can park on the last tumbled frame (frozen ghost dice).
       this.host.invalidate()
