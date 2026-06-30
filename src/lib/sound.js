@@ -87,6 +87,8 @@ const SFX = {
   win: () => { [523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, t0: i * 0.13, type: 'triangle', dur: 0.32, gain: 0.17 })) },
   turn: () => { tone({ freq: 784, type: 'sine', dur: 0.12, gain: 0.14 }); tone({ freq: 1047, t0: 0.1, type: 'sine', dur: 0.18, gain: 0.14 }) },
   ui: () => tone({ freq: 560, type: 'sine', dur: 0.05, gain: 0.07 }),
+  // tile select — a soft, crisp two-note pip when a deed/tile is opened (distinct from `ui`)
+  select: () => { tone({ freq: 720, type: 'sine', dur: 0.05, gain: 0.08 }); tone({ freq: 1080, t0: 0.04, type: 'sine', dur: 0.07, gain: 0.06 }) },
 
   // ---- chess: dry, wooden, chess.com-flavoured. Own + opponent moves play these. ----
   // soft wood "tock" — a quiet thud under a short low click

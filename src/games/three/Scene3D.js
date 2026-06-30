@@ -12,6 +12,13 @@
 // ============================================================================
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
+import { VignetteShader } from 'three/examples/jsm/shaders/VignetteShader.js'
 import { paintBoardCanvas } from './boardTexture.js'
 import TokenField from './tokens3d.js'
 import DicePair from './dice3d.js'
@@ -45,6 +52,8 @@ export default class Scene3D {
     this.camera = null
     this.raycaster = new THREE.Raycaster()
     this._faceMesh = null
+    this._faceTex = null // baked board CanvasTexture (re-baked after webfonts load — C)
+    this._faceCanvas = null
     this._tokens = null // TokenField (Phase 1)
     this._dice = null // DicePair (Phase 2)
     this._buildings = null // BuildingsLayer (Phase 3)
@@ -52,6 +61,23 @@ export default class Scene3D {
     this._followZ = CAM_TARGET.z
     this._fit = 1 // distance multiplier (>=1) computed per-resize so the WHOLE board fits the container aspect
     this._disposables = new Set() // geometries/materials/textures to free on teardown
+
+    // Post-processing (A2): composer + its passes. composer===null → plain render
+    // (soft degrade; never routed to onContextLost). _envRT is the IBL render target.
+    this.composer = null
+    this._bloomPass = null
+    this._vignettePass = null
+    this._outputPass = null
+    this._envRT = null
+
+    // Cinematic camera moments (A4): additive offsets on the fitted rest pose, all
+    // eased/decayed so they settle back home and the loop can PARK. Zeroed under
+    // reduced motion. _zoom = roll dolly-in (0..1); _punchT0 = dice-land spring impulse;
+    // _focusBoostUntil = brief stronger look-at bias toward the landing tile.
+    this._zoomCur = 0
+    this._zoomTarget = 0
+    this._punchT0 = 0
+    this._focusBoostUntil = 0
 
     this._raf = 0
     this._dirty = true
@@ -88,7 +114,7 @@ export default class Scene3D {
     renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.05
+    renderer.toneMappingExposure = 0.95 // trimmed from 1.05 so the cream board doesn't blow out under IBL + bloom
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFShadowMap // PCFSoftShadowMap deprecated in r185; softening via shadow.radius
     this.renderer = renderer
@@ -101,6 +127,7 @@ export default class Scene3D {
     camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
     this.camera = camera
 
+    this._buildEnvironment() // IBL (procedural RoomEnvironment) — flatters the gold/metal
     this._buildLights()
     this._buildGround()
     this._buildBoard()
@@ -111,6 +138,7 @@ export default class Scene3D {
     // sizing + visibility + context-loss
     this._installObservers()
     this.resize()
+    this._buildComposer() // post-processing (bloom + vignette + ACES output) — after the first resize() so the RTs match the canvas
 
     // reveal: a short camera ease unless reduced-motion (resize() above already
     // computed _fit, so _restPos() reflects the real container aspect).
@@ -123,10 +151,13 @@ export default class Scene3D {
   }
 
   _buildLights() {
-    const hemi = new THREE.HemisphereLight(0xdfeaff, 0x2a2118, 0.7)
+    // Re-balanced for IBL (A1): the RoomEnvironment now carries most of the fill, so
+    // the analytic rig is dialled back to avoid double-lighting. The key stays the
+    // SOLE shadow caster (IBL gives no sharp shadows).
+    const hemi = new THREE.HemisphereLight(0xdfeaff, 0x2a2118, 0.35)
     this.scene.add(hemi)
 
-    const key = new THREE.DirectionalLight(0xfff2d8, 1.15)
+    const key = new THREE.DirectionalLight(0xfff2d8, 1.0)
     key.position.set(6.5, 15, 7.5)
     key.castShadow = true
     key.shadow.mapSize.set(2048, 2048)
@@ -135,12 +166,16 @@ export default class Scene3D {
     const s = 9
     key.shadow.camera.left = -s; key.shadow.camera.right = s
     key.shadow.camera.top = s; key.shadow.camera.bottom = -s
-    key.shadow.bias = -0.0005
+    // Small high-curvature metal tokens (metalness 0.9) stress shadow acne more than
+    // the flat slab → a slightly deeper bias + a normalBias to push the comparison off
+    // the silhouette.
+    key.shadow.bias = -0.0006
+    key.shadow.normalBias = 0.02
     key.shadow.radius = 4
     this.scene.add(key)
     this.scene.add(key.target)
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.18)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.10)
     this.scene.add(ambient)
 
     // Track for deterministic teardown: DirectionalLight.dispose() frees its 2048²
@@ -163,7 +198,7 @@ export default class Scene3D {
     // base slab (slightly larger than the tile face → a physical border)
     const rim = 0.62
     const baseGeo = new RoundedBoxGeometry(BOARD + rim, BOARD_THICKNESS, BOARD + rim, 4, 0.12)
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x12201a, roughness: 0.7, metalness: 0.15 })
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x12201a, roughness: 0.6, metalness: 0.15, envMapIntensity: 0.8 })
     const base = new THREE.Mesh(baseGeo, baseMat)
     base.castShadow = true
     base.receiveShadow = true
@@ -172,7 +207,7 @@ export default class Scene3D {
 
     // gold frame ring (4 thin bars just outside the tile face)
     const fw = 0.17; const fh = 0.10
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.34, metalness: 0.75 })
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.30, metalness: 0.75, envMapIntensity: 1.1 })
     this._track(goldMat)
     const frameY = SURFACE_Y + fh / 2 - 0.01
     const edge = BOARD_HALF + fw / 2
@@ -202,7 +237,9 @@ export default class Scene3D {
       tex.colorSpace = THREE.SRGBColorSpace
       tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy()
       tex.needsUpdate = true
-      mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82, metalness: 0.02 })
+      mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.02, envMapIntensity: 0.6 })
+      this._faceTex = tex // kept so C can re-bake after fonts load
+      this._faceCanvas = canvas
       this._track(tex)
     } else {
       mat = new THREE.MeshStandardMaterial({ color: 0xf0e9d6, roughness: 0.9 })
@@ -215,6 +252,105 @@ export default class Scene3D {
     this.scene.add(face)
     this._faceMesh = face
     this._track(faceGeo, mat)
+    this._rebakeOnFonts() // C: re-paint with the bundled webfonts once they resolve
+  }
+
+  // The baked board uses bundled webfonts (Cairo / Plus Jakarta Sans). They may not be
+  // ready at first paint (the canvas bakes once at mount), so re-bake when they resolve.
+  // Guarded so a teardown mid-load is a no-op.
+  _rebakeOnFonts() {
+    if (typeof document === 'undefined' || !document.fonts || !this._faceCanvas || !this._faceTex) return
+    const repaint = () => {
+      if (!this._faceCanvas || !this._faceTex || !this.renderer) return
+      try {
+        const ctx = this._faceCanvas.getContext('2d')
+        ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE)
+        paintBoardCanvas(ctx, TEX_SIZE, this.lang)
+        this._faceTex.needsUpdate = true
+        this.invalidate()
+      } catch { /* canvas gone */ }
+    }
+    // CRITICAL: canvas text does NOT trigger webfont loading, and document.fonts.ready
+    // only waits on faces the DOM already requested. The board leans on the 700/800
+    // DISPLAY weights that nothing in the DOM uses, so ready alone would resolve and we
+    // would still bake faux-bold. Explicitly load every family+weight we draw with, THEN
+    // re-bake. (Arabic glyphs come from Cairo via the same faces.)
+    const wanted = [
+      '400 1em "Plus Jakarta Sans"', '700 1em "Plus Jakarta Sans"', '800 1em "Plus Jakarta Sans"',
+      '400 1em "Cairo"', '700 1em "Cairo"', '800 1em "Cairo"',
+    ]
+    const loads = wanted.map((f) => document.fonts.load(f))
+    // Arabic lives in a SEPARATE Cairo subset; a Latin-only probe never fetches it. When the
+    // board bakes Arabic labels, probe with Arabic text so those glyphs are ready before re-bake.
+    if (this.lang === 'ar') loads.push(document.fonts.load('700 1em "Cairo"', 'الحظ'), document.fonts.load('800 1em "Cairo"', 'الخزينة'))
+    Promise.all(loads.map((p) => p.catch(() => {}))).then(repaint, () => {})
+    // and re-bake again once everything settles (covers any face still in flight)
+    document.fonts.ready.then(repaint, () => {})
+  }
+
+  // Image-based lighting from a procedural studio room (no asset file → deterministic
+  // for the screenshot harness, robust offline). Wrapped: IBL is a bonus, never blocks
+  // mount. scene.background stays null so the canvas is transparent over the CSS void;
+  // cinematic edge darkness comes from the vignette, not a background.
+  _buildEnvironment() {
+    if (!this.renderer || !this.scene) return
+    try {
+      const pmrem = new THREE.PMREMGenerator(this.renderer)
+      const env = new RoomEnvironment()
+      this._envRT = pmrem.fromScene(env, 0.04)
+      this.scene.environment = this._envRT.texture
+      env.dispose() // free the throwaway room (BoxGeometry + ~9 materials) — would leak per mount
+      pmrem.dispose() // free the generator's scratch RTs immediately; _envRT lives on
+    } catch {
+      this._envRT = null
+    }
+  }
+
+  // Post-processing chain: RenderPass (linear HDR) → bloom (selective via a high
+  // threshold) → vignette → OutputPass (the single ACES + sRGB conversion, reading the
+  // renderer's toneMapping/exposure/outputColorSpace). try/caught → composer=null
+  // transparently degrades to the plain-render path (IBL + materials still apply).
+  _buildComposer() {
+    if (!this.renderer || !this.scene || !this.camera) return
+    try {
+      const size = this.renderer.getSize(new THREE.Vector2())
+      const w = Math.max(1, size.x); const h = Math.max(1, size.y)
+      const composer = new EffectComposer(this.renderer) // auto HalfFloat RGBA RT → HDR + alpha preserved
+      composer.setPixelRatio(this.renderer.getPixelRatio())
+      composer.setSize(w, h)
+      composer.addPass(new RenderPass(this.scene, this.camera))
+      // strength, radius, threshold — the HIGH threshold IS the selective-bloom
+      // mechanism. Harness diagnostic (bloom-bypass + threshold sweep): the diffuse
+      // cream board's linear HDR runs ~1.3-1.5, so at 1.0 the board itself bloomed and
+      // washed out (cream band 118->186); not IBL-driven (board envMapIntensity had no
+      // effect) but the direct-light diffuse. At 1.5 the cream drops back to the clean
+      // bloom-off value (~115) while metal-specular highlights (gold frame, silver
+      // tokens, dice glints, HDR>1.5) still bloom — selective bloom on highlights only.
+      // Raising the threshold is additive-only (can't over-darken); exposure/lights are
+      // confirmed correct by the clean bloom-off render.
+      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.5, 1.5)
+      composer.addPass(bloom)
+      const vignette = new ShaderPass(VignetteShader)
+      vignette.uniforms.offset.value = 0.95
+      vignette.uniforms.darkness.value = 1.05
+      composer.addPass(vignette)
+      const output = new OutputPass() // MUST be last — consumes renderer tone-map/colour-space
+      composer.addPass(output)
+      this.composer = composer
+      this._bloomPass = bloom
+      this._vignettePass = vignette
+      this._outputPass = output
+    } catch {
+      this.composer = null // soft degrade — NOT a context loss
+    }
+  }
+
+  // One composed frame when the composer is up, else the plain render. Used by both
+  // the rAF loop and the synchronous forceRender (dev harness). renderer.info still
+  // populates either way → renderStats() unaffected.
+  _draw() {
+    if (this.composer) this.composer.render()
+    else this.renderer.render(this.scene, this.camera)
   }
 
   // ----------------------------------------------------------------- public
@@ -230,6 +366,9 @@ export default class Scene3D {
       // snap the camera-follow look-at to centre (no easing)
       this._followX = CAM_TARGET.x; this._followZ = CAM_TARGET.z
       this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
+      // zero any in-flight cinematic camera moments + pin to the fitted rest pose
+      this._zoomCur = 0; this._zoomTarget = 0; this._punchT0 = 0; this._focusBoostUntil = 0
+      if (this._introUntil === 0) { const rp = this._restPos(); this.camera.position.set(rp.x, rp.y, rp.z) }
       // settle any in-flight subsystem tweens
       this._tokens?.snapAll()
       this._dice?.snapAll()
@@ -256,22 +395,65 @@ export default class Scene3D {
   _updateFollow() {
     let gx = CAM_TARGET.x; let gz = CAM_TARGET.z
     const tile = this._tokens?.activeTile
+    // focusTile() (A4) briefly sharpens the bias when the active token's hop lands.
+    const boosted = now() < this._focusBoostUntil
     if (tile != null && !this.reducedMotion) {
       // Subtle bias toward the active tile — enough to "follow", not so much it
       // rotates/crops the board out of frame. Guard the index (a sentinel/out-of-range
       // value must never throw inside the rAF loop and kill the scene).
       const c = TILE_CENTERS_3D[tile] || TILE_CENTERS_3D[0]
-      gx = c.x * 0.18
-      gz = CAM_TARGET.z + c.z * 0.18
+      const bias = boosted ? 0.30 : 0.18
+      gx = c.x * bias
+      gz = CAM_TARGET.z + c.z * bias
     }
     const dx = gx - this._followX; const dz = gz - this._followZ
     if (Math.abs(dx) < 1e-3 && Math.abs(dz) < 1e-3) {
       if (this._followX !== gx || this._followZ !== gz) { this._followX = gx; this._followZ = gz; this.camera.lookAt(this._followX, 0, this._followZ) }
-      return false
+      // Keep the loop alive while the boost window is open so its expiry eases back.
+      return boosted
     }
     this._followX += dx * 0.08; this._followZ += dz * 0.08
     this.camera.lookAt(this._followX, 0, this._followZ)
     return true
+  }
+
+  // --------------------------------------------------- cinematic camera moments (A4)
+  // All additive on the fitted rest pose so they ALWAYS ease back home; all no-ops
+  // under reduced motion. Each calls _wake() so a parked loop resumes for the moment.
+  pushIn() { if (this.reducedMotion) return; this._zoomTarget = 1; this._wake() }
+  releaseZoom() { this._zoomTarget = 0; this._wake() }
+  cameraPunch() { if (this.reducedMotion) return; this._punchT0 = now(); this._wake() }
+  focusTile() { if (this.reducedMotion) return; this._focusBoostUntil = now() + 700; this._wake() }
+
+  // Apply the zoom dolly-in + dice-land punch to camera.position (relative to the
+  // fitted rest pose). Returns true while still settling so _loop keeps the frame alive
+  // and then PARKS. Called only after the intro ease completes.
+  _applyCameraMoments(t) {
+    if (this.reducedMotion || this._introUntil > 0 || !this.camera) return false
+    // ease the roll dolly toward its target
+    this._zoomCur += (this._zoomTarget - this._zoomCur) * 0.10
+    if (Math.abs(this._zoomCur - this._zoomTarget) < 0.002) this._zoomCur = this._zoomTarget
+    // decaying spring impulse for the dice landing ("nudge", not shake)
+    let punchY = 0; let punchActive = false
+    if (this._punchT0) {
+      const age = (t - this._punchT0) / 1000
+      if (age >= 0.6) this._punchT0 = 0
+      else { punchY = 0.13 * Math.exp(-7 * age) * Math.cos(26 * age); punchActive = true }
+    }
+    const zoomActive = Math.abs(this._zoomCur) > 0.002 || this._zoomTarget !== 0
+    const r = this._restPos()
+    if (!zoomActive && !punchActive) {
+      // settled → pin exactly to the rest pose once, then let the loop park
+      this.camera.position.set(r.x, r.y, r.z)
+      return false
+    }
+    const z = 0.09 * this._zoomCur // up to ~9% closer to the target on a roll
+    this.camera.position.set(
+      r.x + (CAM_TARGET.x - r.x) * z,
+      r.y + (CAM_TARGET.y - r.y) * z + punchY,
+      r.z + (CAM_TARGET.z - r.z) * z,
+    )
+    return zoomActive || punchActive
   }
 
   invalidate() { this._dirty = true; this._wake() }
@@ -280,11 +462,11 @@ export default class Scene3D {
   forceRender() {
     if (!this.renderer || !this.scene || !this.camera) return
     this._tickCamera()
-    if (this._introUntil === 0) this._updateFollow()
+    if (this._introUntil === 0) { this._applyCameraMoments(now()); this._updateFollow() }
     this._tokens?.update(now())
     this._dice?.update(now())
     this._buildings?.update(now())
-    this.renderer.render(this.scene, this.camera)
+    this._draw()
     this._dirty = false
   }
   pushTween() { this._tweens++; this._wake() }
@@ -311,6 +493,12 @@ export default class Scene3D {
     // Re-apply the DPR cap so moving the window to another-density monitor / zoom is picked up.
     this.renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2))
     this.renderer.setSize(w, h, false)
+    // Keep the post-processing RTs locked to the renderer (DPR + size), incl. bloom's
+    // own mip-chain target. No-op when the composer failed to build (plain-render path).
+    if (this.composer) {
+      this.composer.setPixelRatio(this.renderer.getPixelRatio())
+      this.composer.setSize(w, h) // resizes every pass (incl. bloom) at DEVICE px — single source of truth; a separate bloom.setSize(w,h) here would (re)set it to half-res on HiDPI
+    }
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
     // Re-fit the framing to the new aspect so the near corners + corner tokens never
@@ -447,12 +635,14 @@ export default class Scene3D {
       if (!this._mounted || !this._visible || hidden || !this.renderer) { this._raf = 0; return }
       const t = now()
       const introMoving = this._tickCamera()
+      // Camera moments set position; follow sets look-at — apply moments FIRST.
+      const camMoving = this._introUntil === 0 ? this._applyCameraMoments(t) : false
       const followMoving = this._introUntil === 0 ? this._updateFollow() : false
       const tokMoving = this._tokens ? this._tokens.update(t) : false
       const diceMoving = this._dice ? this._dice.update(t) : false
       const bldMoving = this._buildings ? this._buildings.update(t) : false
-      if (this._dirty || this._tweens > 0 || introMoving || followMoving || tokMoving || diceMoving || bldMoving) {
-        this.renderer.render(this.scene, this.camera)
+      if (this._dirty || this._tweens > 0 || introMoving || camMoving || followMoving || tokMoving || diceMoving || bldMoving) {
+        this._draw()
         this._dirty = false
       }
       // Keep the loop alive only while something is animating; otherwise PARK
@@ -460,7 +650,7 @@ export default class Scene3D {
       // screenshot tool — from ever settling). invalidate()/observers re-wake it.
       // NB the active-token glow + active ring are STATIC (no per-frame pulse) so this can park;
       // the auction ring pulses, but only during the brief auction phase.
-      if (this._tweens > 0 || this._introUntil > 0 || followMoving || tokMoving || diceMoving || bldMoving) this._raf = requestAnimationFrame(frame)
+      if (this._tweens > 0 || this._introUntil > 0 || camMoving || followMoving || tokMoving || diceMoving || bldMoving) this._raf = requestAnimationFrame(frame)
       else this._raf = 0
     }
     this._raf = requestAnimationFrame(frame)
@@ -486,6 +676,19 @@ export default class Scene3D {
     this._dice = null
     try { this._buildings?.dispose() } catch { /* gone */ }
     this._buildings = null
+    // Post-processing: composer.dispose() frees only its 2 RTs — free each pass's own
+    // GPU resources (bloom's mip chain, vignette/output materials) explicitly. Then the
+    // IBL render target.
+    try {
+      this._bloomPass?.dispose?.()
+      this._vignettePass?.dispose?.()
+      this._outputPass?.dispose?.()
+      this.composer?.dispose?.()
+    } catch { /* gone */ }
+    this.composer = null; this._bloomPass = null; this._vignettePass = null; this._outputPass = null
+    try { this._envRT?.dispose?.() } catch { /* gone */ }
+    this._envRT = null
+    if (this.scene) this.scene.environment = null
     for (const o of this._disposables) {
       try { o.dispose?.() } catch { /* already gone */ }
     }
