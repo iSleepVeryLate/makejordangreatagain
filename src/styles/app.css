@@ -676,7 +676,10 @@
 .mono-tile-ic { color: #2a6f47; display: flex; margin-bottom: 1px; }
 .mono-tile-name { font-size: clamp(8px, 1.7cqw, 12px); line-height: 1.1; font-weight: 700; color: #201d15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .mono-tile-price { font-size: clamp(7px, 1.4cqw, 11px); color: #6a5c30; font-weight: 700; margin-top: 1px; }
-.mono-tile-own { position: absolute; inset: 0; border: clamp(1.5px, 0.6cqw, 3px) solid var(--ow); border-radius: 5px; pointer-events: none; z-index: 3; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); animation: mono-stamp .4s cubic-bezier(.34,1.5,.5,1); }
+/* BOLD ownership marker — mirrors the 3D bold owner frame: a thick owner-coloured
+   border + a faint owner-coloured inner wash, so a glance reads "whose tile this is"
+   even at the play zoom. Distinct from the property-group colour band. */
+.mono-tile-own { position: absolute; inset: 0; border: clamp(3px, 1.2cqw, 5px) solid var(--ow); border-radius: 5px; pointer-events: none; z-index: 3; background: color-mix(in srgb, var(--ow) 14%, transparent); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7), 0 0 0 1px color-mix(in srgb, var(--ow) 55%, transparent); animation: mono-stamp .4s cubic-bezier(.34,1.5,.5,1); }
 @keyframes mono-stamp { 0% { opacity: 0; transform: scale(1.6); } 55% { opacity: 1; } 100% { transform: scale(1); } }
 .mono-tile-houses { position: absolute; z-index: 4; display: flex; gap: 2px; }
 .mono-tile-houses.top { top: 28%; left: 0; right: 0; justify-content: center; }
