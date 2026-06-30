@@ -47,9 +47,14 @@ function makeSparkTexture() {
 
 export default class SparkleBurst {
   // host: { scene, pushTween, popTween, invalidate }.
-  constructor(host, { count = 22, size = 0.34, color = 0xffd66a } = {}) {
+  // peakOpacity caps the burst's brightest frame: with AdditiveBlending the near-white
+  // core can stack past the bloom threshold (1.5) into a white flare — capping it keeps
+  // the glint warm and SUB-bloom (the dice settle uses a low cap so the centre never
+  // flashes white; the token landing keeps the full 1.0 pop).
+  constructor(host, { count = 22, size = 0.34, color = 0xffd66a, peakOpacity = 1 } = {}) {
     this.host = host
     this.count = count
+    this._peakOpacity = Math.max(0, Math.min(1, peakOpacity))
     this._t0 = 0
     this._live = false // a tween is currently pushed for us
     this._disposed = false
@@ -69,7 +74,7 @@ export default class SparkleBurst {
       map: this._tex || null,
       color,
       transparent: true,
-      opacity: 1,
+      opacity: this._peakOpacity,
       depthWrite: false, // never occlude / be occluded by the token; pure overlay glint
       blending: THREE.AdditiveBlending, // warm sparkle on the dark world (no dark fringes)
       sizeAttenuation: true,
@@ -102,7 +107,7 @@ export default class SparkleBurst {
     this._geo.attributes.position.needsUpdate = true
     this._t0 = now()
     this._points.visible = true
-    this._mat.opacity = 1
+    this._mat.opacity = this._peakOpacity
     if (!this._live) { this._live = true; this.host.pushTween() }
     this.host.invalidate()
   }
@@ -132,7 +137,7 @@ export default class SparkleBurst {
       posArr[i * 3 + 2] = oz + vz * age
     }
     this._geo.attributes.position.needsUpdate = true
-    this._mat.opacity = Math.max(0, 1 - k * k) // ease-out fade so it vanishes cleanly
+    this._mat.opacity = this._peakOpacity * Math.max(0, 1 - k * k) // ease-out fade so it vanishes cleanly
     return true
   }
 

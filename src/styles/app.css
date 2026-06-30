@@ -629,6 +629,26 @@
    play area (decisions go to the centred .mono-moment overlay instead). */
 .mono-center-3d { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 94%; z-index: 3; display: flex; justify-content: center; }
 
+/* PROMINENT ROLL READOUT — pops on dice settle near the top of the board, clears when
+   the move ends. Premium gold pill in the HUD design language; a pure DOM overlay (no
+   effect on the WebGL loop). */
+.mono-roll-readout {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 7px 17px 7px 13px; border-radius: 999px;
+  background: linear-gradient(160deg, rgba(28,22,8,.92), rgba(14,11,5,.92));
+  border: 1px solid rgba(212,175,55,.55);
+  box-shadow: 0 10px 26px -12px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.07), 0 0 22px -6px rgba(212,175,55,.5);
+  color: #f4efe1; font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  animation: mono-roll-in .26s cubic-bezier(.2,.9,.3,1.4) both; pointer-events: none; white-space: nowrap;
+}
+.mono-roll-die { font-size: 18px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.mono-roll-eq { font-size: 15px; letter-spacing: .01em; }
+.mono-roll-eq b { font-weight: 700; color: #f4efe1; }
+.mono-roll-eq strong { font-weight: 800; font-size: 18px; color: var(--mg-gold-bright); margin-inline-start: 2px; }
+@keyframes mono-roll-in { from { opacity: 0; transform: translate(-50%, -10px) scale(.92); } }
+@media (prefers-reduced-motion: reduce) { .mono-roll-readout { animation: mono-pop .14s ease both; } }
+
 /* light parchment tile faces with dark ink — legible like a real Monopoly deed */
 .mono-tile { position: relative; background: linear-gradient(180deg, #f6f1e4, #e7dfca); border: 1px solid #cdc3a6; border-radius: 5px; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1c1a14; min-width: 0; text-align: center; transition: box-shadow .15s ease, transform .1s ease; }
 .mono-tile:hover { box-shadow: 0 0 0 2px rgba(212,175,55,.7); z-index: 3; }

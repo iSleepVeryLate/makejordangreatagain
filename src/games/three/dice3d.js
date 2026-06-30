@@ -107,11 +107,16 @@ export default class DicePair {
     this._tumbledSinceSettle = false
     this._punchPending = false // A4: fire one camera nudge when a bounced settle lands
 
-    // G1 — optional tiny gold spark when the dice physically settle (same finite,
-    // self-terminating, park-friendly burst the token landing uses). Smaller + fewer
-    // particles than the token pop (the dice already get the camera punch + impact SFX,
-    // so this is just a subtle glint). Skipped on low-power. dispose() frees it.
-    this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 12, size: 0.26 })
+    // G1 — optional tiny gold glint when the dice physically settle (same finite,
+    // self-terminating, park-friendly burst the token landing uses). READABILITY pass:
+    // the old count:12 size:0.26 gold burst, additively blended over the centre tray,
+    // stacked its near-white core PAST the bloom threshold (1.5) into a white flare right
+    // where both dice rest under the wordmark — the reported "settle flashes too bright".
+    // Calmed to a SUBTLE glint: fewer (8) + smaller (0.18) particles, a warm AMBER tint
+    // (deep gold, no white channel saturation), and peakOpacity 0.5 so the additive sum
+    // can never reach the bloom cut. The dice already carry the camera punch + impact SFX,
+    // so this is just a hint of sparkle. Skipped on low-power. dispose() frees it.
+    this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 8, size: 0.18, color: 0xe0a23a, peakOpacity: 0.5 })
   }
 
   // G1 — fire the dice settle glint at the centre tray, between the two dice. Guarded:

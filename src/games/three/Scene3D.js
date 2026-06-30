@@ -496,8 +496,13 @@ export default class Scene3D {
   syncDice(d) { if (this._dice && d) this._dice.sync(d) }
 
   // Feed property rows + derived maps to the buildings / tile-state layer (Phase 3).
-  syncBuildings(properties, playerColor, activeTile, auctionTile) {
-    if (this._buildings) this._buildings.sync(properties, playerColor, activeTile, auctionTile)
+  syncBuildings(properties, playerColor, activeTile, auctionTile, activeColor) {
+    if (this._buildings) this._buildings.sync(properties, playerColor, activeTile, auctionTile, activeColor)
+  }
+
+  // Feed the roll slice to the destination/path "you'll land here" highlight (transient).
+  syncRoll(roll, playerColor) {
+    if (this._buildings) this._buildings.syncRoll(roll, playerColor)
   }
 
   // Ease the camera's look-at toward the active token's tile (a gentle "follow").

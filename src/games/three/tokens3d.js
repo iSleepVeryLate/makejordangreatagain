@@ -82,7 +82,10 @@ export default class TokenField {
     // G2 — the gold landing-sparkle pop. ONE shared burst (the active token lands one
     // at a time), reused per landing. Skipped on clearly low-power devices (the particle
     // cloud + per-frame position upload is the heaviest new work). dispose() frees it.
-    this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 24, size: 0.34 })
+    // READABILITY pass: trimmed 24/0.34 → 18/0.30 + peakOpacity 0.82 so the landing glint
+    // reads as warm sparkle, not an over-bright additive bloom (mirrors the calmer dice
+    // glint). Still the headline payoff — larger/brighter than the dice settle glint.
+    this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 18, size: 0.30, peakOpacity: 0.82 })
 
     // Kick off the optional GLB load (skipped on clearly low-power devices). On
     // success, swap the procedural pieces for the real sculpts in place.

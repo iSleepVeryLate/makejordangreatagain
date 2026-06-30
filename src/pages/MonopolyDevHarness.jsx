@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import MonopolyScene3D from '../games/MonopolyScene3D.jsx'
-import { createAnimatorStore } from '../games/useBoardAnimator.js'
+import { createAnimatorStore, ringPath } from '../games/useBoardAnimator.js'
 import { tokenMeta } from '../games/monopolyTokens.js'
 import { sound } from '../lib/sound.js'
 
@@ -43,20 +43,40 @@ export default function MonopolyDevHarness() {
   }, [store])
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = [] }
-  const walk = (steps) => {
-    clearTimers()
+  // Walk the active token `steps` tiles forward, hop by hop. Returns the destination.
+  // `onArrive` fires after the last hop (used to clear the roll highlight).
+  const walkSteps = (steps, onArrive) => {
     const cur = store.getPos(active) ?? 0
     for (let k = 1; k <= steps; k++) {
       const pos = (cur + k) % 40
-      timers.current.push(setTimeout(() => { store.setTokenPos(active, pos, { hop: true }); if (k === steps) setActiveTile(pos) }, k * 165))
+      timers.current.push(setTimeout(() => {
+        store.setTokenPos(active, pos, { hop: true })
+        if (k === steps) { setActiveTile(pos); onArrive?.(pos) }
+      }, k * 165))
     }
+    return (cur + steps) % 40
   }
-  const glideTo = (tile) => { clearTimers(); store.setTokenPos(active, tile, { glide: true }); setActiveTile(tile) }
-  const setActiveP = (id) => { setActive(id); store.setActive(id); setActiveTile(store.getPos(id) ?? 0) }
+  const walk = (steps) => { clearTimers(); walkSteps(steps) }
+  const glideTo = (tile) => { clearTimers(); store.clearRoll(); store.setTokenPos(active, tile, { glide: true }); setActiveTile(tile) }
+  const setActiveP = (id) => { setActive(id); store.setActive(id); store.clearRoll(); setActiveTile(store.getPos(id) ?? 0) }
+  // Full "I rolled N → I'm going there → token goes there" demo flow: tumble the dice,
+  // settle them, pop the readout + light the destination/path, THEN walk the token to it
+  // and clear the highlight on arrival (mirrors the real game's roll→walk→clear cycle).
   const rollDice = () => {
+    clearTimers()
+    store.clearRoll()
     store.setRolling(true)
     const a = 1 + Math.floor(Math.random() * 6); const b = 1 + Math.floor(Math.random() * 6)
-    timers.current.push(setTimeout(() => { store.settleDice(a, b); setLastRoll(`${a}+${b}`) }, 850))
+    const total = a + b
+    const from = store.getPos(active) ?? 0
+    const to = (from + total) % 40
+    timers.current.push(setTimeout(() => {
+      store.settleDice(a, b); setLastRoll(`${a}+${b}`)
+      // readout + "you'll land here" the moment the roll is known
+      store.showRoll({ a, b, from, to, path: ringPath(from, total), active })
+      // then walk the token to the destination; clear the highlight on arrival
+      walkSteps(total, () => store.clearRoll())
+    }, 850))
   }
   const buildOn = (tile) => setProps((ps) => ps.map((p) => (p.tile_index === tile ? { ...p, houses: Math.min(5, p.houses + 1) } : p)))
 
@@ -89,6 +109,7 @@ export default function MonopolyDevHarness() {
         properties={props}
         playerColor={PLAYER_COLOR}
         activeTile={activeTile}
+        activeColor={PLAYER_COLOR[active] ?? null}
         auctionTile={auctionTile}
         reducedMotion={reduced}
         lang="en"
