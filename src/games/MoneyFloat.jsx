@@ -10,7 +10,7 @@ function MoneyFloatLayer({ store }) {
       {floats.map((f) => (
         <span
           key={f.key}
-          className={`mono-float ${f.amount > 0 ? 'pos' : 'neg'}`}
+          className={`mono-float ${f.amount > 0 ? 'pos' : 'neg'}${f.big ? ' big' : ''}`}
           style={{ left: `${f.x}%`, top: `${f.y}%` }}
         >
           {f.amount > 0 ? '+' : '−'}{Math.abs(f.amount)}

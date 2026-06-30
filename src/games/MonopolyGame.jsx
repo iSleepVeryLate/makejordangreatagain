@@ -45,15 +45,22 @@ function CountUp({ value, format, reduced }) {
     if (from === to) return undefined
     if (reduced) { dispRef.current = to; setDisplay(to); return undefined }
     const start = performance.now()
-    const dur = 600
+    // G3 — a GAIN should read as a snappy "ticking up" payoff; a loss stays the calm glide.
+    // Gains: shorter + a back-out ease (a tiny settle past the target) so the number feels
+    // like it RACES up then locks. Losses: the gentle easeOutCubic at the original pace.
+    const gain = to > from
+    const dur = gain ? 460 : 600
+    const ease = gain
+      ? (k) => { const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2) } // easeOutBack — a quick overshoot-and-settle "tick"
+      : (k) => 1 - Math.pow(1 - k, 3) // easeOutCubic
     cancelAnimationFrame(rafRef.current)
     const tick = (t) => {
       const k = Math.min(1, (t - start) / dur)
-      const e = 1 - Math.pow(1 - k, 3)
-      const v = Math.round(from + (to - from) * e)
+      const v = Math.round(from + (to - from) * ease(k))
       dispRef.current = v
       setDisplay(v)
       if (k < 1) rafRef.current = requestAnimationFrame(tick)
+      else { dispRef.current = to; setDisplay(to) } // land exactly on target (easeOutBack overshoots mid-flight)
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)

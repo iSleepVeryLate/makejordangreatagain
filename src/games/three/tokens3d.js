@@ -26,6 +26,7 @@ import { lowPower } from './capability.js'
 import { loadTokenModels, modelsReady, getTokenGeometry } from './tokenModels.js'
 import { sound } from '../../lib/sound.js'
 import SparkleBurst from './sparkleBurst.js'
+import CoinBurst from './coinBurst.js'
 
 const STEP_MS = 165 // per-tile hop — matches useBoardAnimator
 const GLIDE_MS = 460 // card/jail relocation glide — matches useBoardAnimator
@@ -86,6 +87,13 @@ export default class TokenField {
     // reads as warm sparkle, not an over-bright additive bloom (mirrors the calmer dice
     // glint). Still the headline payoff — larger/brighter than the dice settle glint.
     this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 18, size: 0.30, peakOpacity: 0.82 })
+
+    // G3 — the gold COIN-reward pop, fired on a positive cash gain (GO salary, rent
+    // received, card reward) at the gaining player's token. ONE shared burst, reused per
+    // gain (gains are sequential in a turn-based game). Same park-safe contract as _spark;
+    // skipped on low-power. dispose() frees it. Distinct sprite/kinematics from the landing
+    // sparkle so a reward reads as a COIN shower, not the same landing glint.
+    this._coins = lowPower() ? null : new CoinBurst(this.host)
 
     // Kick off the optional GLB load (skipped on clearly low-power devices). On
     // success, swap the procedural pieces for the real sculpts in place.
@@ -505,6 +513,19 @@ export default class TokenField {
     this.host.invalidate()
   }
 
+  // G3 — fire the gold COIN-reward pop at a player's token on a positive cash gain.
+  // The caller (Scene3D, driven by the animator's coin slice) supplies the gaining
+  // player's id; we burst at THAT token's current world position (the coins erupt from
+  // the piece, mirroring the DOM "+$N" float anchored at the same token). No-op under
+  // reduced motion / low-power / unknown id. Park-safe + self-terminating (CoinBurst).
+  coinReward(id) {
+    if (this.host.reducedMotion || !this._coins) return
+    const e = this.tokens.get(id)
+    if (!e) return
+    // erupt from just above the token base so the coins fountain up past the piece
+    this._coins.burst(e.group.position.x, SURFACE_Y + TOKEN_HEIGHT * 0.5, e.group.position.z)
+  }
+
   // Advance tweens; returns true while anything is animating.
   update(t) {
     let animating = false
@@ -573,6 +594,8 @@ export default class TokenField {
     }
     // G2 — advance the shared gold sparkle (self-terminates + pops its own tween).
     if (this._spark && this._spark.update(t)) animating = true
+    // G3 — advance the shared coin-reward burst (self-terminates + pops its own tween).
+    if (this._coins && this._coins.update(t)) animating = true
     return animating
   }
 
@@ -589,12 +612,15 @@ export default class TokenField {
       e.landBigSquash = false
     }
     this._spark?.snap() // kill an in-flight sparkle + release its tween
+    this._coins?.snap() // kill an in-flight coin burst + release its tween
   }
 
   dispose() {
     this._disposed = true
     try { this._spark?.dispose() } catch { /* gone */ } // frees its geo/mat/tex + pops any live tween
     this._spark = null
+    try { this._coins?.dispose() } catch { /* gone */ } // frees its geo/mat/tex + pops any live tween
+    this._coins = null
     for (const e of this.tokens.values()) this.host.scene.remove(e.group)
     this.tokens.clear()
     for (const o of this._disposables) { try { o.dispose?.() } catch { /* gone */ } }

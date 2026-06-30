@@ -40,6 +40,12 @@ export function createAnimatorStore() {
   const tokens = makeSlice({ pos: {}, hopSeq: {}, mode: {}, active: null })
   const dice = makeSlice({ a: null, b: null, rolling: false, nonce: 0 })
   const floats = makeSlice([])
+  // G3 — CASH-GAIN reward signal. Bumped (a fresh {id, amount, nonce}) whenever a player
+  // GAINS cash, so the 3D scene can fire a coin burst at that token. Renderer-agnostic:
+  // the animator owns the gameplay-derived signal; the 3D wrapper subscribes and calls
+  // scene.coinReward(id). The 2D-Lite path simply ignores it (the DOM +$N float carries
+  // the gain there). Self-clearing isn't needed — it's an edge signal, not held state.
+  const coin = makeSlice({ id: null, amount: 0, nonce: 0 })
   // ROLL READOUT + "you'll land here" slice. Populated the moment a roll is known
   // (dice committed + we can read from→to off the authoritative delta) and CLEARED
   // when the move ends. Drives BOTH the DOM readout overlay (MonopolyScene3D) and the
@@ -94,6 +100,14 @@ export function createAnimatorStore() {
     setTimeout(() => { floats.set(floats.get().filter((x) => x.key !== key)) }, FLOAT_TTL)
   }
 
+  // G3 — signal a cash GAIN at a token (drives the 3D coin burst). Edge signal: each call
+  // bumps the nonce so a subscriber re-reads even on an identical id+amount (two equal
+  // rents back-to-back still each fire). No-op for non-positive amounts (losses don't pay out).
+  const pushCoin = (id, amount) => {
+    if (!id || !(amount > 0)) return
+    coin.set({ id, amount, nonce: coin.get().nonce + 1 })
+  }
+
   // Show the roll readout + destination/path. Idempotent re-show with the same target is
   // a no-op-ish nonce bump; callers pass a fresh nonce per real roll.
   const showRoll = ({ a, b, from, to, path = [], active = null }) => {
@@ -107,7 +121,7 @@ export function createAnimatorStore() {
     roll.set({ show: false, a: null, b: null, from: null, to: null, path: [], active: null, nonce: r.nonce })
   }
 
-  return { tokens, dice, floats, roll, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, showRoll, clearRoll }
+  return { tokens, dice, floats, roll, coin, getPos, setTokenPos, snapTokens, setActive, settleDice, setRolling, pushFloat, pushCoin, showRoll, clearRoll }
 }
 
 const posMap = (players) => {
@@ -179,15 +193,32 @@ export function ringPath(from, total) {
   return out
 }
 
-// Fire +N / −N floats from each player's cash delta, anchored at their token.
-function fireFloats(players, prevCash, store) {
+// A cash GAIN at/above this reads as a "big" payoff → the +$N float renders larger +
+// golden (the coin burst always fires for any gain). Tuned so GO salary (200) and most
+// rents qualify, while a small +$N (e.g. a $15 card) stays the calm default float.
+const BIG_GAIN = 120
+
+// Fire +N / −N floats from each player's cash delta, anchored at their token. On a
+// POSITIVE delta (G3) also bump the coin slice (→ 3D coin burst at that token) and play
+// the ka-ching once. Big gains tag the float `big` so MoneyFloat renders it gold + larger.
+// `play` may be undefined (no sound); reducedMotion only gates the SOUND repeat cap here —
+// the coin burst itself is gated downstream (TokenField no-ops under reduced motion).
+function fireFloats(players, prevCash, store, play) {
+  let gainPlayed = false
   for (const p of players) {
     const before = prevCash[p.profile_id]
     if (before === undefined) continue
     const delta = p.cash - before
     if (delta === 0) continue
     const c = CENTERS[p.position] || CENTERS[0]
-    store.pushFloat({ amount: delta, x: c.x, y: c.y, color: tokenMeta(p.token).color })
+    const gain = delta > 0
+    const big = delta >= BIG_GAIN
+    store.pushFloat({ amount: delta, x: c.x, y: c.y, color: tokenMeta(p.token).color, big: gain && big })
+    if (gain) {
+      store.pushCoin(p.profile_id, delta) // 3D coin burst at this token (no-op in 2D-Lite)
+      // one ka-ching per snapshot even if several players gained at once (avoids a chord)
+      if (!gainPlayed) { play?.('coin'); gainPlayed = true }
+    }
   }
 }
 
@@ -308,7 +339,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const movers = players.filter((pl) => !pl.bankrupt && (prevAuth[pl.profile_id] ?? pl.position) !== pl.position)
     if (movers.length === 0) {
       store.clearRoll() // nothing moved → drop any stale destination prediction
-      fireFloats(players, prevCashRef.current, store)
+      fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
@@ -328,7 +359,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       clearTimers(); walkingRef.current = false; walkTargetRef.current = null
       store.clearRoll() // target moved under us → the prediction is stale; drop it
       store.snapTokens(authPos, turnId)
-      fireFloats(players, prevCashRef.current, store)
+      fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
@@ -351,7 +382,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
         } else store.clearRoll()
       } else store.clearRoll()
       store.snapTokens(authPos, turnId)
-      fireFloats(players, prevCashRef.current, store)
+      fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
@@ -364,7 +395,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
     const primary = movers.find((pl) => pl.profile_id === turnId)
     if (!primary) {
       store.clearRoll() // only a non-turn mover relocated → no dice prediction to show
-      fireFloats(players, prevCashRef.current, store)
+      fireFloats(players, prevCashRef.current, store, p)
       prevAuthPosRef.current = authPos
       prevCashRef.current = authCash
       return
@@ -422,7 +453,7 @@ export function useBoardAnimator(room, players, properties, opts = {}) {
       walkingRef.current = false
       walkTargetRef.current = null
       store.clearRoll() // token has ARRIVED → clear the destination/path so the loop parks
-      fireFloats(players, prevCashSnapshot, store)
+      fireFloats(players, prevCashSnapshot, store, p)
     }, t + 90)
 
     prevAuthPosRef.current = authPos

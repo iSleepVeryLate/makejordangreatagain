@@ -714,12 +714,24 @@
 .mono-float { position: absolute; transform: translate(-50%, -50%); font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 3px 11px; border-radius: 999px; background: rgba(8,12,10,.78); border: 1px solid rgba(212,175,55,.22); box-shadow: 0 6px 16px -5px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.1); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); animation: mono-float-up 2.1s cubic-bezier(.22,.7,.3,1) forwards; }
 .mono-float.pos { color: #6ee7a8; text-shadow: 0 0 10px rgba(110,231,168,.5); }
 .mono-float.neg { color: #ff8a98; text-shadow: 0 0 10px rgba(255,138,152,.5); }
+/* G3 — a BIG cash gain (>= BIG_GAIN, e.g. GO salary / rent): GOLD, larger, with a gilt
+   ring + a stronger glow, riding a higher arcing pop. The coin burst fires at the same
+   token in 3D; this is the DOM payoff (and the whole gain cue in 2D-Lite). */
+.mono-float.big { color: #ffdf7e; font-size: 21px; padding: 4px 13px; border-color: rgba(212,175,55,.6); text-shadow: 0 0 14px rgba(255,206,84,.7), 0 1px 2px rgba(0,0,0,.6); box-shadow: 0 8px 20px -5px rgba(0,0,0,.9), 0 0 16px -2px rgba(212,175,55,.5), inset 0 1px 0 rgba(255,255,255,.18); animation-name: mono-float-up-big; }
 @keyframes mono-float-up {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); }
   14% { opacity: 1; transform: translate(-50%, -56%) scale(1.1); }
   28% { transform: translate(-50%, -64%) scale(1); }
   72% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -172%) scale(1); }
+}
+/* bigger overshoot pop + a higher rise for the gold gain (reads as "you got PAID") */
+@keyframes mono-float-up-big {
+  0% { opacity: 0; transform: translate(-50%, -24%) scale(.55); }
+  16% { opacity: 1; transform: translate(-50%, -66%) scale(1.28); }
+  32% { transform: translate(-50%, -76%) scale(1.06); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -196%) scale(1); }
 }
 
 /* board centre slot */
@@ -936,6 +948,9 @@
   .mono-token-hop { animation: none !important; }
   .d3d-cube, .d3d-cube.rolling { transition: none !important; animation: none !important; }
   .mono-float { animation-duration: .8s; }
+  /* G3 — under reduced motion the GOLD gain stays gold + readable but drops the big
+     overshoot arc back to the calm base rise (still .8s short). */
+  .mono-float.big { font-size: 19px; animation-name: mono-float-up; }
   .mono-tile-own { animation: none !important; }
   .mono-tile.buildable, .mono-tile.auction { animation: none !important; }
   .mono-dice.clickable { transition: none !important; }
