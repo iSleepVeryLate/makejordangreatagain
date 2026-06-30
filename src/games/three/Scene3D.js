@@ -30,20 +30,53 @@ import {
 const TEX_SIZE = 2048
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
 
-// Resting camera framing (READABILITY pass over F3). The F3 hero angle (y 9.4 ≈40°
-// elevation) read as cinematic but PLAYED badly — too low foreshortens the back row and
-// the wide air-margin pushed the board far away. Raised the eye 9.4→10.7 (≈42–43°: still
-// a premium 3/4 tilt, NOT flat top-down, but the back row no longer collapses) and the
-// fit now frames TIGHT (see _computeFit: air 0.5→0.15, target 0.97→0.99) so the board
-// FILLS the frame with only a sliver of premium table at the edges. NB: _computeFit()/
-// _restPos() derive the look DIRECTION + base distance purely from these two points and
-// scale OUT to fit the aspect, so re-tuning here can never crop the corners — the fit
-// loop pulls back as needed. Keep that contract (probe verified across 32:9 … 9:32).
-const CAM_REST = { x: 0, y: 10.7, z: 11.3 }
-const CAM_TARGET = { x: 0, y: 0, z: 0.25 }
-// How far the camera pulls up/back for the intro reveal ease (scaled with the framing).
+// Resting camera framing (FLATTEN pass — Workstream 1 of the UX fix). The prior 3/4 pose
+// (y 10.7 ≈44° elevation, FOV 40) still foreshortened the FAR/back row (tiles 20–30 at
+// z≈−5.5) into tiny unreadable slivers — back-row players couldn't tell where they were.
+// FLATTEN = lengthen the lens (FOV 40→30) so near→far tile size disparity shrinks, and
+// raise the eye a touch (y 10.7→12, ≈47° elevation) so the flatter view doesn't let the
+// centre wordmark / Chance-Treasury cards perspective-crush or occlude the back row. The
+// fit loop AUTO-PULLS-BACK (~1.19×) for the longer lens so the board stays the same
+// on-screen size — just flatter. Geometric probe (x=0 row depths at the fitted distance,
+// 16:9): the FRONT/BACK on-screen row-depth ratio drops 2.60→2.04 (1.0=perfectly flat) —
+// the back row projects ~26% larger while the front row is unchanged, ~35% of the way to
+// flat. FOV 30 is the sweet spot in the 28–32 band: 28 pulls back ~1.46× (board starts to
+// feel detached), 32 only ~1.27× (too little flatten); 30 (~1.36× nominal pull) is the
+// strongest meaningful flatten that still reads as a premium tilt, NOT flat top-down, NOT
+// an orbit. CAM_TARGET.z nudged 0.25→0.1 toward centre so the flatter framing sits even.
+// NB: _computeFit()/_restPos() derive the look DIRECTION + base distance purely from these
+// two points and scale OUT to fit the aspect, so re-tuning here can never crop the corners
+// — the fit loop pulls back as needed. Keep that contract (probe bounds all 8 corner pts).
+const CAM_REST = { x: 0, y: 12, z: 11.3 }
+const CAM_TARGET = { x: 0, y: 0, z: 0.1 }
+// How far the camera pulls up/back (fixed world offset) above the fitted rest pose for the
+// intro reveal ease. Added on top of _restPos() in mount()/_tickCamera(); the easeOutCubic
+// is unconditional so it can't overshoot. With the FLATTEN pass the rest pose now sits a
+// touch higher/farther (longer lens → fit pulls back), so this fixed travel is a slightly
+// SMALLER fraction of the view → the reveal eases in gently rather than overshooting. Left
+// unchanged — it still reads as a clean settle into the new flatter pose.
 const INTRO_DY = 3.7
 const INTRO_DZ = 3.0
+
+// Board orbit (Workstream 2). The camera orbits the board-centre Y axis to 4 cardinal
+// azimuths so the ACTIVE player's side is the readable FRONT. SIDE_AZIMUTH maps a side
+// index (0=bottom/tiles 0–10, 1=left/10–20, 2=top/20–30, 3=right/30–39) → azimuth radians,
+// derived geometrically: orbiting the +z rest pose by θ about Y presents bottom@0, left@90,
+// top@180, right@270 (verified). The board face wordmark is baked in → it rotates with the
+// board like a real board viewed from another side (expected; NOT counter-rotated).
+const SIDE_AZIMUTH = [0, Math.PI / 2, Math.PI, -Math.PI / 2] // bottom, left, top, right
+// ORBIT_EASE: per-frame lerp factor for the azimuth → ~0.6s settle at 60fps (matches the
+// 0.5–0.8s spec; same family as _zoomCur's 0.10). ORBIT_DOLLY: peak transient pull-back at
+// the 45° diagonal (envelope 1+ORBIT_DOLLY·sin(2Δ), Δ=dist to nearest cardinal). 0.40 was
+// solved against the fit probe so the SQUARE board's diagonal never crops at any aspect
+// (worst |NDC| 0.964 over a full orbit, 32:9 … 9:32) while being EXACTLY 1 at rest so the
+// tight cardinal framing is untouched. Both decay to nothing at a cardinal → loop PARKS.
+const ORBIT_EASE = 0.12
+const ORBIT_DOLLY = 0.40
+// Map a perimeter tile index (0–39) → its board side index (0=bottom,1=left,2=top,3=right).
+// Mirrors monopolyGeometry.tileSide()'s index ranges; kept local so the orbit never imports
+// game logic. Corners belong to the side they BEGIN (0→bottom, 10→left, 20→top, 30→right).
+const tileSideIndex = (i) => (i <= 10 ? 0 : i <= 20 ? 1 : i <= 30 ? 2 : 3)
 
 export default class Scene3D {
   constructor({ reducedMotion = false, lang = 'en', onContextLost = null, preserveDrawingBuffer = false } = {}) {
@@ -86,6 +119,16 @@ export default class Scene3D {
     this._zoomTarget = 0
     this._punchT0 = 0
     this._focusBoostUntil = 0
+
+    // Board orbit (Workstream 2): rotate the fitted rest pose about the board-centre Y
+    // axis so the ACTIVE player's SIDE is always the readable FRONT row. Four cardinal
+    // azimuths (0/90/180/270°, in RADIANS here); eased toward _azimuthTarget shortest-path
+    // (handles 270↔0 wrap) only when the active token crosses a corner into a NEW side —
+    // not per hop. At a cardinal the dolly envelope is 1 (tight cardinal framing preserved);
+    // mid-ease a small transient dolly-out keeps the square board's DIAGONAL from cropping.
+    this._azimuth = 0 // current, radians
+    this._azimuthTarget = 0 // target, radians (one of 0, ±π/2, π)
+    this._activeSide = null // last side we oriented to (0=bottom,1=left,2=top,3=right); recompute target on change
 
     this._raf = 0
     this._dirty = true
@@ -130,7 +173,7 @@ export default class Scene3D {
     const scene = new THREE.Scene()
     this.scene = scene
 
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 120) // F3: widened 38→40 for a touch more cinematic perspective on the lower hero angle
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 120) // FLATTEN pass: longer lens 40→30 cuts near→far foreshortening so the back row reads; _computeFit auto-pulls-back to keep the board filling the frame
     camera.position.set(CAM_REST.x, CAM_REST.y, CAM_REST.z)
     camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
     this.camera = camera
@@ -468,15 +511,21 @@ export default class Scene3D {
     this.reducedMotion = !!b
     // Turning reduced-motion ON mid-flight should snap everything to its end state.
     if (this.reducedMotion && this.camera) {
+      // SNAP the board orbit to the active player's side (no ease) BEFORE any _restPos()/
+      // _orbitTarget() read below, so the pinned pose is already at the right cardinal.
+      const tile = this._tokens?.activeTile
+      if (tile != null) { this._activeSide = tileSideIndex(tile); this._azimuthTarget = SIDE_AZIMUTH[this._activeSide] }
+      this._azimuth = this._azimuthTarget
+      const oc = this._orbitTarget()
       if (this._introUntil > 0) {
         this._introUntil = 0
         const r = this._restPos()
         this.camera.position.set(r.x, r.y, r.z)
       }
-      // snap the camera-follow look-at to centre (no easing)
-      this._followX = CAM_TARGET.x; this._followZ = CAM_TARGET.z
-      this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
-      // zero any in-flight cinematic camera moments + pin to the fitted rest pose
+      // snap the camera-follow look-at to the ORBITED board centre (no easing)
+      this._followX = oc.x; this._followZ = oc.z
+      this.camera.lookAt(oc.x, CAM_TARGET.y, oc.z)
+      // zero any in-flight cinematic camera moments + pin to the fitted (orbited) rest pose
       this._zoomCur = 0; this._zoomTarget = 0; this._punchT0 = 0; this._focusBoostUntil = 0
       if (this._introUntil === 0) { const rp = this._restPos(); this.camera.position.set(rp.x, rp.y, rp.z) }
       // settle any in-flight subsystem tweens
@@ -523,19 +572,25 @@ export default class Scene3D {
 
   // Ease the camera's look-at toward the active token's tile (a gentle "follow").
   // Returns true while still easing. Disabled under reduced motion (fixed framing).
+  // Look-at is anchored at the ORBITED board centre so the follow tracks correctly once the
+  // board has rotated the active side to the front (board is static in world space — only the
+  // camera orbits — so the active tile's WORLD position is fixed and we bias toward it).
   _updateFollow() {
-    let gx = CAM_TARGET.x; let gz = CAM_TARGET.z
+    const oc = this._orbitTarget()
+    let gx = oc.x; let gz = oc.z
     const tile = this._tokens?.activeTile
     // focusTile() (A4) briefly sharpens the bias when the active token's hop lands.
     const boosted = now() < this._focusBoostUntil
     if (tile != null && !this.reducedMotion) {
       // Subtle bias toward the active tile — enough to "follow", not so much it
       // rotates/crops the board out of frame. Guard the index (a sentinel/out-of-range
-      // value must never throw inside the rAF loop and kill the scene).
+      // value must never throw inside the rAF loop and kill the scene). FLATTEN pass: the
+      // flatter board keeps the back row readable on its own, so the follow is eased DOWN a
+      // touch (0.18→0.15 rest, 0.30→0.26 boosted) — still a gentle "follow", never a swing.
       const c = TILE_CENTERS_3D[tile] || TILE_CENTERS_3D[0]
-      const bias = boosted ? 0.30 : 0.18
-      gx = c.x * bias
-      gz = CAM_TARGET.z + c.z * bias
+      const bias = boosted ? 0.26 : 0.15
+      gx = oc.x + c.x * bias
+      gz = oc.z + c.z * bias
     }
     const dx = gx - this._followX; const dz = gz - this._followZ
     if (Math.abs(dx) < 1e-3 && Math.abs(dz) < 1e-3) {
@@ -575,17 +630,20 @@ export default class Scene3D {
       else { punchY = 0.18 * Math.exp(-6 * age) * Math.cos(26 * age); punchActive = true }
     }
     const zoomActive = Math.abs(this._zoomCur) > 0.002 || this._zoomTarget !== 0
-    const r = this._restPos()
+    const r = this._restPos() // already orbited
     if (!zoomActive && !punchActive) {
-      // settled → pin exactly to the rest pose once, then let the loop park
+      // settled → pin exactly to the (orbited) rest pose once, then let the loop park
       this.camera.position.set(r.x, r.y, r.z)
       return false
     }
+    // Dolly toward the ORBITED look-at centre so the push-in composes with the orbit
+    // (CAM_TARGET sits ~on the board centre, so this rotates with the board).
+    const oc = this._orbitTarget()
     const z = 0.09 * this._zoomCur // up to ~9% closer to the target on a roll
     this.camera.position.set(
-      r.x + (CAM_TARGET.x - r.x) * z,
+      r.x + (oc.x - r.x) * z,
       r.y + (CAM_TARGET.y - r.y) * z + punchY,
-      r.z + (CAM_TARGET.z - r.z) * z,
+      r.z + (oc.z - r.z) * z,
     )
     return zoomActive || punchActive
   }
@@ -595,6 +653,7 @@ export default class Scene3D {
   // headless tab pauses requestAnimationFrame).
   forceRender() {
     if (!this.renderer || !this.scene || !this.camera) return
+    this._updateOrbit() // ease/snap the orbit first (the pose reads below depend on _azimuth)
     this._tickCamera()
     if (this._introUntil === 0) { this._applyCameraMoments(now()); this._updateFollow() }
     this._tokens?.update(now())
@@ -683,14 +742,71 @@ export default class Scene3D {
     this._fit = scale
   }
 
-  // The resting camera position for the current fit (CAM_REST scaled out from the target).
+  // The resting camera position for the current fit (CAM_REST scaled out from the target),
+  // THEN orbited about the board-centre Y axis by _azimuth so the active player's side is the
+  // front. The orbit composes with everything downstream: _applyCameraMoments dollies along
+  // the (already-orbited) rest→target line, _updateFollow / _tickCamera aim at the orbited
+  // look-at centre (_orbitTarget), and resize() re-derives this after every _computeFit.
   _restPos() {
     const f = this._fit
-    return {
-      x: CAM_TARGET.x + (CAM_REST.x - CAM_TARGET.x) * f,
-      y: CAM_TARGET.y + (CAM_REST.y - CAM_TARGET.y) * f,
-      z: CAM_TARGET.z + (CAM_REST.z - CAM_TARGET.z) * f,
+    // fitted, un-orbited pose
+    const px = CAM_TARGET.x + (CAM_REST.x - CAM_TARGET.x) * f
+    const py = CAM_TARGET.y + (CAM_REST.y - CAM_TARGET.y) * f
+    const pz = CAM_TARGET.z + (CAM_REST.z - CAM_TARGET.z) * f
+    return this._orbit(px, py, pz)
+  }
+
+  // Orbit a world point's (x,z) about the board centre (0,0) by _azimuth, applying the
+  // transient dolly-out (radial pull-back) that keeps the SQUARE board's diagonal from
+  // cropping mid-ease. The dolly is 1 at a cardinal (Δ=0 → tight framing untouched) and
+  // peaks at 1+ORBIT_DOLLY at the 45° diagonal; it scales the radius from centre, not y.
+  _orbit(x, y, z) {
+    const a = this._azimuth
+    const m = ((a % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2) // 0..π/2 within the quadrant
+    const delta = Math.min(m, Math.PI / 2 - m) // 0..π/4 distance to nearest cardinal
+    const dolly = 1 + ORBIT_DOLLY * Math.sin(2 * delta) // 1 at cardinal → 1+ORBIT_DOLLY at 45°
+    const c = Math.cos(a); const s = Math.sin(a)
+    // rotate (x,z) about Y, then push the in-plane radius out by `dolly` (y is height — left as-is)
+    return { x: (x * c - z * s) * dolly, y, z: (x * s + z * c) * dolly }
+  }
+
+  // The orbited look-at centre — CAM_TARGET rotated about the board centre by _azimuth (no
+  // dolly; it's a point ON the board). _updateFollow biases off THIS so the follow tracks the
+  // active token in the rotated frame. Under reduced motion the azimuth is snapped, so this
+  // is just the cardinal-rotated CAM_TARGET.
+  _orbitTarget() {
+    const a = this._azimuth
+    const c = Math.cos(a); const s = Math.sin(a)
+    return { x: CAM_TARGET.x * c - CAM_TARGET.z * s, z: CAM_TARGET.x * s + CAM_TARGET.z * c }
+  }
+
+  // Ease _azimuth toward _azimuthTarget along the SHORTEST path (handles the 270↔0 / ±π wrap
+  // so it never spins the long way). Returns true while still rotating (so _loop keeps the
+  // frame alive then PARKS). Snaps under reduced motion. Recomputes _azimuthTarget from the
+  // active token's side when that side changes.
+  _updateOrbit() {
+    // (re)derive the target azimuth from the active token's current side
+    const tile = this._tokens?.activeTile
+    if (tile != null) {
+      const side = tileSideIndex(tile)
+      if (side !== this._activeSide) {
+        this._activeSide = side
+        this._azimuthTarget = SIDE_AZIMUTH[side]
+      }
     }
+    if (this.reducedMotion) {
+      if (this._azimuth !== this._azimuthTarget) { this._azimuth = this._azimuthTarget; return true }
+      return false
+    }
+    // shortest signed delta in (−π, π]
+    let d = this._azimuthTarget - this._azimuth
+    d = Math.atan2(Math.sin(d), Math.cos(d)) // wrap to (−π, π] → never the long way round
+    if (Math.abs(d) < 1e-3) {
+      if (this._azimuth !== this._azimuthTarget) { this._azimuth = this._azimuthTarget; return true }
+      return false
+    }
+    this._azimuth += d * ORBIT_EASE
+    return true
   }
 
   // ndc in [-1,1] → perimeter tile index or null
@@ -743,10 +859,11 @@ export default class Scene3D {
   _tickCamera() {
     if (this._introUntil <= 0) return false
     const t = now()
-    const r = this._restPos()
+    const r = this._restPos() // already orbited → intro settles into the active player's side
+    const oc = this._orbitTarget() // orbited look-at centre
     if (t >= this._introUntil) {
       this.camera.position.set(r.x, r.y, r.z)
-      this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
+      this.camera.lookAt(oc.x, CAM_TARGET.y, oc.z)
       this._introUntil = 0
       return false
     }
@@ -757,7 +874,7 @@ export default class Scene3D {
       r.y + INTRO_DY * (1 - e),
       r.z + INTRO_DZ * (1 - e),
     )
-    this.camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z)
+    this.camera.lookAt(oc.x, CAM_TARGET.y, oc.z)
     return true
   }
 
@@ -774,6 +891,10 @@ export default class Scene3D {
       const hidden = typeof document !== 'undefined' && document.hidden
       if (!this._mounted || !this._visible || hidden || !this.renderer) { this._raf = 0; return }
       const t = now()
+      // Orbit FIRST: _restPos()/_orbitTarget() (read by intro/moments/follow below) depend
+      // on _azimuth, so ease it before anything consumes the pose. Eases then PARKS at a
+      // cardinal (no motion → false). It also re-derives _azimuthTarget from the active side.
+      const orbitMoving = this._updateOrbit()
       const introMoving = this._tickCamera()
       // Camera moments set position; follow sets look-at — apply moments FIRST.
       const camMoving = this._introUntil === 0 ? this._applyCameraMoments(t) : false
@@ -781,7 +902,7 @@ export default class Scene3D {
       const tokMoving = this._tokens ? this._tokens.update(t) : false
       const diceMoving = this._dice ? this._dice.update(t) : false
       const bldMoving = this._buildings ? this._buildings.update(t) : false
-      if (this._dirty || this._tweens > 0 || introMoving || camMoving || followMoving || tokMoving || diceMoving || bldMoving) {
+      if (this._dirty || this._tweens > 0 || orbitMoving || introMoving || camMoving || followMoving || tokMoving || diceMoving || bldMoving) {
         this._draw()
         this._dirty = false
       }
@@ -789,8 +910,9 @@ export default class Scene3D {
       // (a perpetual idle rAF wastes GPU and keeps "page idle" waiters — e.g. the
       // screenshot tool — from ever settling). invalidate()/observers re-wake it.
       // NB the active-token glow + active ring are STATIC (no per-frame pulse) so this can park;
-      // the auction ring pulses, but only during the brief auction phase.
-      if (this._tweens > 0 || this._introUntil > 0 || camMoving || followMoving || tokMoving || diceMoving || bldMoving) this._raf = requestAnimationFrame(frame)
+      // the auction ring pulses, but only during the brief auction phase. The orbit ease is
+      // folded in (orbitMoving) so a side-change wakes the loop then it parks at the cardinal.
+      if (this._tweens > 0 || this._introUntil > 0 || orbitMoving || camMoving || followMoving || tokMoving || diceMoving || bldMoving) this._raf = requestAnimationFrame(frame)
       else this._raf = 0
     }
     this._raf = requestAnimationFrame(frame)
