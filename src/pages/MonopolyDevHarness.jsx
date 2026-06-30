@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import MonopolyScene3D from '../games/MonopolyScene3D.jsx'
 import { createAnimatorStore } from '../games/useBoardAnimator.js'
 import { tokenMeta } from '../games/monopolyTokens.js'
+import { sound } from '../lib/sound.js'
 
 // DEV-ONLY visual harness for the 3D Monopoly renderer. Registered in App.jsx only
 // when __DEV_SERVER__ is true (inlined `false` for prod → tree-shaken out). Lets us
@@ -17,6 +18,7 @@ const PLAYER_COLOR = Object.fromEntries(MOCK_PLAYERS.map((p) => [p.profile_id, t
 export default function MonopolyDevHarness() {
   const store = useRef(createAnimatorStore()).current
   const [reduced, setReduced] = useState(false)
+  const [muted, setMutedState] = useState(sound.getMuted())
   const [lastTile, setLastTile] = useState(null)
   const [active, setActive] = useState('p1')
   const [lastRoll, setLastRoll] = useState(null)
@@ -34,6 +36,9 @@ export default function MonopolyDevHarness() {
 
   useEffect(() => {
     store.snapTokens({ p1: 0, p2: 0, p3: 24, p4: 10 }, 'p1')
+    // Arm WebAudio unlock so the G1/G2 juice SFX (land/shimmer/diceImpact) are AUDIBLE in
+    // the harness on the first click — the 3D layers fire these directly on the FX events.
+    sound.installUnlock()
     return () => { timers.current.forEach(clearTimeout) }
   }, [store])
 
@@ -60,6 +65,7 @@ export default function MonopolyDevHarness() {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10, color: '#cdbf8f', flexWrap: 'wrap' }}>
         <strong style={{ letterSpacing: 1 }}>MONOPOLY 3D · DEV HARNESS</strong>
         <label style={{ fontSize: 13 }}><input type="checkbox" checked={reduced} onChange={(e) => setReduced(e.target.checked)} /> reduced motion</label>
+        <label style={{ fontSize: 13 }}><input type="checkbox" checked={muted} onChange={() => { sound.toggleMute(); setMutedState(sound.getMuted()) }} /> mute</label>
         <span style={{ fontSize: 13, opacity: 0.7 }}>clicked: {lastTile ?? '—'} · roll: {lastRoll ?? '—'}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', fontSize: 13 }}>

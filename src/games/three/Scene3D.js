@@ -562,12 +562,15 @@ export default class Scene3D {
     // ease the roll dolly toward its target
     this._zoomCur += (this._zoomTarget - this._zoomCur) * 0.10
     if (Math.abs(this._zoomCur - this._zoomTarget) < 0.002) this._zoomCur = this._zoomTarget
-    // decaying spring impulse for the dice landing ("nudge", not shake)
+    // decaying spring impulse for the dice/landing payoff ("nudge", not shake). G1/G2:
+    // bumped amplitude 0.13→0.18 + a touch slower decay (−6 vs −7) so the kick reads as a
+    // satisfying THUMP, not a flicker — still finite (settles well under the 0.6s window) so
+    // the loop parks. Shared by the dice-settle punch (G1) and the token-landing punch (G2).
     let punchY = 0; let punchActive = false
     if (this._punchT0) {
       const age = (t - this._punchT0) / 1000
       if (age >= 0.6) this._punchT0 = 0
-      else { punchY = 0.13 * Math.exp(-7 * age) * Math.cos(26 * age); punchActive = true }
+      else { punchY = 0.18 * Math.exp(-6 * age) * Math.cos(26 * age); punchActive = true }
     }
     const zoomActive = Math.abs(this._zoomCur) > 0.002 || this._zoomTarget !== 0
     const r = this._restPos()

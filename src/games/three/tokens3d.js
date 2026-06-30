@@ -24,6 +24,8 @@ import {
 import { tokenMeta } from '../monopolyTokens.js'
 import { lowPower } from './capability.js'
 import { loadTokenModels, modelsReady, getTokenGeometry } from './tokenModels.js'
+import { sound } from '../../lib/sound.js'
+import SparkleBurst from './sparkleBurst.js'
 
 const STEP_MS = 165 // per-tile hop — matches useBoardAnimator
 const GLIDE_MS = 460 // card/jail relocation glide — matches useBoardAnimator
@@ -35,6 +37,15 @@ const HOP_LIFT = 0.09 // vertical gain at hop apex
 const HOP_LATERAL = 0.045 // horizontal squeeze at hop apex
 const LAND_BULGE = 0.05 // horizontal bulge at landing dip
 const LAND_SQUASH = 0.10 // vertical squash at landing dip
+// G2 — the FINAL landing (end of a hop sequence) is beefier than a mid-hop squash.
+const FINAL_BULGE = 0.11 // horizontal bulge on the headline landing (vs LAND_BULGE mid-hop)
+const FINAL_SQUASH = 0.20 // vertical squash on the headline landing (vs LAND_SQUASH mid-hop)
+const FINAL_SQUASH_MS = 200 // a touch longer settle than SQUASH_MS so the payoff reads
+// How long after the LAST hop bump (active token) with no further hop we treat the move
+// as ended → fire the landing payoff. One STEP_MS of quiet means no further hop is coming;
+// the +SQUASH_MS clears the last hop's own mid-squash (scheduled at STEP_MS*0.6) so the
+// beefy FINAL squash starts from rest, not mid-dip (no scale discontinuity).
+const LAND_DEBOUNCE_MS = STEP_MS + SQUASH_MS
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0)
 
 // Fan-out offsets (world units) so stacked pieces don't fully overlap (mirrors
@@ -67,6 +78,11 @@ export default class TokenField {
     this._blobGeo = new THREE.PlaneGeometry(R * 3.0, R * 3.0)
     this._blobMat = new THREE.MeshBasicMaterial({ map: this._blobTex, transparent: true, opacity: 0.32, depthWrite: false })
     this._track(this._silverMat, this._goldMat, this._ringGeo, this._trimGeo, this._glowGeo, this._blobTex, this._blobGeo, this._blobMat)
+
+    // G2 — the gold landing-sparkle pop. ONE shared burst (the active token lands one
+    // at a time), reused per landing. Skipped on clearly low-power devices (the particle
+    // cloud + per-frame position upload is the heaviest new work). dispose() frees it.
+    this._spark = lowPower() ? null : new SparkleBurst(this.host, { count: 24, size: 0.34 })
 
     // Kick off the optional GLB load (skipped on clearly low-power devices). On
     // success, swap the procedural pieces for the real sculpts in place.
@@ -383,6 +399,10 @@ export default class TokenField {
       cur: { x: 0, z: 0 }, from: { x: 0, z: 0 }, to: { x: 0, z: 0 },
       t0: 0, dur: 0, arc: false, tweening: false,
       hopSeen: -1, squashT0: 0, tile: -1,
+      // G2 landing-payoff detection: landArmAt = deadline by which, if no further hop
+      // arrived, this token's move has ENDED. landBigSquash flags the next squash as the
+      // beefier final one. Both reset after the payoff fires.
+      landArmAt: 0, landBigSquash: false,
     }
     this.tokens.set(id, entry)
     return entry
@@ -456,7 +476,20 @@ export default class TokenField {
       e.tile = newTile
       // squash near landing — scheduled off STEP_MS (a stale e.dur from a prior glide
       // could push it past a parked loop). Only on a real tile change.
-      if (hop !== e.hopSeen && tileChanged && !this.host.reducedMotion) { e.hopSeen = hop; e.squashT0 = now() + STEP_MS * 0.6 } else if (hop !== e.hopSeen) e.hopSeen = hop
+      const hopBumped = hop !== e.hopSeen
+      if (hopBumped && tileChanged && !this.host.reducedMotion) { e.hopSeen = hop; e.squashT0 = now() + STEP_MS * 0.6 } else if (hopBumped) e.hopSeen = hop
+      // G2 — arm/re-arm the landing payoff for the ACTIVE token on every REAL move bump.
+      // Each bump pushes the deadline out by LAND_DEBOUNCE_MS; the LAST bump's deadline is
+      // the one that actually fires (update() detects it once the token has settled and no
+      // further bump moved it). A genuine move = a hop to a new tile (hopBumped) OR a glide
+      // relocation — NOT a pure stack fan-out re-shuffle (moved && !tileChanged && !glide),
+      // which happens when ANOTHER player lands on/leaves this tile and must not trigger a
+      // phantom payoff. Disabled under reduced motion. A non-active token never arms → the
+      // payoff fires ONCE, for the player whose move it is.
+      const realMove = (hopBumped && tileChanged) || (glide && moved)
+      if (id === activeId && realMove && !this.host.reducedMotion) {
+        e.landArmAt = now() + (glide ? GLIDE_MS : 0) + LAND_DEBOUNCE_MS
+      }
 
       // Static gold ground-glow on the active piece (no per-frame pulse, so the
       // render loop can still PARK when nothing is moving — see Scene3D._loop).
@@ -498,14 +531,36 @@ export default class TokenField {
           this.host.popTween()
         } else animating = true
       }
-      // landing squash (independent of the arc, retriggered per hopSeq)
+      // G2 — landing payoff: the active token's move has ENDED (its arm deadline passed
+      // and it's no longer tweening → it has settled on the destination tile). Fire ONCE:
+      // a beefier final squash, the gold sparkle pop, a camera punch, and the thud SFX.
+      // Disarmed immediately so it never re-fires. (landArmAt is only ever set for the
+      // active token, and re-armed on each hop, so this is genuinely the last landing.)
+      if (e.landArmAt && t >= e.landArmAt && !e.tweening) {
+        e.landArmAt = 0
+        e.landBigSquash = true
+        e.squashT0 = t // fire the (now beefier) squash right now
+        if (this._spark) this._spark.burst(e.group.position.x, SURFACE_Y + 0.02, e.group.position.z)
+        this.host.cameraPunch?.() // reuse the dice-land punch API
+        sound.play('land')
+        sound.play('shimmer') // soft gold glint layered under the thud
+      } else if (e.landArmAt) {
+        animating = true // arm pending → keep the loop awake until the deadline fires
+      }
+
+      // landing squash (independent of the arc, retriggered per hopSeq). The FINAL landing
+      // (landBigSquash) uses heavier amplitudes + a slightly longer settle for the payoff.
       if (e.squashT0) {
+        const big = e.landBigSquash
+        const sdur = big ? FINAL_SQUASH_MS : SQUASH_MS
         if (t >= e.squashT0) {
-          const sk = (t - e.squashT0) / SQUASH_MS
-          if (sk >= 1) { e.squashT0 = 0; if (!e.tweening) e.body.scale.set(1, 1, 1) }
+          const sk = (t - e.squashT0) / sdur
+          if (sk >= 1) { e.squashT0 = 0; e.landBigSquash = false; if (!e.tweening) e.body.scale.set(1, 1, 1) }
           else {
             const dip = Math.sin(Math.PI * sk) // 0→1→0
-            e.body.scale.set(1 + LAND_BULGE * dip, 1 - LAND_SQUASH * dip, 1 + LAND_BULGE * dip)
+            const bulge = big ? FINAL_BULGE : LAND_BULGE
+            const squash = big ? FINAL_SQUASH : LAND_SQUASH
+            e.body.scale.set(1 + bulge * dip, 1 - squash * dip, 1 + bulge * dip)
             animating = true
           }
         } else {
@@ -513,6 +568,8 @@ export default class TokenField {
         }
       }
     }
+    // G2 — advance the shared gold sparkle (self-terminates + pops its own tween).
+    if (this._spark && this._spark.update(t)) animating = true
     return animating
   }
 
@@ -525,11 +582,16 @@ export default class TokenField {
       e.body.position.y = TOKEN_REST_Y
       e.body.scale.set(1, 1, 1)
       e.squashT0 = 0
+      e.landArmAt = 0 // drop any pending landing payoff — reduced motion shows no FX
+      e.landBigSquash = false
     }
+    this._spark?.snap() // kill an in-flight sparkle + release its tween
   }
 
   dispose() {
     this._disposed = true
+    try { this._spark?.dispose() } catch { /* gone */ } // frees its geo/mat/tex + pops any live tween
+    this._spark = null
     for (const e of this.tokens.values()) this.host.scene.remove(e.group)
     this.tokens.clear()
     for (const o of this._disposables) { try { o.dispose?.() } catch { /* gone */ } }
