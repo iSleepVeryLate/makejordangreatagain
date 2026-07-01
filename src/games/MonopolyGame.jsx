@@ -355,7 +355,8 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           {statusLine && <div className="mono-wait-status" aria-live="polite"><span className="mono-roll-dot" />{statusLine}</div>}
         </div>
 
-        {/* Drawn Chance/Chest — FLOATS above the dock (absolute), not a flex child */}
+        {/* Drawn Chance/Chest — an in-flow full-width banner row atop the dock's
+            controls (CSS: order:-1, flex:0 0 100%); stays below the board. */}
         {room.last_card && room.last_card.by === turnId && (
           <div key={room.last_card.text?.en || room.seq} className={`mono-card-pop ${room.last_card.deck === 'chance' ? 'chance' : 'chest'}`}>
             <span className="mono-card-deck">{room.last_card.deck === 'chance' ? `❓ ${t('mono.chance')}` : `🎁 ${t('mono.chest')}`}</span>

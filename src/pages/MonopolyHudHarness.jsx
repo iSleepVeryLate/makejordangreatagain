@@ -318,7 +318,8 @@ export default function MonopolyHudHarness() {
                 </div>
               </div>
 
-              {/* Drawn Chance/Chest — FLOATS above the dock (absolute), not a flex child */}
+              {/* Drawn Chance/Chest — an in-flow full-width banner row atop the dock's
+                  controls (CSS: order:-1, flex:0 0 100%); stays below the board. */}
               <div className="mono-card-pop chance">
                 <span className="mono-card-deck">❓ {t('mono.chance')}</span>
                 <p>Advance to the nearest transit hub and pay double rent.</p>
