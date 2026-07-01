@@ -836,7 +836,7 @@
 .mono-timer-num { font-size: 12px; font-weight: 700; color: var(--txt-dim); font-variant-numeric: tabular-nums; }
 .mono-timer-wrap.low .mono-timer-num { color: #ff7a8a; }
 .mono-timer-wrap.low { animation: mono-pulse 1s ease-in-out infinite; }
-.mono-card-pop { position: relative; background: linear-gradient(180deg, var(--ink-2), var(--ink-3)); border: 1px solid var(--line); border-radius: var(--mg-r2); padding: var(--mg-s3); max-width: 280px; transform-origin: top center; animation: mono-card-flip .42s cubic-bezier(.2,.9,.3,1.2) both; box-shadow: var(--mg-el-raised); }
+.mono-card-pop { position: relative; background: linear-gradient(180deg, var(--ink-2), var(--ink-3)); border: 1px solid var(--line); border-radius: var(--mg-r2); padding: var(--mg-s3); max-width: 280px; transform-origin: bottom center; animation: mono-card-flip .42s cubic-bezier(.2,.9,.3,1.2) both; box-shadow: var(--mg-el-raised); }
 .mono-card-pop.chance { border-color: rgba(224,163,60,.55); box-shadow: 0 10px 26px -12px rgba(224,163,60,.5); }
 .mono-card-pop.chest { border-color: rgba(95,211,154,.5); box-shadow: 0 10px 26px -12px rgba(95,211,154,.45); }
 .mono-card-deck { display: inline-block; font-family: var(--mg-font-text); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
@@ -1016,6 +1016,8 @@
   /* ITEM 1 — match the tighter game gap for the below-board dock row */
   .mono-dock-row { margin-top: var(--mg-s3); }
   .mono-dock-row .mono-dock { width: 100%; }
+  /* NB: the dock's stack-to-single-column rules live in the dock-refinement
+     override section below (so they win source order over the base overrides). */
 }
 
 @media (max-width: 360px) {
@@ -1699,23 +1701,138 @@
 .mono-actions .btn-line:active:not(:disabled) { transform: translateY(1px) scale(.98); transition-duration: .05s; }
 .mono-actions .btn-line:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 2px; }
 
-/* ---- timer: slim, recessed felt slot, gold accent fill ---- */
+/* ============================================================
+   DOCK LAYOUT — one cohesive control surface, three anchored zones
+   LEFT (context: turn chip + dice) · CENTER (primary action) · RIGHT (timer)
+   ============================================================ */
+
+/* the bar becomes the positioning context for the floating card, and lays out
+   its three zones edge-to-edge. It stays a single row when there's room (the
+   timer is pushed to the far end below); if the container is genuinely too
+   narrow it wraps gracefully rather than overflowing. */
+.mono-dock {
+  position: relative;
+  justify-content: space-between;
+  gap: var(--mg-s2) var(--mg-s3);
+}
+
+/* LEFT cluster: turn chip (+ dice in 2D-Lite) travel together */
+.mono-dock-left {
+  display: flex;
+  align-items: center;
+  gap: var(--mg-s3);
+  min-width: 0;
+  flex-shrink: 0;
+}
+/* tighten the dice pair a touch inside the dock so the 2D-Lite left cluster
+   (turnchip + two dice) fits the three-zone row without wrapping */
+.mono-dock-left .mono-dice { gap: var(--mg-s3); }
+
+/* CENTER: primary action / status — sits at its content width. With the dock on
+   `justify-content: space-between`, the free space falls into the two gaps so the
+   three read as anchored groups (left/centre/right), not a stretched middle. */
+.mono-dock .mono-dock-main {
+  flex: 0 1 auto;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* subtle gold-tinted hairline dividers between the zones (cheap, static).
+   Only when the centre actually holds content, so an idle dock (empty main —
+   e.g. a spectator with no status line) reads as two clean groups, no phantom
+   slot. :not(:empty) matches whenever the action/status node is present. */
+.mono-dock .mono-dock-main:not(:empty) {
+  padding-inline: var(--mg-s3);
+  border-inline-start: 1px solid rgba(212,175,55,.14);
+  border-inline-end: 1px solid rgba(212,175,55,.14);
+}
+
+/* ---- timer: RIGHT zone — a compact, deliberate countdown pill ---- */
 .mono-dock .mono-timer-wrap {
-  min-width: 116px;
-  max-width: 180px;
-  padding: var(--mg-s1) var(--mg-s3);
-  border-radius: var(--mg-pill);
-  background: rgba(0,0,0,.28);
+  flex-shrink: 0;
+  width: auto;
+  min-width: 112px;
+  max-width: 168px;
+  gap: var(--mg-s2);
+  padding: var(--mg-s2) var(--mg-s3);
+  border-radius: var(--mg-r2);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)),
+    rgba(0,0,0,.32);
+  border: 1px solid rgba(212,175,55,.16);
   box-shadow:
     inset 0 1px 2px rgba(0,0,0,.5),
-    inset 0 0 0 1px rgba(212,175,55,.12);
+    var(--mg-edge);
+}
+/* the progress bar reads as the pill's inset track — no stray bottom margin */
+.mono-dock .mono-timer {
+  flex: 1;
+  height: 6px;
+  margin: 0;
+  border-radius: var(--mg-pill);
+  background: rgba(0,0,0,.4);
 }
 .mono-dock .mono-timer-num {
   font-family: var(--mg-font-text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .01em;
   color: var(--mg-gold-2);
   font-variant-numeric: tabular-nums;
 }
+.mono-dock .mono-timer-wrap.low {
+  border-color: rgba(255,122,138,.4);
+  background:
+    linear-gradient(180deg, rgba(255,122,138,.06), rgba(255,255,255,0)),
+    rgba(0,0,0,.34);
+}
 .mono-dock .mono-timer-wrap.low .mono-timer-num { color: #ff8e9a; }
+
+/* ---- the drawn card: FLOATS centred above the dock, out of the flex flow ---- */
+.mono-dock .mono-card-pop {
+  position: absolute;
+  bottom: calc(100% + var(--mg-s2));
+  /* left:50% + translateX(-50%) centres identically in LTR *and* RTL — 50% of
+     the parent is the same physical point in both directions, so this is the
+     one place a physical offset is the correct, dir-safe choice. */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;                  /* above the dock/board, below moment overlays (z:20) */
+  max-width: min(300px, calc(100% - var(--mg-s4)));
+  transform-origin: bottom center;
+  pointer-events: none;        /* purely informational; never blocks the dock */
+}
+/* keep the flip-in centred (translateX must survive the keyframe end state) */
+@keyframes mono-card-float-in {
+  from { transform: translateX(-50%) perspective(600px) rotateX(-78deg); opacity: 0; }
+  to   { transform: translateX(-50%) perspective(600px) rotateX(0); opacity: 1; }
+}
+.mono-dock .mono-card-pop { animation: mono-card-float-in .42s cubic-bezier(.2,.9,.3,1.2) both; }
+@media (prefers-reduced-motion: reduce) {
+  .mono-dock .mono-card-pop { animation: mono-card-float-fade .2s ease both; }
+}
+@keyframes mono-card-float-fade {
+  from { transform: translateX(-50%); opacity: 0; }
+  to   { transform: translateX(-50%); opacity: 1; }
+}
+
+/* ---- narrow screens: the three zones stack into clean full-width rows ----
+   Placed here (after the desktop dock overrides) so these win on source order.
+   Dividers drop, each group spans the row, the card stays centred + capped so
+   it never overflows the viewport. */
+@media (max-width: 640px) {
+  .mono-dock { justify-content: center; }
+  .mono-dock-left { flex: 1 1 100%; justify-content: center; }
+  .mono-dock .mono-dock-main:not(:empty),
+  .mono-dock .mono-dock-main {
+    flex: 1 1 100%;
+    padding-inline: 0;
+    border-inline-start: 0;
+    border-inline-end: 0;
+  }
+  .mono-dock .mono-timer-wrap { flex: 1 1 100%; width: 100%; max-width: 100%; }
+  .mono-dock .mono-card-pop { max-width: min(92vw, 300px); }
+}
 
 /* ---- waiting status: classy gold-edged glass pill ---- */
 .mono-wait-status {

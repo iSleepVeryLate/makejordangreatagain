@@ -320,20 +320,24 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
     const turnSub = rollingId ? t('mono.rolling') : (isMyTurn ? null : t('mono.turnTag'))
     return (
       <div className="mono-dock" dir={dir}>
-        <div className={`mono-turnchip${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`} aria-live="polite">
-          <span className="mono-turnchip-av" style={{ '--tok': turnMeta.color }}>{turnMeta.emoji}</span>
-          <span className="mono-turnchip-txt">
-            <b>{isMyTurn ? t('mono.yourTurn') : turnName}</b>
-            {turnSub && <i>{turnSub}</i>}
-          </span>
+        {/* LEFT zone: context — whose turn + (in 2D-Lite) the dice */}
+        <div className="mono-dock-left">
+          <div className={`mono-turnchip${isMyTurn ? ' you' : ''}${rollingId ? ' rolling' : ''}`} aria-live="polite">
+            <span className="mono-turnchip-av" style={{ '--tok': turnMeta.color }}>{turnMeta.emoji}</span>
+            <span className="mono-turnchip-txt">
+              <b>{isMyTurn ? t('mono.yourTurn') : turnName}</b>
+              {turnSub && <i>{turnSub}</i>}
+            </span>
+          </div>
+
+          {!render3D && (
+            <DiceBox store={animator}
+              canRoll={isMyTurn && phase === 'roll' && canRollAgain && !busy}
+              onRoll={() => rollDice('roll')} hint={t('mono.rollHint')} />
+          )}
         </div>
 
-        {!render3D && (
-          <DiceBox store={animator}
-            canRoll={isMyTurn && phase === 'roll' && canRollAgain && !busy}
-            onRoll={() => rollDice('roll')} hint={t('mono.rollHint')} />
-        )}
-
+        {/* CENTER zone: the primary action / spectator status line */}
         <div className="mono-dock-main">
           {isMyTurn && phase === 'roll' && (
             <div className="mono-actions">
@@ -351,6 +355,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           {statusLine && <div className="mono-wait-status" aria-live="polite"><span className="mono-roll-dot" />{statusLine}</div>}
         </div>
 
+        {/* Drawn Chance/Chest — FLOATS above the dock (absolute), not a flex child */}
         {room.last_card && room.last_card.by === turnId && (
           <div key={room.last_card.text?.en || room.seq} className={`mono-card-pop ${room.last_card.deck === 'chance' ? 'chance' : 'chest'}`}>
             <span className="mono-card-deck">{room.last_card.deck === 'chance' ? `❓ ${t('mono.chance')}` : `🎁 ${t('mono.chest')}`}</span>
@@ -358,6 +363,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           </div>
         )}
 
+        {/* RIGHT zone: the countdown, anchored to the far end */}
         {room.phase_ends_at && (
           <TurnTimer phaseEndsAt={room.phase_ends_at} turnSeconds={room.turn_seconds} serverNow={serverNow} />
         )}

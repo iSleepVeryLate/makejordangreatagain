@@ -278,7 +278,7 @@ export default function MonopolyHudHarness() {
         </div>
 
         {/* Stage: standalone deed card + the moment overlay + the control dock */}
-        <div className="mono-stage" style={{ position: 'relative', minHeight: 360, display: 'grid', placeItems: 'center', padding: 24 }}>
+        <div className="mono-stage" style={{ position: 'relative', minHeight: 360, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', justifyItems: 'center', alignItems: 'center', padding: 24 }}>
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
             <Deed tile={safeTile(19)} lang={lang} t={t} money={money} />
             <Deed tile={safeTile(5)} lang={lang} t={t} money={money} />
@@ -286,22 +286,30 @@ export default function MonopolyHudHarness() {
           </div>
           {renderMoment()}
 
-          {/* Control dock — inline JSX in the real game; real class structure, mock content. */}
-          <div className="mono-dock-row">
+          {/* Control dock — inline JSX in the real game; real class structure, mock content.
+              justifySelf:stretch is harness-only chrome: the stage here is a
+              place-items:center grid, so without it the row collapses to
+              max-content and can't show the full-width three-zone layout the
+              real game's wider board stage provides. */}
+          <div className="mono-dock-row" style={{ justifySelf: 'stretch' }}>
             <div className="mono-dock" dir={dir}>
-              <div className={`mono-turnchip you${rolling ? ' rolling' : ''}`} aria-live="polite">
-                <span className="mono-turnchip-av" style={{ '--tok': turnMeta.color }}>{turnMeta.emoji}</span>
-                <span className="mono-turnchip-txt">
-                  <b>{t('mono.yourTurn')}</b>
-                  {rolling && <i>{t('mono.rolling')}</i>}
-                </span>
+              {/* LEFT zone: context — whose turn + (in 2D-Lite) the dice */}
+              <div className="mono-dock-left">
+                <div className={`mono-turnchip you${rolling ? ' rolling' : ''}`} aria-live="polite">
+                  <span className="mono-turnchip-av" style={{ '--tok': turnMeta.color }}>{turnMeta.emoji}</span>
+                  <span className="mono-turnchip-txt">
+                    <b>{t('mono.yourTurn')}</b>
+                    {rolling && <i>{t('mono.rolling')}</i>}
+                  </span>
+                </div>
+
+                <div className="mono-dice">
+                  <Dice3D value={3} rolling={rolling} />
+                  <Dice3D value={5} rolling={rolling} />
+                </div>
               </div>
 
-              <div className="mono-dice">
-                <Dice3D value={3} rolling={rolling} />
-                <Dice3D value={5} rolling={rolling} />
-              </div>
-
+              {/* CENTER zone: the primary action / spectator status line */}
               <div className="mono-dock-main">
                 <div className="mono-actions">
                   <button className="btn btn-gold"><Dice5 size={16} /> {t('mono.roll')}</button>
@@ -310,12 +318,13 @@ export default function MonopolyHudHarness() {
                 </div>
               </div>
 
-              {/* Chance/Chest card-pop */}
+              {/* Drawn Chance/Chest — FLOATS above the dock (absolute), not a flex child */}
               <div className="mono-card-pop chance">
                 <span className="mono-card-deck">❓ {t('mono.chance')}</span>
                 <p>Advance to the nearest transit hub and pay double rent.</p>
               </div>
 
+              {/* RIGHT zone: the countdown, anchored to the far end */}
               <TurnTimer phaseEndsAt={new Date(Date.now() + 42_000).toISOString()} turnSeconds={60} serverNow={Date.now} />
             </div>
           </div>
