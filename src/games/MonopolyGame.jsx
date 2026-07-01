@@ -554,7 +554,11 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
 }
 
 // ---------------- sub-panels ----------------
-const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel, groups, reduced, setCardRef }) {
+// NOTE: the HUD sub-components below are `export`ed (additively) so the DEV-ONLY
+// HUD harness (src/pages/MonopolyHudHarness.jsx, route /__dev/monopoly-hud, tree-
+// shaken out of prod) can render each surface with mock props and stay byte-faithful
+// to the real game. The exports don't change MonopolyGame's own internal use.
+export const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, isOnline = true, offlineText, rollText, nextText, money, worth, worthLabel, groups, reduced, setCardRef }) {
   const meta = tokenMeta(p.token)
   const away = !isOnline && !p.bankrupt
   // ITEM 4 — register this card's DOM node so coins can fly into it; de-register on unmount.
@@ -585,7 +589,7 @@ const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, rolling, 
   )
 })
 
-function BuyPanel({ pend, lang, t, money, busy, cash, onBuy, onDecline }) {
+export function BuyPanel({ pend, lang, t, money, busy, cash, onBuy, onDecline }) {
   const tile = safeTile(pend?.tile)
   const afford = cash >= pend.price
   return (
@@ -601,7 +605,7 @@ function BuyPanel({ pend, lang, t, money, busy, cash, onBuy, onDecline }) {
   )
 }
 
-function AuctionPanel({ room, myId, name, lang, t, money, busy, playerById, playerColor, onBid, onPass }) {
+export function AuctionPanel({ room, myId, name, lang, t, money, busy, playerById, playerColor, onBid, onPass }) {
   const a = room.pending_auction
   const minBid = (a?.high_bid || 0) + 1
   const [amt, setAmt] = useState((a?.high_bid || 0) + 10)
@@ -653,7 +657,7 @@ function AuctionPanel({ room, myId, name, lang, t, money, busy, playerById, play
   )
 }
 
-function TradePanel({ tr, myId, name, lang, t, money, busy, onAccept, onReject, onCancel }) {
+export function TradePanel({ tr, myId, name, lang, t, money, busy, onAccept, onReject, onCancel }) {
   const side = (s) => [
     s?.cash ? money(s.cash) : null,
     ...(Array.isArray(s?.tiles) ? s.tiles : []).map((i) => tileName(safeTile(i), lang)),
@@ -678,7 +682,7 @@ function TradePanel({ tr, myId, name, lang, t, money, busy, onAccept, onReject, 
 
 // Classic "Title Deed" card — colour header + rent ladder (property), or the
 // station / utility rent structure, plus price, house cost and mortgage value.
-function Deed({ tile, lang, t, money }) {
+export function Deed({ tile, lang, t, money }) {
   if (!tile || tile.type === 'blank') return null
   const color = tile.color ? COLOR_GROUPS[tile.color]?.hex : (tile.type === 'railroad' ? '#1c1c22' : tile.type === 'utility' ? '#2a5e44' : '#444')
   const head = (tile.color && (COLOR_GROUPS[tile.color]?.hex))
@@ -724,7 +728,7 @@ function Deed({ tile, lang, t, money }) {
 // Deed card popover (tap a tile). When it's a property you own and you can act,
 // it grows inline Build / Sell / Mortgage / Unmortgage controls (each shown only
 // when the engine would accept it). Otherwise read-only. Closes on Esc / outside.
-function DeedPopover({ tileIndex, propByTile, lang, t, money, name, playerColor, room, myId, isMyTurn, cash, busy, act, onClose }) {
+export function DeedPopover({ tileIndex, propByTile, lang, t, money, name, playerColor, room, myId, isMyTurn, cash, busy, act, onClose }) {
   const tile = safeTile(tileIndex)
   const prop = propByTile[tileIndex]
   const owner = prop?.owner ? name(prop.owner) : null
@@ -769,7 +773,7 @@ function DeedPopover({ tileIndex, propByTile, lang, t, money, name, playerColor,
   )
 }
 
-function ManageModal({ room, me, properties, propByTile, lang, t, busy, act, onClose }) {
+export function ManageModal({ room, me, properties, propByTile, lang, t, busy, act, onClose }) {
   const mine = useMemo(
     () => properties.filter((p) => p.owner === me?.profile_id).sort((a, b) => a.tile_index - b.tile_index),
     [properties, me?.profile_id],
@@ -814,7 +818,7 @@ function ManageModal({ room, me, properties, propByTile, lang, t, busy, act, onC
   )
 }
 
-function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, onClose }) {
+export function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, onClose }) {
   const others = useMemo(() => players.filter((p) => p.profile_id !== myId && !p.bankrupt), [players, myId])
   const [to, setTo] = useState(others[0]?.profile_id || '')
   const [giveTiles, setGiveTiles] = useState([])
@@ -873,7 +877,7 @@ function TradeModal({ me, players, properties, lang, t, myId, name, busy, act, o
 }
 
 // ---------------- localized log ----------------
-function formatLog(e, name, lang, t) {
+export function formatLog(e, name, lang, t) {
   const who = e.by ? name(e.by) : ''
   switch (e.k) {
     // Leading icons are now rendered as per-event vector chips via CSS (.mono-ev-*::before),
