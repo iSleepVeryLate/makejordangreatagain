@@ -599,33 +599,59 @@
 .mono-token-btn:disabled { opacity: .32; cursor: not-allowed; }
 
 /* ============ premium felt & gold layout: header / rail / board / side ====== */
+/* ---------------------------------------------------------------------------
+   HUD DESIGN SYSTEM — one coherent scale for every .mono-* surface.
+   Tokens are scoped to .mono-game so they never leak to the rest of the app.
+   Spacing / radius / elevation / edge / type / motion all resolve here, so a
+   surface reads "systematised" not "ad-hoc". Reuse --mg-gold* + --txt-* tokens.
+   --------------------------------------------------------------------------- */
 .mono-game {
   --mg-gold: #d4af37; --mg-gold-2: #c9a24b; --mg-gold-bright: #e8c45a;
   --mg-line: #2a2f2b;
+  /* spacing scale (4-based) */
+  --mg-s1: 4px; --mg-s2: 8px; --mg-s3: 12px; --mg-s4: 16px; --mg-s5: 20px; --mg-s6: 24px;
+  /* radius scale */
+  --mg-r1: 8px; --mg-r2: 12px; --mg-r3: 16px; --mg-r4: 20px; --mg-pill: 999px;
+  /* elevation tiers (one shadow per role, not per element) */
+  --mg-el-card:    0 10px 24px -16px rgba(0,0,0,.8);
+  --mg-el-raised:  0 18px 40px -20px rgba(0,0,0,.85);
+  --mg-el-overlay: 0 30px 70px -22px rgba(0,0,0,.9);
+  /* glass edge treatments — one hairline vocabulary for the whole HUD */
+  --mg-edge:        inset 0 1px 0 rgba(255,255,255,.06);
+  --mg-edge-strong: inset 0 1px 0 rgba(255,255,255,.10);
+  --mg-gold-edge:   rgba(212,175,55,.22);
+  --mg-gold-edge-2: rgba(212,175,55,.42);
+  /* shared motion timings */
+  --mg-t: .16s ease; --mg-t-slow: .22s ease;
+  /* type: consistent gold-eyebrow tracking + display/text families */
+  --mg-font-display: "Cairo", system-ui, sans-serif;
+  --mg-font-text: "Plus Jakarta Sans", system-ui, sans-serif;
   display: grid; grid-template-columns: minmax(0,1fr) 300px;
-  grid-template-rows: auto auto 1fr; gap: 14px 16px; align-items: start;
+  grid-template-rows: auto auto 1fr; gap: var(--mg-s4); align-items: start;
   background: radial-gradient(120% 120% at 50% 12%, #14201a 0%, #0c130f 58%, #080b09 100%);
-  border: 1px solid var(--mg-line); border-radius: 22px; padding: 18px;
-  box-shadow: 0 24px 60px -24px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.04);
+  border: 1px solid var(--mg-line); border-radius: var(--mg-r4); padding: var(--mg-s5);
+  box-shadow: 0 24px 60px -24px rgba(0,0,0,.8), var(--mg-edge);
 }
 .mono-game:fullscreen { width: 100%; height: 100%; overflow: auto; border-radius: 0; }
 
-/* gilded header */
-.mono-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.mono-brand { display: flex; align-items: center; gap: 12px; }
-.mono-crest { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(160deg, var(--mg-gold), #8a6d1c); display: flex; align-items: center; justify-content: center; color: #1a1206; box-shadow: 0 4px 14px -4px rgba(212,175,55,.6); }
-.mono-brand-text { display: flex; flex-direction: column; line-height: 1; }
-.mono-brand-over { font-size: 11px; letter-spacing: 3px; color: var(--mg-gold-2); font-weight: 600; }
-.mono-brand-name { font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #f3f1ea; }
-.mono-header-tools { display: flex; align-items: center; gap: 8px; }
-.mono-live-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--txt-mid); background: rgba(255,255,255,.04); border: 1px solid var(--mg-line); border-radius: 999px; padding: 6px 12px; }
+/* gilded header — brand crest + live pill + icon tools, on the HUD scale */
+.mono-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: var(--mg-s3); }
+.mono-brand { display: flex; align-items: center; gap: var(--mg-s3); }
+.mono-crest { width: 42px; height: 42px; border-radius: var(--mg-r2); background: linear-gradient(160deg, var(--mg-gold), #8a6d1c); display: flex; align-items: center; justify-content: center; color: #1a1206; box-shadow: 0 4px 14px -4px rgba(212,175,55,.6), var(--mg-edge-strong); }
+.mono-brand-text { display: flex; flex-direction: column; line-height: 1; gap: 3px; }
+.mono-brand-over { font-family: var(--mg-font-text); font-size: 10px; letter-spacing: .22em; color: var(--mg-gold-2); font-weight: 700; }
+.mono-brand-name { font-family: var(--mg-font-display); font-size: 19px; font-weight: 800; letter-spacing: .06em; color: #f3f1ea; }
+.mono-header-tools { display: flex; align-items: center; gap: var(--mg-s2); }
+.mono-live-pill { display: inline-flex; align-items: center; gap: var(--mg-s2); font-family: var(--mg-font-text); font-size: 13px; font-weight: 600; color: var(--txt-mid); background: rgba(255,255,255,.04); border: 1px solid var(--mg-line); border-radius: var(--mg-pill); padding: var(--mg-s2) var(--mg-s3); font-variant-numeric: tabular-nums; }
 .mono-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #5fd39a; box-shadow: 0 0 0 3px rgba(95,211,154,.18); animation: mono-pulse 1.4s ease-in-out infinite; }
-.mono-icon-btn { width: 38px; height: 38px; border-radius: 11px; background: rgba(255,255,255,.04); border: 1px solid var(--mg-line); display: inline-flex; align-items: center; justify-content: center; color: var(--mg-gold); cursor: pointer; transition: background .15s, color .15s; }
-.mono-icon-btn:hover { background: rgba(255,255,255,.09); color: var(--mg-gold-bright); }
+.mono-icon-btn { width: 38px; height: 38px; border-radius: var(--mg-r2); background: rgba(255,255,255,.04); border: 1px solid var(--mg-line); display: inline-flex; align-items: center; justify-content: center; color: var(--mg-gold); cursor: pointer; transition: background var(--mg-t), color var(--mg-t), border-color var(--mg-t); box-shadow: var(--mg-edge); }
+.mono-icon-btn:hover { background: rgba(255,255,255,.09); border-color: var(--mg-gold-edge); color: var(--mg-gold-bright); }
+.mono-icon-btn:active { transform: translateY(1px) scale(.96); transition-duration: .05s; }
+.mono-icon-btn:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 2px; }
 @keyframes mono-pulse { 50% { opacity: .35; } }
 
 /* player rail — cards (avatar in token colour, gold cash, rolling pulse) */
-.mono-players-strip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+.mono-players-strip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--mg-s3); }
 .mono-pcard { flex: 1; min-width: 150px; display: flex; align-items: center; gap: 11px; background: linear-gradient(165deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--mg-line); border-radius: 15px; padding: 9px 13px; position: relative; overflow: hidden; }
 .mono-pcard.turn { border-color: rgba(212,175,55,.55); box-shadow: 0 0 0 1px rgba(212,175,55,.3), 0 10px 26px -14px rgba(212,175,55,.5); }
 .mono-pcard.turn::before { content: ""; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 3px; background: var(--mg-gold); }
@@ -633,12 +659,12 @@
 .mono-pcard-next { position: absolute; top: 6px; inset-inline-end: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--txt-dim); background: rgba(255,255,255,.07); border-radius: 999px; padding: 2px 7px; }
 .mono-pcard.bankrupt { opacity: .42; filter: grayscale(.7); }
 .mono-pcard-av { width: 40px; height: 40px; border-radius: 50%; background: var(--tok); display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; box-shadow: 0 4px 12px -3px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.25); }
-.mono-pcard-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.mono-pcard-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--mg-s1); }
 .mono-pcard-name { font-size: 14px; font-weight: 600; color: #eef0ec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mono-pcard.me .mono-pcard-name { color: var(--green-bright); }
 .mono-pcard-cash { font-size: 13.5px; color: var(--mg-gold); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 .mono-pcard-worth { font-size: 11px; color: var(--txt-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mono-pcard-roll { font-size: 12px; color: #5fd39a; display: inline-flex; align-items: center; gap: 5px; }
+.mono-pcard-roll { font-family: var(--mg-font-text); font-size: 12px; font-weight: 600; color: #5fd39a; display: inline-flex; align-items: center; gap: var(--mg-s1); }
 .mono-roll-dot { width: 6px; height: 6px; border-radius: 50%; background: #5fd39a; animation: mono-pulse 1s infinite; }
 .mono-pcard-jail { font-size: 15px; }
 
@@ -895,7 +921,7 @@
 .mono-deed-foot { display: flex; flex-wrap: wrap; gap: 3px 10px; justify-content: space-between; padding: 7px 11px; font-size: 10.5px; border-top: 1px solid rgba(0,0,0,.18); color: #3a3a3a; font-weight: 700; }
 
 /* player-card property-group pips (owned groups at a glance; bright = full set) */
-.mono-pcard-pips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.mono-pcard-pips { display: flex; flex-wrap: wrap; gap: var(--mg-s1); margin-top: var(--mg-s1); }
 .mono-pip { width: 9px; height: 9px; border-radius: 2px; opacity: .5; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
 .mono-pip.full { opacity: 1; box-shadow: inset 0 0 0 1px rgba(255,255,255,.65), 0 0 5px rgba(212,175,55,.5); }
 
@@ -1252,21 +1278,21 @@
 /* glassy translucent panel, thin gold edge, embossed top highlight + soft drop */
 .mono-pcard {
   flex: 1; min-width: 150px;
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px;
+  display: flex; align-items: center; gap: var(--mg-s3);
+  padding: var(--mg-s3) var(--mg-s4);
   position: relative; overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(212,175,55,.18);
+  border-radius: var(--mg-r3);
+  border: 1px solid var(--mg-gold-edge);
   background:
     linear-gradient(165deg, rgba(255,255,255,.06), rgba(255,255,255,.012) 60%),
     rgba(14,18,15,.55);
   -webkit-backdrop-filter: blur(10px) saturate(1.15);
   backdrop-filter: blur(10px) saturate(1.15);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.10),
+    var(--mg-edge-strong),
     inset 0 0 0 1px rgba(0,0,0,.18),
-    0 10px 24px -16px rgba(0,0,0,.8);
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    var(--mg-el-card);
+  transition: border-color var(--mg-t-slow), box-shadow var(--mg-t-slow), transform var(--mg-t-slow);
 }
 
 /* avatar — larger, ringed in the player's token colour, tactile */
@@ -1285,28 +1311,28 @@
     inset 0 1px 0 rgba(255,255,255,.4);
 }
 
-/* name + numbers */
+/* name + numbers — clear type hierarchy: name (display) > cash (data) > worth (caption) */
 .mono-pcard-name {
-  font-family: "Cairo", system-ui, sans-serif;
-  font-size: 14px; font-weight: 700; letter-spacing: .01em;
+  font-family: var(--mg-font-display);
+  font-size: 14px; font-weight: 700; letter-spacing: .01em; line-height: 1.2;
   color: #f1f3ee;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .mono-pcard.me .mono-pcard-name { color: var(--green-bright); }
 
 .mono-pcard-cash {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 14px; font-weight: 700;
+  font-family: var(--mg-font-text);
+  font-size: 14px; font-weight: 700; line-height: 1.2;
   color: var(--mg-gold-bright);
   font-variant-numeric: tabular-nums;
-  display: inline-flex; align-items: center; gap: 5px;
+  display: inline-flex; align-items: center; gap: var(--mg-s1);
   text-shadow: 0 1px 6px rgba(212,175,55,.28);
 }
 .mono-pcard-cash svg { color: var(--mg-gold); opacity: .9; }
 
 .mono-pcard-worth {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 11px; color: var(--txt-dim);
+  font-family: var(--mg-font-text);
+  font-size: 11px; font-weight: 500; letter-spacing: .01em; color: var(--txt-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -1346,15 +1372,15 @@
 }
 
 /* ===== NEXT state — refined gold-tinted tag + edge ===== */
-.mono-pcard.next { border-color: rgba(212,175,55,.32); }
+.mono-pcard.next { border-color: var(--mg-gold-edge-2); }
 .mono-pcard-next {
-  position: absolute; top: 7px; inset-inline-end: 9px;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  position: absolute; top: var(--mg-s2); inset-inline-end: var(--mg-s2);
+  font-family: var(--mg-font-text);
   font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
   color: var(--mg-gold-bright);
   background: rgba(212,175,55,.12);
   border: 1px solid rgba(212,175,55,.3);
-  border-radius: 999px; padding: 2px 8px;
+  border-radius: var(--mg-pill); padding: 2px var(--mg-s2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
 }
 
@@ -1372,7 +1398,7 @@
 
 /* compact-screen sizing kept in step with larger avatar */
 @media (max-width: 640px) {
-  .mono-pcard { padding: 9px 11px; gap: 10px; }
+  .mono-pcard { padding: var(--mg-s2) var(--mg-s3); gap: var(--mg-s2); }
   .mono-pcard-av { width: 38px; height: 38px; font-size: 17px; }
 }
 
