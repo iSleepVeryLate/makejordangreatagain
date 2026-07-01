@@ -1579,7 +1579,10 @@
 /* ---- the bar: glassy, gold-edged, embossed, still slim ---- */
 .mono-dock {
   gap: var(--mg-s2) var(--mg-s4);
-  padding: var(--mg-s2) var(--mg-s4);
+  /* horizontal padding trimmed s4->s3: buys content-box width so the 2D-Lite
+     row (turnchip + dice + actions + timer) stays single-row without wrapping
+     the timer. Vertical padding unchanged. */
+  padding: var(--mg-s2) var(--mg-s3);
   border-radius: var(--mg-r3);
   border: 1px solid var(--mg-gold-edge);
   background:
@@ -1713,20 +1716,23 @@
 .mono-dock {
   position: relative;
   justify-content: space-between;
-  gap: var(--mg-s2) var(--mg-s3);
+  /* column-gap tightened s3->s2 for the same single-row headroom (see padding
+     note above); row-gap stays s2 for the stacked ≤640 layout. */
+  gap: var(--mg-s2) var(--mg-s2);
 }
 
 /* LEFT cluster: turn chip (+ dice in 2D-Lite) travel together */
 .mono-dock-left {
   display: flex;
   align-items: center;
-  gap: var(--mg-s3);
+  gap: var(--mg-s2);
   min-width: 0;
   flex-shrink: 0;
 }
-/* tighten the dice pair a touch inside the dock so the 2D-Lite left cluster
-   (turnchip + two dice) fits the three-zone row without wrapping */
-.mono-dock-left .mono-dice { gap: var(--mg-s3); }
+/* tighten the dice pair (gap only — the dice themselves stay full-size/legible)
+   so the 2D-Lite left cluster (turnchip + two dice) fits the three-zone row
+   with comfortable headroom and never orphan-wraps the timer to a second row. */
+.mono-dock-left .mono-dice { gap: var(--mg-s2); }
 
 /* CENTER: primary action / status — sits at its content width. With the dock on
    `justify-content: space-between`, the free space falls into the two gaps so the
@@ -1742,7 +1748,7 @@
    e.g. a spectator with no status line) reads as two clean groups, no phantom
    slot. :not(:empty) matches whenever the action/status node is present. */
 .mono-dock .mono-dock-main:not(:empty) {
-  padding-inline: var(--mg-s3);
+  padding-inline: var(--mg-s2);
   border-inline-start: 1px solid rgba(212,175,55,.14);
   border-inline-end: 1px solid rgba(212,175,55,.14);
 }
