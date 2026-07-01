@@ -1794,32 +1794,24 @@
 }
 .mono-dock .mono-timer-wrap.low .mono-timer-num { color: #ff8e9a; }
 
-/* ---- the drawn card: FLOATS centred above the dock, out of the flex flow ---- */
+/* ---- the drawn card: a full-width BANNER ROW atop the dock's controls.
+   In-flow (NOT floated) so it stays BELOW the board — it never rises over the
+   board's front row (the occlusion we fixed) and never crams sideways into the
+   controls. `order:-1` lifts it above the three zones; `flex:0 0 100%` claims
+   its own row; it reads clearly, centred, and flips in like a dealt card. ---- */
 .mono-dock .mono-card-pop {
-  position: absolute;
-  bottom: calc(100% + var(--mg-s2));
-  /* left:50% + translateX(-50%) centres identically in LTR *and* RTL — 50% of
-     the parent is the same physical point in both directions, so this is the
-     one place a physical offset is the correct, dir-safe choice. */
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;                  /* above the dock/board, below moment overlays (z:20) */
-  max-width: min(300px, calc(100% - var(--mg-s4)));
+  position: static;
+  order: -1;                   /* banner sits ABOVE the three control zones */
+  flex: 0 0 100%;              /* claims its own full-width row (forces a wrap) */
+  max-width: 100%;
+  margin: 0;
+  text-align: center;          /* centre the deck label + the reading */
   transform-origin: bottom center;
-  pointer-events: none;        /* purely informational; never blocks the dock */
+  z-index: auto;
+  animation: mono-card-flip .42s cubic-bezier(.2,.9,.3,1.2) both;
 }
-/* keep the flip-in centred (translateX must survive the keyframe end state) */
-@keyframes mono-card-float-in {
-  from { transform: translateX(-50%) perspective(600px) rotateX(-78deg); opacity: 0; }
-  to   { transform: translateX(-50%) perspective(600px) rotateX(0); opacity: 1; }
-}
-.mono-dock .mono-card-pop { animation: mono-card-float-in .42s cubic-bezier(.2,.9,.3,1.2) both; }
 @media (prefers-reduced-motion: reduce) {
-  .mono-dock .mono-card-pop { animation: mono-card-float-fade .2s ease both; }
-}
-@keyframes mono-card-float-fade {
-  from { transform: translateX(-50%); opacity: 0; }
-  to   { transform: translateX(-50%); opacity: 1; }
+  .mono-dock .mono-card-pop { animation: mono-pop .2s ease both; }
 }
 
 /* ---- narrow screens: the three zones stack into clean full-width rows ----
@@ -1837,7 +1829,7 @@
     border-inline-end: 0;
   }
   .mono-dock .mono-timer-wrap { flex: 1 1 100%; width: 100%; max-width: 100%; }
-  .mono-dock .mono-card-pop { max-width: min(92vw, 300px); }
+  .mono-dock .mono-card-pop { max-width: 100%; }
 }
 
 /* ---- waiting status: classy gold-edged glass pill ---- */
