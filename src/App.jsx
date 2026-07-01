@@ -36,6 +36,9 @@ const AdminRooms = lazy(() => import('./pages/AdminRooms.jsx'))
 
 // DEV-ONLY: 3D Monopoly renderer harness (route tree-shaken out of prod builds).
 const MonopolyDevHarness = __DEV_SERVER__ ? lazy(() => import('./pages/MonopolyDevHarness.jsx')) : null
+// DEV-ONLY: Monopoly HUD harness — renders every HUD surface with mock data so the
+// HUD can be reviewed without a login / 2nd player (also tree-shaken out of prod).
+const MonopolyHudHarness = __DEV_SERVER__ ? lazy(() => import('./pages/MonopolyHudHarness.jsx')) : null
 
 function MeRedirect() {
   const { profile, loading } = useAuth()
@@ -147,6 +150,9 @@ export default function App() {
 
       {__DEV_SERVER__ && MonopolyDevHarness && (
         <Route path="/__dev/monopoly3d" element={<MonopolyDevHarness />} />
+      )}
+      {__DEV_SERVER__ && MonopolyHudHarness && (
+        <Route path="/__dev/monopoly-hud" element={<MonopolyHudHarness />} />
       )}
 
       <Route path="*" element={<Navigate to="/" replace />} />
