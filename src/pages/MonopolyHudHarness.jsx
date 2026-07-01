@@ -365,7 +365,9 @@ export default function MonopolyHudHarness() {
 }
 
 // ---- dev-chrome inline styles (deliberately NOT .mono-* so they read as "dev") ----
-const devBar = { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '10px 16px', background: '#11181322', borderBottom: '1px solid #24302a', fontSize: 13, position: 'sticky', top: 0, zIndex: 50, backdropFilter: 'blur(4px)' }
+// opaque bg (no backdrop-filter) so this sticky dev-chrome bar never re-blurs the
+// HUD scrolling beneath it — keeps even the dev harness smooth (matches the perf pass).
+const devBar = { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '10px 16px', background: '#0f1512', borderBottom: '1px solid #24302a', fontSize: 13, position: 'sticky', top: 0, zIndex: 50 }
 const devLabel = { color: '#7f8a80', marginInlineStart: 6 }
 const devBtn = { padding: '3px 9px', borderRadius: 8, border: '1px solid #384', background: '#1a2620', color: '#dfe7df', cursor: 'pointer' }
 const devBtnOn = { border: '2px solid #d4af37', background: '#22301f' }
