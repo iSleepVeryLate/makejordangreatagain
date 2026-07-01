@@ -819,7 +819,7 @@
 .mono-turn-banner.rolling { animation: mono-pulse 1s ease-in-out infinite; }
 .mono-rolling-tag { font-size: 12px; color: #5fd39a; display: inline-flex; align-items: center; gap: 6px; }
 /* phase-aware "what's happening" line shown to everyone who isn't the active player */
-.mono-wait-status { font-size: 12.5px; color: var(--txt-mid); display: inline-flex; align-items: center; gap: 7px; padding: 4px 13px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--mg-line); max-width: 270px; text-align: center; }
+.mono-wait-status { font-family: var(--mg-font-text); font-size: 12.5px; color: var(--txt-mid); display: inline-flex; align-items: center; gap: var(--mg-s2); padding: var(--mg-s1) var(--mg-s3); border-radius: var(--mg-pill); background: rgba(255,255,255,.05); border: 1px solid var(--mg-line); max-width: 270px; text-align: center; }
 
 /* 3D dice (CSS cube) */
 .mono-dice { display: flex; gap: 18px; perspective: 600px; }
@@ -836,17 +836,17 @@
 .mono-timer-num { font-size: 12px; font-weight: 700; color: var(--txt-dim); font-variant-numeric: tabular-nums; }
 .mono-timer-wrap.low .mono-timer-num { color: #ff7a8a; }
 .mono-timer-wrap.low { animation: mono-pulse 1s ease-in-out infinite; }
-.mono-card-pop { position: relative; background: linear-gradient(180deg, var(--ink-2), var(--ink-3)); border: 1px solid var(--line); border-radius: 12px; padding: 10px 13px; max-width: 280px; transform-origin: top center; animation: mono-card-flip .42s cubic-bezier(.2,.9,.3,1.2) both; box-shadow: 0 10px 26px -12px rgba(0,0,0,.7); }
+.mono-card-pop { position: relative; background: linear-gradient(180deg, var(--ink-2), var(--ink-3)); border: 1px solid var(--line); border-radius: var(--mg-r2); padding: var(--mg-s3); max-width: 280px; transform-origin: top center; animation: mono-card-flip .42s cubic-bezier(.2,.9,.3,1.2) both; box-shadow: var(--mg-el-raised); }
 .mono-card-pop.chance { border-color: rgba(224,163,60,.55); box-shadow: 0 10px 26px -12px rgba(224,163,60,.5); }
 .mono-card-pop.chest { border-color: rgba(95,211,154,.5); box-shadow: 0 10px 26px -12px rgba(95,211,154,.45); }
-.mono-card-deck { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+.mono-card-deck { display: inline-block; font-family: var(--mg-font-text); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .mono-card-pop.chance .mono-card-deck { color: #e0a33c; }
 .mono-card-pop.chest .mono-card-deck { color: #5fd39a; }
-.mono-card-pop p { font-size: 13px; margin-top: 3px; line-height: 1.35; }
+.mono-card-pop p { font-family: var(--mg-font-text); font-size: 13px; margin-top: var(--mg-s1); line-height: 1.35; }
 @keyframes mono-pop { from { transform: scale(.9); opacity: 0; } }
 @keyframes mono-card-flip { from { transform: perspective(600px) rotateX(-78deg); opacity: 0; } to { transform: perspective(600px) rotateX(0); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mono-card-pop { animation: mono-pop .2s ease both; } }
-.mono-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+.mono-actions { display: flex; flex-wrap: wrap; gap: var(--mg-s2); justify-content: center; align-items: center; }
 
 /* ---------- control dock (slim persistent HUD) ---------- */
 .mono-dock { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 10px 14px;
@@ -983,16 +983,18 @@
 .mono-dice.clickable:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 5px; }
 
 /* holdings legend (who owns what) */
-.mono-legend { padding: 10px 14px; }
-.mono-legend summary { font-size: 13px; font-weight: 700; color: var(--txt-mid); cursor: pointer; list-style: none; }
+.mono-legend { padding: var(--mg-s3) var(--mg-s4); border-radius: var(--mg-r3); }
+.mono-legend summary { font-family: var(--mg-font-text); font-size: 13px; font-weight: 700; color: var(--txt-mid); cursor: pointer; list-style: none; transition: color var(--mg-t); }
+.mono-legend summary:hover { color: #f3e6bf; }
+.mono-legend summary:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 2px; border-radius: var(--mg-r1); }
 .mono-legend summary::-webkit-details-marker { display: none; }
-.mono-legend summary::before { content: "▸"; display: inline-block; margin-inline-end: 6px; color: var(--txt-dim); transition: transform .15s ease; }
+.mono-legend summary::before { content: "▸"; display: inline-block; margin-inline-end: var(--mg-s2); color: var(--txt-dim); transition: transform var(--mg-t); }
 [dir="rtl"] .mono-legend summary::before { content: "◂"; }
 .mono-legend[open] summary::before { transform: rotate(90deg); }
-.mono-legend-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
-.mono-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--txt-mid); }
+.mono-legend-list { display: flex; flex-direction: column; gap: var(--mg-s2); margin-top: var(--mg-s3); }
+.mono-legend-row { display: flex; align-items: center; gap: var(--mg-s2); font-family: var(--mg-font-text); font-size: 12.5px; color: var(--txt-mid); }
 .mono-legend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mono-legend-count { color: var(--txt-dim); font-size: 12px; }
+.mono-legend-count { color: var(--txt-dim); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 980px) {
   .mono-game { grid-template-columns: 1fr; }
@@ -1407,24 +1409,25 @@
 /* Append-only overrides. Equal-specificity selectors reuse existing class names. */
 
 .mono-log-panel {
-  padding: 14px 14px 8px;
+  padding: var(--mg-s4) var(--mg-s4) var(--mg-s2);
   background:
     linear-gradient(180deg, rgba(212,175,55,.06), rgba(212,175,55,0) 70px),
     linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 60%),
     var(--ink-2);
   border: 1px solid var(--mg-line);
+  border-radius: var(--mg-r3);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.045),
+    var(--mg-edge),
     inset 0 0 0 1px rgba(212,175,55,.07),
-    0 18px 40px -30px rgba(0,0,0,.85);
+    var(--mg-el-raised);
 }
 
 /* gold hairline under the section label */
 .mono-log-panel .glabel {
   color: var(--mg-gold-2);
-  padding-bottom: 10px;
+  padding-bottom: var(--mg-s3);
   border-bottom: 1px solid rgba(212,175,55,.14);
-  margin-bottom: 4px;
+  margin-bottom: var(--mg-s1);
 }
 
 .mono-log {
@@ -1454,13 +1457,14 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--mg-s2);
   font-size: 12.5px;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  line-height: 1.35;
+  font-family: var(--mg-font-text);
   color: var(--txt-mid);
   background: transparent;
   border-radius: 0;
-  padding: 7px 4px 7px 0;
+  padding: var(--mg-s2) var(--mg-s1) var(--mg-s2) 0;
   /* hairline separator between rows */
   box-shadow: inset 0 -1px 0 rgba(255,255,255,.045);
   /* per-type accent (overridden below); default = gold */
@@ -1486,7 +1490,7 @@
     linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,0)),
     var(--ev-soft);
   border: 1px solid color-mix(in srgb, var(--ev) 36%, transparent);
-  border-radius: 7px;
+  border-radius: var(--mg-r1);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.12),
     0 1px 3px -1px rgba(0,0,0,.5);
@@ -1497,7 +1501,7 @@
   color: #f0e9d6;
   font-weight: 600;
   background: linear-gradient(90deg, rgba(212,175,55,.10), rgba(212,175,55,0) 80%);
-  border-radius: 8px;
+  border-radius: var(--mg-r1);
   box-shadow:
     inset 0 0 0 1px rgba(212,175,55,.16),
     inset 0 1px 0 rgba(255,255,255,.05);
@@ -1612,10 +1616,10 @@
 
 /* ---- the bar: glassy, gold-edged, embossed, still slim ---- */
 .mono-dock {
-  gap: 10px 16px;
-  padding: 9px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(212,175,55,.22);
+  gap: var(--mg-s2) var(--mg-s4);
+  padding: var(--mg-s2) var(--mg-s4);
+  border-radius: var(--mg-r3);
+  border: 1px solid var(--mg-gold-edge);
   background:
     linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0) 34%),
     linear-gradient(180deg, rgba(14,22,17,.78), rgba(7,11,9,.92));
@@ -1623,22 +1627,22 @@
   backdrop-filter: blur(13px) saturate(1.18);
   /* thin top gold hairline + inset emboss + soft drop, layered */
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.07),
+    var(--mg-edge),
     inset 0 0 0 1px rgba(212,175,55,.06),
     0 1px 0 rgba(212,175,55,.10),
-    0 18px 40px -20px rgba(0,0,0,.85);
+    var(--mg-el-raised);
 }
 
 /* ---- turn chip: tactile felt pill, avatar ring in --tok ---- */
 .mono-turnchip {
-  gap: 10px;
-  padding: 4px;
-  padding-inline-end: 14px;
+  gap: var(--mg-s2);
+  padding: var(--mg-s1);
+  padding-inline-end: var(--mg-s3);
   border: 1px solid rgba(212,175,55,.16);
   background:
     linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.012));
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.06),
+    var(--mg-edge),
     0 2px 8px -4px rgba(0,0,0,.55);
 }
 .mono-turnchip.you {
@@ -1665,12 +1669,12 @@
 }
 /* name in Cairo (display), substatus tracks gold tint when rolling */
 .mono-turnchip-txt b {
-  font-family: "Cairo", "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-display);
   font-size: 14px;
   letter-spacing: .005em;
 }
 .mono-turnchip-txt i {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-text);
   letter-spacing: .04em;
   text-transform: uppercase;
   font-size: 10px;
@@ -1680,11 +1684,11 @@
 
 /* ---- PRIMARY action (Roll / End turn) dominant + tactile ---- */
 .mono-actions .btn-gold {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-text);
   font-weight: 800;
   letter-spacing: .01em;
-  padding-inline: 22px;
-  border-radius: 12px;
+  padding-inline: var(--mg-s5);
+  border-radius: var(--mg-r2);
   background: linear-gradient(165deg, var(--mg-gold-bright) 0%, var(--mg-gold) 46%, var(--mg-gold-2) 100%);
   color: #1a1206;
   box-shadow:
@@ -1709,6 +1713,7 @@
     inset 0 2px 5px rgba(122,86,12,.5),
     0 4px 12px -8px rgba(212,175,55,.6);
 }
+.mono-actions .btn-gold:focus-visible { outline: 2px solid var(--mg-gold-bright); outline-offset: 2px; }
 
 /* subtle "invite the roll" affordance: a slow gold breathe on the
    primary action when it's live (not disabled). Continuous → gated. */
@@ -1720,32 +1725,36 @@
   .mono-actions .btn-gold:active:not(:disabled) { animation: none; }
 }
 
-/* secondary (Manage): quiet glass, gold-tinged on hover */
+/* secondary (Manage / Trade): quiet glass, gold-tinged on hover */
 .mono-actions .btn-line {
-  border-color: rgba(212,175,55,.18);
+  border-color: var(--mg-gold-edge);
   background: rgba(255,255,255,.045);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow: var(--mg-edge);
+  transition: background var(--mg-t), color var(--mg-t), border-color var(--mg-t), transform var(--mg-t);
 }
 .mono-actions .btn-line:hover:not(:disabled) {
   border-color: rgba(212,175,55,.38);
   background: rgba(212,175,55,.10);
   color: #f3e6bf;
 }
+.mono-actions .btn-line:active:not(:disabled) { transform: translateY(1px) scale(.98); transition-duration: .05s; }
+.mono-actions .btn-line:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 2px; }
 
 /* ---- timer: slim, recessed felt slot, gold accent fill ---- */
 .mono-dock .mono-timer-wrap {
   min-width: 116px;
   max-width: 180px;
-  padding: 3px 10px 4px;
-  border-radius: 999px;
+  padding: var(--mg-s1) var(--mg-s3);
+  border-radius: var(--mg-pill);
   background: rgba(0,0,0,.28);
   box-shadow:
     inset 0 1px 2px rgba(0,0,0,.5),
     inset 0 0 0 1px rgba(212,175,55,.12);
 }
 .mono-dock .mono-timer-num {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-text);
   color: var(--mg-gold-2);
+  font-variant-numeric: tabular-nums;
 }
 .mono-dock .mono-timer-wrap.low .mono-timer-num { color: #ff8e9a; }
 
