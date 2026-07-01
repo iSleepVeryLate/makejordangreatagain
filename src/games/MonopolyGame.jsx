@@ -97,6 +97,12 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   const { play, muted, toggleMute } = useSound()
   const reducedMotion = useReducedMotion()
   const animator = useBoardAnimator(room, players, properties, { play, reducedMotion, myId })
+  // ITEM 2 — subscribe to the animator's WALK-IN-PROGRESS signal so MonopolyGame re-renders
+  // the moment the active player's token lands. renderMoment() reads walkActive to GATE the
+  // active player's landing decision card (buy / jail / debt) until the walk finishes, so the
+  // card never pops ~1–1.5s before the piece arrives. The slice flips FALSE on every animator
+  // exit path (see useBoardAnimator), so the card can never get stuck hidden.
+  const walkActive = useSyncExternalStore(animator.walking.subscribe, animator.walking.get).active
 
   const [busy, setBusy] = useState(false)
   const [rolling, setRolling] = useState(false)
@@ -404,6 +410,14 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
       )
     }
     if (!body) return null
+    // ITEM 2 — HOLD the active player's LANDING decision card (buy / jail / debt — the ones
+    // that fire the instant the server flips room.phase, ~1–1.5s before the token finishes
+    // walking) until the walk completes. walkActive is TRUE only during the active player's
+    // own walk and flips FALSE on every animator exit path, so this can never get stuck. The
+    // re-render on that flip (we subscribe to the slice above) reveals the card on arrival.
+    // Auction (shared, post-decision) and trade (UI-initiated, not landing-driven) are not
+    // landing cards, so they're never held; spectators (!isMyTurn) only see a status line.
+    if (walkActive && isMyTurn && (kind === 'buy' || kind === 'jail' || kind === 'debt')) return null
     return (
       <div className={`mono-moment-scrim mono-moment-${kind}`} dir={dir}>
         <div className="mono-moment" role="dialog" aria-modal="false">{body}</div>
@@ -459,9 +473,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
               players={players} properties={properties} propByTile={propByTile} playerColor={playerColor}
               auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
               activeColor={playerColor[turnId] ?? null} sceneApiRef={sceneApiRef}
-              myId={myId} onContextLost={onContextLost} moment={renderMoment()}>
-              {renderCenter()}
-            </MonopolyScene3D>
+              myId={myId} onContextLost={onContextLost} moment={renderMoment()} />
             {/* The WebGL canvas is aria-hidden; this narrates board state to AT. */}
             <div className="sr-only" role="status" aria-live="polite">
               {t('mono.turnOf', { name: name(turnId) })} · {tileName(safeTile(playerById[turnId]?.position), lang)}
@@ -489,14 +501,18 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
           <MonopolyBoard players={players} properties={properties} propByTile={propByTile} lang={lang}
             playerColor={playerColor} nameById={nameById} myId={myId} myFullSets={myFullSets}
             auctionTile={room.pending_auction?.tile ?? null} activeTile={playerById[turnId]?.position}
-            onTile={onTile} store={animator} tt={t} moment={renderMoment()}>
-            {renderCenter()}
-          </MonopolyBoard>
+            onTile={onTile} store={animator} tt={t} moment={renderMoment()} />
         )}
         {/* ITEM 3 — big-moment celebration overlay (Confetti + gold flash + stinger) over
             the board for MY milestones (buy / set / pass GO / win). Pointer-events:none so
             it never blocks the board or a decision moment. Works for both renderers. */}
         <MonoCelebration store={animator} reducedMotion={reducedMotion} play={play} />
+        {/* ITEM 1 — the persistent control dock lives OUT of the board canvas, in normal
+            flow BELOW the board (its own reserved row), so the just-added camera orbit can
+            rotate the active player's tile row to the FRONT without the dock ever covering
+            the play area. Identical for the 3D and 2D-Lite paths. Transient decision
+            moments (renderMoment) still overlay the board on purpose. */}
+        <div className="mono-dock-row">{renderCenter()}</div>
       </div>
 
       <div className="mono-side">

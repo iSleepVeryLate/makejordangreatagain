@@ -656,9 +656,12 @@
 /* ---- 3D board: WebGL canvas + DOM overlays (the "official-site" renderer) ---- */
 .mono-board-3d { position: relative; width: 100%; max-width: 1060px; margin: 0 auto; aspect-ratio: 4 / 3; border-radius: 18px; overflow: hidden; background: radial-gradient(120% 120% at 50% 16%, #0e1813 0%, #070b09 72%); border: 1px solid rgba(212,175,55,.22); box-shadow: inset 0 0 60px rgba(0,0,0,.6), 0 18px 50px -24px rgba(0,0,0,.8); }
 .mono-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-/* control dock overlaid on the 3D board — a SLIM bottom bar that never covers the
-   play area (decisions go to the centred .mono-moment overlay instead). */
-.mono-center-3d { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 94%; z-index: 3; display: flex; justify-content: center; }
+/* ITEM 1 — the persistent control dock now lives in a NORMAL-FLOW row BELOW the board
+   (both the 3D canvas and the 2D-Lite board), never overlaid on the play area. A camera
+   orbit can rotate the active player's tile row to the FRONT without the dock covering it.
+   The row reserves its own height and centres the slim premium glass-gold dock. */
+.mono-dock-row { margin-top: 14px; display: flex; justify-content: center; width: 100%; }
+.mono-dock-row .mono-dock { max-width: min(1060px, 100%); width: auto; }
 
 /* PROMINENT ROLL READOUT — pops on dice settle near the top of the board, clears when
    the move ends. Premium gold pill in the HUD design language; a pure DOM overlay (no
@@ -981,6 +984,9 @@
   .d3d-scene { width: 42px; height: 42px; --d3d-half: 21px; }
   .mono-board-watermark { font-size: 46px; }
   .mono-actions .btn-gold { width: 100%; }
+  /* ITEM 1 — match the tighter game gap for the below-board dock row */
+  .mono-dock-row { margin-top: 12px; }
+  .mono-dock-row .mono-dock { width: 100%; }
 }
 
 @media (max-width: 360px) {
