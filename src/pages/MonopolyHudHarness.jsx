@@ -5,7 +5,7 @@ import {
 import { useLang } from '../context/LanguageContext.jsx'
 import {
   PlayerCard, BuyPanel, AuctionPanel, TradePanel, Deed, DeedPopover,
-  ManageModal, TradeModal, formatLog,
+  ManageModal, TradeModal, EstatesPanel, formatLog,
 } from '../games/MonopolyGame.jsx'
 import Dice3D from '../games/Dice3D.jsx'
 import TurnTimer from '../games/TurnTimer.jsx'
@@ -152,9 +152,6 @@ export default function MonopolyHudHarness() {
     }
     return res
   }, [])
-  const holdings = useMemo(() => MOCK_PLAYERS
-    .map((p) => ({ id: p.profile_id, name: name(p.profile_id), color: tokenMeta(p.token).color, count: MOCK_PROPERTIES.filter((pr) => pr.owner === p.profile_id).length }))
-    .filter((h) => h.count > 0), [])
   const reversedLog = useMemo(() => MOCK_LOG.map((e, i) => ({ e, i })).reverse(), [])
 
   const me = playerById[MY_ID]
@@ -331,7 +328,7 @@ export default function MonopolyHudHarness() {
           </div>
         </div>
 
-        {/* Side: game log (every event chip) + holdings legend + leave */}
+        {/* Side: game log (every event chip) + Estates ownership panel + leave */}
         <div className="mono-side">
           <div className="panel mono-log-panel">
             <span className="glabel">{t('mono.log')}</span>
@@ -341,18 +338,7 @@ export default function MonopolyHudHarness() {
               ))}
             </div>
           </div>
-          <details className="panel mono-legend" open>
-            <summary>{t('mono.legend')}</summary>
-            <div className="mono-legend-list">
-              {holdings.map((h) => (
-                <div className="mono-legend-row" key={h.id}>
-                  <span className="mono-owner-dot" style={{ background: h.color }} />
-                  <span className="mono-legend-name">{h.name}</span>
-                  <span className="mono-legend-count">{t('mono.propsCount', { n: h.count })}</span>
-                </div>
-              ))}
-            </div>
-          </details>
+          <EstatesPanel players={MOCK_PLAYERS} properties={MOCK_PROPERTIES} myId={MY_ID} turnOrder={MOCK_ROOM.turn_order} lang={lang} t={t} onTile={() => {}} />
           <span className="btn btn-line btn-sm mono-leave"><LogOut size={14} /> {t('mono.leave')}</span>
         </div>
 

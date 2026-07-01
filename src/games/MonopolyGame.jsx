@@ -137,10 +137,6 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
   }, [properties])
   const myFullSets = useMemo(() => aff.fullSetsOwned(propByTile, myId), [propByTile, myId])
   const nameById = useMemo(() => Object.fromEntries(players.map((p) => [p.profile_id, profName(p)])), [players])
-  // Compact holdings legend: who owns how many tiles (only those with any).
-  const holdings = useMemo(() => players
-    .map((p) => ({ id: p.profile_id, name: profName(p), color: tokenMeta(p.token).color, count: properties.filter((pr) => pr.owner === p.profile_id).length }))
-    .filter((h) => h.count > 0), [players, properties])
   // Per-player owned colour groups (one pip per group; "full" when the set is complete)
   // — a glance-able read of who's close to a monopoly. Shown on each player card.
   const groupsByPlayer = useMemo(() => {
@@ -531,20 +527,7 @@ export default function MonopolyGame({ hook, t, dir, myId }) {
             ))}
           </div>
         </div>
-        {holdings.length > 0 && (
-          <details className="panel mono-legend">
-            <summary>{t('mono.legend')}</summary>
-            <div className="mono-legend-list">
-              {holdings.map((h) => (
-                <div className="mono-legend-row" key={h.id}>
-                  <span className="mono-owner-dot" style={{ background: h.color }} />
-                  <span className="mono-legend-name">{h.name}</span>
-                  <span className="mono-legend-count">{t('mono.propsCount', { n: h.count })}</span>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
+        <EstatesPanel players={players} properties={properties} myId={myId} turnOrder={room?.turn_order} lang={lang} t={t} onTile={onTile} />
         <Link className="btn btn-line btn-sm mono-leave" to="/monopoly"><LogOut size={14} /> {t('mono.leave')}</Link>
       </div>
 
@@ -595,6 +578,85 @@ export const PlayerCard = memo(function PlayerCard({ p, isTurn, isNext, isMe, ro
     </div>
   )
 })
+
+// Always-open "Estates" panel: every (non-bankrupt) player's holdings, grouped by
+// colour set (+ Railroads / Utilities), with monopolies highlighted and each tile
+// showing houses/hotel + mortgage. Read-only — a tile opens its existing deed
+// popover via onTile. Grouping is computed internally so the dev harness can reuse
+// this with mock data and never drift from the real game.
+export function EstatesPanel({ players, properties, myId, turnOrder, lang, t, onTile }) {
+  const estates = useMemo(() => {
+    const GROUP_ORDER = ['brown', 'cyan', 'pink', 'orange', 'red', 'yellow', 'green', 'blue', 'rail', 'util']
+    const byId = Object.fromEntries(players.map((p) => [p.profile_id, p]))
+    const propByTile = Object.fromEntries(properties.map((pr) => [pr.tile_index, pr]))
+    // order: me first, then turn order, then any leftover; skip bankrupt (they hold nothing)
+    const order = []
+    if (byId[myId]) order.push(myId)
+    for (const id of (turnOrder || [])) if (id !== myId && byId[id]) order.push(id)
+    for (const p of players) if (!order.includes(p.profile_id)) order.push(p.profile_id)
+    return order.map((id) => {
+      const p = byId[id]
+      const owned = properties.filter((pr) => pr.owner === id)
+      const byKey = {}
+      for (const pr of owned) {
+        const tile = safeTile(pr.tile_index)
+        const key = tile.color || (tile.type === 'railroad' ? 'rail' : tile.type === 'utility' ? 'util' : 'other')
+        ;(byKey[key] ||= []).push({ tile_index: pr.tile_index, name: tileName(tile, lang), houses: pr.houses, mortgaged: pr.mortgaged })
+      }
+      const groups = GROUP_ORDER.filter((k) => byKey[k]).map((k) => {
+        const tiles = byKey[k].sort((a, b) => a.tile_index - b.tile_index)
+        let full, hex, label
+        if (k === 'rail') { full = tiles.length === 4; hex = '#1c1c22'; label = t('mono.railroads') }
+        else if (k === 'util') { full = tiles.length === 2; hex = '#2a5e44'; label = t('mono.utilities') }
+        else { full = aff.ownsFullSet(propByTile, k, id); hex = COLOR_GROUPS[k]?.hex || '#888'; label = null }
+        return { key: k, hex, label, full, tiles }
+      })
+      const setCount = groups.filter((g) => g.full && g.key !== 'rail' && g.key !== 'util').length
+      return {
+        id, name: profName(p), color: tokenMeta(p.token).color,
+        isMe: id === myId, bankrupt: !!p.bankrupt, count: owned.length, setCount, groups,
+      }
+    }).filter((e) => !e.bankrupt)
+  }, [players, properties, myId, turnOrder, lang, t])
+
+  return (
+    <div className="panel mono-estates">
+      <div className="glabel mono-estates-title">{t('mono.estates')}</div>
+      <div className="mono-estates-list">
+        {estates.map((e) => (
+          <div className={`mono-estate${e.isMe ? ' me' : ''}`} key={e.id}>
+            <div className="mono-estate-head">
+              <span className="mono-owner-dot" style={{ background: e.color }} />
+              <span className="mono-estate-name">{e.name}{e.isMe && <span className="mono-estate-you">{t('mono.you')}</span>}</span>
+              {e.setCount > 0 && <span className="mono-estate-sets" title={t('mono.monopoly')}>★{e.setCount}</span>}
+              <span className="mono-estate-count">{t('mono.propsCount', { n: e.count })}</span>
+            </div>
+            {e.count === 0
+              ? <div className="mono-estate-empty">{t('mono.noProps')}</div>
+              : <div className="mono-estate-groups">
+                  {e.groups.map((g) => (
+                    <div className={`mono-estate-group${g.full ? ' full' : ''}`} key={g.key} style={{ '--grp': g.hex }}>
+                      {g.label && <span className="mono-estate-glabel">{g.label}</span>}
+                      <div className="mono-estate-pills">
+                        {g.tiles.map((tl) => (
+                          <button type="button" key={tl.tile_index}
+                            className={`mono-estate-pill${tl.mortgaged ? ' mort' : ''}`}
+                            onClick={() => onTile?.(tl.tile_index)}
+                            title={tl.name}>
+                            <span className="mono-estate-pill-name">{tl.name}</span>
+                            {tl.houses === 5 ? <span className="mono-estate-bld">🏨</span> : tl.houses ? <span className="mono-estate-bld">{'🏠'.repeat(tl.houses)}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function BuyPanel({ pend, lang, t, money, busy, cash, onBuy, onDecline }) {
   const tile = safeTile(pend?.tile)

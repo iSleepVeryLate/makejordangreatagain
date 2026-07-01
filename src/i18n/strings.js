@@ -545,6 +545,12 @@ export const STRINGS = {
   'mono.tipSet': { en: 'You own the full set', ar: 'تملك المجموعة كاملة' },
   'mono.legend': { en: 'Holdings', ar: 'الممتلكات' },
   'mono.propsCount': { en: '{n} properties', ar: '{n} عقار' },
+  // ----- Estates panel: always-open per-player ownership breakdown -----
+  'mono.estates': { en: 'Estates', ar: 'الأملاك' },
+  'mono.railroads': { en: 'Railroads', ar: 'السكك' },
+  'mono.utilities': { en: 'Utilities', ar: 'المرافق' },
+  'mono.monopoly': { en: 'Monopoly', ar: 'احتكار' },
+  'mono.noProps': { en: 'No properties yet', ar: 'لا عقارات بعد' },
 
   // ----- Enterprise pass: clearer turn states, deck/deed labels, currency -----
   'mono.currency': { en: 'JOD', ar: 'دينار' },
