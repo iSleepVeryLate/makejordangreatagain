@@ -669,7 +669,7 @@
 .mono-pcard-jail { font-size: 15px; }
 
 .mono-stage { grid-column: 1; position: relative; }
-.mono-side { grid-column: 2; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 78px; }
+.mono-side { grid-column: 2; display: flex; flex-direction: column; gap: var(--mg-s3); position: sticky; top: 78px; }
 .mono-leave { align-self: flex-start; }
 
 /* the board ring — a dark felt frame holding light, deed-like tiles (scales fluidly) */
@@ -686,20 +686,20 @@
    (both the 3D canvas and the 2D-Lite board), never overlaid on the play area. A camera
    orbit can rotate the active player's tile row to the FRONT without the dock covering it.
    The row reserves its own height and centres the slim premium glass-gold dock. */
-.mono-dock-row { margin-top: 14px; display: flex; justify-content: center; width: 100%; }
+.mono-dock-row { margin-top: var(--mg-s4); display: flex; justify-content: center; width: 100%; }
 .mono-dock-row .mono-dock { max-width: min(1060px, 100%); width: auto; }
 
 /* PROMINENT ROLL READOUT — pops on dice settle near the top of the board, clears when
    the move ends. Premium gold pill in the HUD design language; a pure DOM overlay (no
    effect on the WebGL loop). */
 .mono-roll-readout {
-  position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6;
-  display: inline-flex; align-items: center; gap: 9px;
-  padding: 7px 17px 7px 13px; border-radius: 999px;
+  position: absolute; left: 50%; top: var(--mg-s4); transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: center; gap: var(--mg-s2);
+  padding: var(--mg-s2) var(--mg-s4) var(--mg-s2) var(--mg-s3); border-radius: var(--mg-pill);
   background: linear-gradient(160deg, rgba(28,22,8,.92), rgba(14,11,5,.92));
   border: 1px solid rgba(212,175,55,.55);
   box-shadow: 0 10px 26px -12px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.07), 0 0 22px -6px rgba(212,175,55,.5);
-  color: #f4efe1; font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  color: #f4efe1; font-family: var(--mg-font-text);
   animation: mono-roll-in .26s cubic-bezier(.2,.9,.3,1.4) both; pointer-events: none; white-space: nowrap;
 }
 .mono-roll-die { font-size: 18px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
@@ -811,13 +811,13 @@
 }
 
 /* board centre slot */
-.mono-center { grid-row: 2 / 11; grid-column: 2 / 11; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 8px; background: radial-gradient(110% 110% at 50% 30%, rgba(212,175,55,.06), transparent 60%); border-radius: 12px; }
-.mono-center-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 300px; text-align: center; }
-.mono-title-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mg-gold-2); }
-.mono-turn-banner { font-size: 15px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: #1a1206; background: linear-gradient(160deg, var(--mg-gold-bright), #caa233); padding: 7px 20px; border-radius: 999px; box-shadow: 0 6px 16px -6px rgba(212,175,55,.6); }
+.mono-center { grid-row: 2 / 11; grid-column: 2 / 11; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; padding: var(--mg-s2); background: radial-gradient(110% 110% at 50% 30%, rgba(212,175,55,.06), transparent 60%); border-radius: var(--mg-r2); }
+.mono-center-inner { display: flex; flex-direction: column; align-items: center; gap: var(--mg-s3); width: 100%; max-width: 300px; text-align: center; }
+.mono-title-badge { display: inline-flex; align-items: center; gap: var(--mg-s2); font-family: var(--mg-font-text); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mg-gold-2); }
+.mono-turn-banner { font-family: var(--mg-font-display); font-size: 15px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: #1a1206; background: linear-gradient(160deg, var(--mg-gold-bright), #caa233); padding: var(--mg-s2) var(--mg-s5); border-radius: var(--mg-pill); box-shadow: 0 6px 16px -6px rgba(212,175,55,.6); }
 .mono-turn-banner.you { background: linear-gradient(160deg, #34d98a, #18a361); color: #06160e; box-shadow: 0 8px 22px -8px rgba(52,217,138,.7); animation: mono-pop .25s ease both; }
 .mono-turn-banner.rolling { animation: mono-pulse 1s ease-in-out infinite; }
-.mono-rolling-tag { font-size: 12px; color: #5fd39a; display: inline-flex; align-items: center; gap: 6px; }
+.mono-rolling-tag { font-family: var(--mg-font-text); font-size: 12px; color: #5fd39a; display: inline-flex; align-items: center; gap: var(--mg-s2); }
 /* phase-aware "what's happening" line shown to everyone who isn't the active player */
 .mono-wait-status { font-family: var(--mg-font-text); font-size: 12.5px; color: var(--txt-mid); display: inline-flex; align-items: center; gap: var(--mg-s2); padding: var(--mg-s1) var(--mg-s3); border-radius: var(--mg-pill); background: rgba(255,255,255,.05); border: 1px solid var(--mg-line); max-width: 270px; text-align: center; }
 
@@ -864,16 +864,16 @@
 .mono-dock .mono-timer-wrap { width: auto; min-width: 116px; max-width: 180px; }
 
 /* ---------- decision moment (centred overlay over the board) ---------- */
-.mono-moment-scrim { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px;
+.mono-moment-scrim { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: var(--mg-s4);
   background: radial-gradient(80% 80% at 50% 44%, rgba(4,7,5,.5), rgba(4,7,5,.84)); backdrop-filter: blur(2px);
-  border-radius: 18px; animation: mono-scrim-in .18s ease both; }
+  border-radius: var(--mg-r4); animation: mono-scrim-in .18s ease both; }
 @keyframes mono-scrim-in { from { opacity: 0; } }
-.mono-moment { background: linear-gradient(180deg, #1a271f, #0e1611); border: 1px solid rgba(212,175,55,.34); border-radius: 18px;
-  padding: 18px 18px 20px; max-width: min(370px, 96%); max-height: 100%; overflow-y: auto;
-  box-shadow: 0 26px 64px -22px rgba(0,0,0,.88), inset 0 1px 0 rgba(255,255,255,.05);
-  display: flex; flex-direction: column; align-items: center; gap: 12px; animation: mono-moment-in .28s cubic-bezier(.2,.9,.3,1.3) both; }
+.mono-moment { background: linear-gradient(180deg, #1a271f, #0e1611); border: 1px solid rgba(212,175,55,.34); border-radius: var(--mg-r4);
+  padding: var(--mg-s5); max-width: min(370px, 96%); max-height: 100%; overflow-y: auto;
+  box-shadow: var(--mg-el-overlay), var(--mg-edge);
+  display: flex; flex-direction: column; align-items: center; gap: var(--mg-s3); animation: mono-moment-in .28s cubic-bezier(.2,.9,.3,1.3) both; }
 @keyframes mono-moment-in { from { opacity: 0; transform: translateY(18px) scale(.93); } }
-.mono-moment-eyebrow { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--mg-gold-2); font-weight: 700; }
+.mono-moment-eyebrow { font-family: var(--mg-font-display); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--mg-gold-2); font-weight: 700; }
 .mono-moment .mono-deed { width: 216px; }
 @media (prefers-reduced-motion: reduce) { .mono-moment, .mono-moment-scrim { animation-duration: .12s; } }
 
@@ -937,17 +937,17 @@
 .mono-log-row { font-size: 12.5px; color: var(--txt-mid); padding: 3px 6px; border-radius: 6px; background: rgba(255,255,255,.02); }
 
 /* modals */
-.mono-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 80; padding: 16px; }
+.mono-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 80; padding: var(--mg-s4); }
 .mono-modal { background: var(--ink-2); border: 1px solid var(--line); border-radius: 18px; padding: 20px; width: 100%; max-width: 460px; max-height: 86vh; overflow-y: auto; animation: mono-pop .2s ease both; }
 .mono-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.mono-modal-head h3 { display: inline-flex; align-items: center; gap: 8px; }
-.mono-manage-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.mono-manage-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--ink-3); border-radius: 10px; }
+.mono-modal-head h3 { display: inline-flex; align-items: center; gap: var(--mg-s2); }
+.mono-manage-list { display: flex; flex-direction: column; gap: 6px; margin-top: var(--mg-s3); }
+.mono-manage-row { display: flex; align-items: center; gap: var(--mg-s2); padding: 6px 8px; background: var(--ink-3); border-radius: 10px; }
 .mono-manage-bar { width: 6px; align-self: stretch; border-radius: 3px; }
 .mono-manage-name { flex: 1; font-size: 13px; min-width: 0; }
-.mono-manage-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+.mono-manage-btns { display: flex; gap: var(--mg-s1); flex-wrap: wrap; }
 .mono-trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
-.mono-trade-tiles { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.mono-trade-tiles { display: flex; flex-direction: column; gap: var(--mg-s1); max-height: 180px; overflow-y: auto; }
 .mono-trade-tile { text-align: left; font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--ink-3); color: var(--txt-mid); cursor: pointer; }
 .mono-trade-tile.on { border-color: var(--green); color: var(--green-bright); background: rgba(24,163,97,.12); }
 
@@ -968,13 +968,13 @@
 .btn-gold:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 28px -10px rgba(212,175,55,.85); background: linear-gradient(160deg, #f4d579, #d4ab38); }
 .btn-gold:active:not(:disabled) { transform: translateY(2px) scale(.98); transition-duration: .05s; box-shadow: 0 4px 12px -8px rgba(212,175,55,.6), inset 0 1px 0 rgba(255,255,255,.4); }
 /* .mono-deed-pop consolidated → single definition in the D:deed block (slate glass + gold) */
-.mono-deed-pop-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; align-items: center; font-size: 13px; color: var(--txt-mid); }
+.mono-deed-pop-meta { display: flex; flex-wrap: wrap; gap: var(--mg-s2) var(--mg-s4); justify-content: center; align-items: center; font-family: var(--mg-font-text); font-size: 13px; color: var(--txt-mid); }
 .mono-deed-pop-meta b { color: #fff; }
 .mono-mort-tag { color: var(--red); font-weight: 600; }
-.mono-owner-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: 5px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.35); }
+.mono-owner-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: var(--mg-s1); vertical-align: -1px; border: 1px solid rgba(0,0,0,.35); }
 
 /* interactive deed action row (Build / Sell / Mortgage / Unmortgage on your tile) */
-.mono-deed-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; padding-top: 10px; border-top: 1px solid var(--line); }
+.mono-deed-actions { display: flex; flex-direction: column; align-items: center; gap: var(--mg-s2); width: 100%; padding-top: var(--mg-s3); border-top: 1px solid var(--line); }
 
 /* clickable dice affordance (secondary to the Roll button) */
 .mono-dice.clickable { cursor: pointer; border-radius: 14px; transition: transform .12s ease, filter .12s ease; }
@@ -1003,22 +1003,23 @@
   .mono-log-panel { flex: 1; min-width: 220px; }
 }
 @media (max-width: 640px) {
-  .mono-game { padding: 12px; border-radius: 16px; gap: 12px; }
+  .mono-game { padding: var(--mg-s3); border-radius: var(--mg-r3); gap: var(--mg-s3); }
   .mono-brand-name { font-size: 17px; }
-  .mono-pcard { min-width: 44%; flex: 1 1 44%; padding: 8px 10px; gap: 9px; }
+  /* padding/gap here come from the compact .mono-pcard override (D:rail); keep only sizing */
+  .mono-pcard { min-width: 44%; flex: 1 1 44%; }
   .mono-pcard-av { width: 34px; height: 34px; font-size: 16px; }
-  .mono-center-inner { max-width: 100%; gap: 7px; }
-  .mono-dice { gap: 14px; }
+  .mono-center-inner { max-width: 100%; gap: var(--mg-s2); }
+  .mono-dice { gap: var(--mg-s4); }
   .d3d-scene { width: 42px; height: 42px; --d3d-half: 21px; }
   .mono-board-watermark { font-size: 46px; }
   .mono-actions .btn-gold { width: 100%; }
   /* ITEM 1 — match the tighter game gap for the below-board dock row */
-  .mono-dock-row { margin-top: 12px; }
+  .mono-dock-row { margin-top: var(--mg-s3); }
   .mono-dock-row .mono-dock { width: 100%; }
 }
 
 @media (max-width: 360px) {
-  .mono-game { padding: 9px; }
+  .mono-game { padding: var(--mg-s2); }
   .mono-pcard { min-width: 100%; flex-basis: 100%; }
 }
 
@@ -1129,7 +1130,7 @@
     radial-gradient(140% 120% at 100% 100%, rgba(160,130,70,.07), rgba(160,130,70,0) 55%),
     linear-gradient(180deg, #fdfaf0, #f4ecd8);
   color: #1b1812;
-  border-radius: 10px;
+  border-radius: var(--mg-r1);
   overflow: hidden;
   /* soft drop shadow + crisp gold hairline edge (layered, no extra border box) */
   box-shadow:
@@ -1143,7 +1144,7 @@
 
 /* bold property-color band — embossed, Cairo display */
 .mono-deed-head {
-  font-family: "Cairo", system-ui, sans-serif;
+  font-family: var(--mg-font-display);
   padding: 10px 9px 9px;
   font-size: 12px;
   font-weight: 800;
@@ -1164,7 +1165,7 @@
 /* "TITLE DEED" eyebrow — refined gold-tinted small caps */
 .mono-deed-over {
   display: block;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-text);
   font-size: 7.5px;
   letter-spacing: 2.2px;
   font-weight: 700;
@@ -1177,7 +1178,7 @@
   list-style: none;
   padding: 6px 0;
   margin: 7px 9px;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-text);
   font-size: 11px;
   background: rgba(120,92,40,.05);
   border-radius: 6px;
@@ -1224,7 +1225,7 @@
   gap: 3px 10px;
   justify-content: space-between;
   padding: 8px 11px 9px;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--mg-font-text);
   font-size: 10.5px;
   border-top: 1px solid rgba(120,92,40,.22);
   color: #463c2a;
@@ -1244,17 +1245,17 @@
     rgba(20,22,28,.82);
   backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
-  border: 1px solid rgba(212,175,55,.32);
-  border-radius: 18px;
-  padding: 18px;
+  border: 1px solid var(--mg-gold-edge-2);
+  border-radius: var(--mg-r3);
+  padding: var(--mg-s4);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--mg-s3);
   max-width: 240px;
   box-shadow:
-    0 26px 60px -24px rgba(0,0,0,.85),
-    inset 0 1px 0 rgba(255,255,255,.06);
+    var(--mg-el-overlay),
+    var(--mg-edge);
   animation: mono-pop .2s ease both;
 }
 
@@ -1584,7 +1585,7 @@
 /* win — bright gold, display font, slight emphasis */
 .mono-ev-win {
   --ev: var(--mg-gold-bright); --ev-soft: rgba(232,196,90,.18);
-  color: #f5e9c4; font-weight: 700; font-family: "Cairo", system-ui, sans-serif;
+  color: #f5e9c4; font-weight: 700; font-family: var(--mg-font-display);
 }
 .mono-ev-win::before { content: "\2655"; font-size: 13px; }         /* crown-ish (queen) */
 
@@ -1795,19 +1796,19 @@
   background:
     radial-gradient(140% 100% at 50% 0%, rgba(212,175,55,.07), rgba(212,175,55,0) 46%),
     linear-gradient(180deg, #1c2a21 0%, #142019 52%, #0c1410 100%);
-  border: 1px solid rgba(212,175,55,.42);
-  border-radius: 20px;
-  padding: 20px 20px 22px;
+  border: 1px solid var(--mg-gold-edge-2);
+  border-radius: var(--mg-r4);
+  padding: var(--mg-s5);
   box-shadow:
-    0 30px 70px -22px rgba(0,0,0,.9),
+    var(--mg-el-overlay),
     0 0 0 1px rgba(0,0,0,.4),
-    inset 0 1px 0 rgba(255,255,255,.07),
+    var(--mg-edge),
     inset 0 0 40px -16px rgba(212,175,55,.18);
 }
 .mono-moment-eyebrow {
-  font-family: "Cairo", sans-serif;
+  font-family: var(--mg-font-display);
   font-size: 11px;
-  letter-spacing: 2.5px;
+  letter-spacing: .18em;
   text-transform: uppercase;
   color: var(--mg-gold-bright);
   font-weight: 800;
@@ -1815,19 +1816,20 @@
 }
 
 /* ---------- BUY moment: gold CTA dominates, decline recedes ---------- */
-.mono-buy { gap: 14px; width: 100%; }
+.mono-buy { gap: var(--mg-s3); width: 100%; }
 .mono-buy-warn {
+  font-family: var(--mg-font-text);
   font-size: 12px; color: #ffc39a; text-align: center; margin: 0;
   max-width: 230px; font-weight: 600;
-  display: inline-flex; gap: 6px; align-items: center; justify-content: center;
+  display: inline-flex; gap: var(--mg-s2); align-items: center; justify-content: center;
 }
 .mono-buy-btns {
-  display: grid; grid-template-columns: 1.7fr 1fr; gap: 10px;
+  display: grid; grid-template-columns: 1.7fr 1fr; gap: var(--mg-s2);
   width: 100%; max-width: 320px;
 }
 .mono-buy-btns .btn {
   min-width: 0; width: 100%; justify-content: center;
-  padding: 13px 14px; border-radius: 13px; font-weight: 800;
+  padding: var(--mg-s3) var(--mg-s4); border-radius: var(--mg-r2); font-weight: 800;
 }
 /* primary buy CTA — large, glowing, unmissable */
 .mono-buy-btns .btn-gold {
@@ -1850,22 +1852,22 @@
 }
 
 /* ---------- AUCTION: a bidding-war feel ---------- */
-.mono-auction { gap: 10px; }
+.mono-auction { gap: var(--mg-s2); }
 /* high-bid showpiece: framed felt plinth + gold gradient number */
 .mono-auction-bidbox {
   text-align: center; width: 100%; max-width: 260px;
-  padding: 10px 14px 11px; border-radius: 14px;
+  padding: var(--mg-s3) var(--mg-s4); border-radius: var(--mg-r2);
   background: linear-gradient(180deg, rgba(0,0,0,.34), rgba(0,0,0,.16));
-  border: 1px solid rgba(212,175,55,.32);
+  border: 1px solid var(--mg-gold-edge-2);
   box-shadow:
     0 0 0 1px rgba(212,175,55,.45),
     inset 0 1px 0 rgba(255,255,255,.06);
 }
 .mono-auction-bidbox .glabel {
-  margin-bottom: 4px; color: var(--mg-gold-2); letter-spacing: 1.4px; font-size: 10.5px;
+  margin-bottom: var(--mg-s1); color: var(--mg-gold-2); letter-spacing: .14em; font-size: 10.5px;
 }
 .mono-auction-bid {
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: var(--mg-font-text);
   font-size: 34px; font-weight: 800; line-height: 1;
   margin: 0; font-variant-numeric: tabular-nums; letter-spacing: -.5px;
   background: linear-gradient(180deg, #f6e6ad, var(--mg-gold-bright) 48%, var(--mg-gold));
@@ -1874,11 +1876,13 @@
   filter: drop-shadow(0 2px 6px rgba(212,175,55,.3));
 }
 .mono-auction-bidder {
-  font-size: 12px; color: #d8cfb9; margin-top: 5px; font-weight: 600;
+  font-family: var(--mg-font-text);
+  font-size: 12px; color: #d8cfb9; margin-top: var(--mg-s1); font-weight: 600;
 }
 /* bidder roster chips: tactile glass pills */
 .mono-auc-chip {
-  font-size: 11.5px; color: #c9c2b1; padding: 4px 10px;
+  font-family: var(--mg-font-text);
+  font-size: 11.5px; color: #c9c2b1; padding: var(--mg-s1) var(--mg-s3);
   background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
   border: 1px solid var(--mg-line);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
@@ -1893,16 +1897,19 @@
 }
 /* quick-bid increment buttons — tactile gold-edged chips */
 .mono-chip-btn {
-  font-weight: 800; padding: 8px 14px; border-radius: 11px;
-  border: 1px solid rgba(212,175,55,.42);
+  font-family: var(--mg-font-text);
+  font-weight: 800; padding: var(--mg-s2) var(--mg-s3); border-radius: var(--mg-r2);
+  border: 1px solid var(--mg-gold-edge-2);
   background: linear-gradient(180deg, rgba(212,175,55,.16), rgba(212,175,55,.06));
   color: var(--mg-gold-bright);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  transition: background var(--mg-t), border-color var(--mg-t), transform var(--mg-t);
 }
 .mono-chip-btn:hover:not(:disabled) {
   background: linear-gradient(180deg, rgba(212,175,55,.28), rgba(212,175,55,.12));
   border-color: var(--mg-gold);
 }
+.mono-chip-btn:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 2px; }
 .mono-chip-btn.allin {
   border-color: rgba(255,122,138,.55);
   background: linear-gradient(180deg, rgba(255,122,138,.2), rgba(255,122,138,.07));
@@ -1910,7 +1917,7 @@
 }
 .mono-auction-custom input {
   background: rgba(0,0,0,.28); border: 1px solid var(--mg-line);
-  color: #fff; border-radius: 10px; font-weight: 700;
+  color: #fff; border-radius: var(--mg-r2); font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .mono-auction-custom input:focus {
@@ -1920,19 +1927,21 @@
 .mono-auction-wait { color: #c9c2b1; font-weight: 600; }
 
 /* ---------- JAIL / DEBT moments ---------- */
-.mono-jail-moment, .mono-debt { gap: 13px; }
+.mono-jail-moment, .mono-debt { gap: var(--mg-s3); }
 .mono-jail-tag {
+  font-family: var(--mg-font-text);
   background: linear-gradient(180deg, rgba(228,0,43,.24), rgba(228,0,43,.1));
-  color: #ff8a98; padding: 5px 14px; border-radius: 999px;
+  color: #ff8a98; padding: var(--mg-s1) var(--mg-s3); border-radius: var(--mg-pill);
   font-size: 12.5px; font-weight: 800; letter-spacing: .3px;
   border: 1px solid rgba(228,0,43,.35);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
 .mono-owe {
+  font-family: var(--mg-font-text);
   color: #ff8a98; font-size: 14px; font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.mono-jail-actions, .mono-debt-btns { gap: 9px; }
+.mono-jail-actions, .mono-debt-btns { gap: var(--mg-s2); }
 /* primary jail/debt actions get the gold treatment; rest stay glassy */
 .mono-jail-actions .btn-gold, .mono-debt-btns .btn-gold {
   box-shadow:
@@ -1948,16 +1957,17 @@
 }
 
 /* ---------- TRADE review (in-moment) ---------- */
-.mono-trade-review { gap: 8px; }
+.mono-trade-review { gap: var(--mg-s2); }
 .mono-trade-line {
+  font-family: var(--mg-font-text);
   font-size: 13px; color: #d2cab7; width: 100%; max-width: 300px;
-  padding: 8px 12px; border-radius: 11px;
+  padding: var(--mg-s2) var(--mg-s3); border-radius: var(--mg-r2);
   background: linear-gradient(180deg, rgba(0,0,0,.28), rgba(0,0,0,.12));
   border: 1px solid var(--mg-line);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
 }
-.mono-trade-line b { color: #f3e9cf; font-family: "Cairo", sans-serif; }
-.mono-trade-btns { gap: 9px; }
+.mono-trade-line b { color: #f3e9cf; font-family: var(--mg-font-display); }
+.mono-trade-btns { gap: var(--mg-s2); }
 .mono-trade-btns .btn-gold {
   box-shadow: 0 12px 26px -10px rgba(212,175,55,.72), inset 0 1px 0 rgba(255,255,255,.5);
 }
@@ -1971,38 +1981,40 @@
   background:
     radial-gradient(130% 80% at 50% 0%, rgba(212,175,55,.06), rgba(212,175,55,0) 44%),
     linear-gradient(180deg, #1b2920 0%, #131e17 60%, #0c1410 100%);
-  border: 1px solid rgba(212,175,55,.4);
-  border-radius: 20px; padding: 22px;
+  border: 1px solid var(--mg-gold-edge-2);
+  border-radius: var(--mg-r4); padding: var(--mg-s5);
   box-shadow:
-    0 36px 84px -26px rgba(0,0,0,.92),
-    inset 0 1px 0 rgba(255,255,255,.06),
+    var(--mg-el-overlay),
+    var(--mg-edge),
     inset 0 0 50px -20px rgba(212,175,55,.16);
 }
-.mono-modal-head { border-bottom: 1px solid var(--mg-line); padding-bottom: 12px; margin-bottom: 14px; }
+.mono-modal-head { border-bottom: 1px solid var(--mg-line); padding-bottom: var(--mg-s3); margin-bottom: var(--mg-s4); }
 .mono-modal-head h3 {
-  font-family: "Cairo", sans-serif; font-weight: 800;
+  font-family: var(--mg-font-display); font-weight: 800;
   letter-spacing: .3px; color: #f4ecd6;
 }
 .mono-modal-head h3 svg { color: var(--mg-gold-bright); }
 
 /* ---------- TRADE two-column give / want ---------- */
-.mono-trade-cols { gap: 14px; margin: 12px 0; }
+.mono-trade-cols { gap: var(--mg-s3); margin: var(--mg-s3) 0; }
 .mono-trade-cols > div {
-  padding: 11px; border-radius: 14px;
+  padding: var(--mg-s3); border-radius: var(--mg-r2);
   background: linear-gradient(180deg, rgba(0,0,0,.26), rgba(0,0,0,.1));
   border: 1px solid var(--mg-line);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
 }
-.mono-trade-cols .glabel { color: var(--mg-gold-2); margin-bottom: 8px; }
+.mono-trade-cols .glabel { color: var(--mg-gold-2); margin-bottom: var(--mg-s2); }
 /* selectable tiles — tactile chips; 'on' lights gold to match the deal frame */
 .mono-trade-tile {
-  font-size: 12px; padding: 7px 10px; border-radius: 10px;
+  font-family: var(--mg-font-text);
+  font-size: 12px; padding: var(--mg-s2) var(--mg-s3); border-radius: var(--mg-r2);
   border: 1px solid var(--mg-line);
   background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
   color: #c9c2b1; text-align: start;
-  transition: border-color .12s, background .12s, color .12s;
+  transition: border-color var(--mg-t), background var(--mg-t), color var(--mg-t);
 }
 .mono-trade-tile:hover { border-color: rgba(212,175,55,.34); color: #e6ddc7; }
+.mono-trade-tile:focus-visible { outline: 2px solid var(--mg-gold); outline-offset: 2px; }
 .mono-trade-tile.on {
   border-color: rgba(212,175,55,.6); color: #1a1206; font-weight: 800;
   background: linear-gradient(165deg, var(--mg-gold-bright), var(--mg-gold));
@@ -2010,7 +2022,7 @@
 }
 .mono-select {
   background: rgba(0,0,0,.28); border: 1px solid var(--mg-line);
-  color: #fff; border-radius: 10px; font-weight: 600;
+  color: #fff; border-radius: var(--mg-r2); font-weight: 600;
 }
 .mono-select:focus {
   outline: none; border-color: rgba(212,175,55,.55);
@@ -2022,10 +2034,10 @@
    gold). The manage list reuses that one premium treatment; no felt-green override here. */
 .mono-deed-pop-meta { color: #c9c2b1; }
 .mono-deed-pop-meta b { color: #f3e9cf; }
-.mono-manage-list { gap: 7px; }
+.mono-manage-list { gap: var(--mg-s2); }
 /* dense rows — keep them flat (no per-row blur) for scroll perf */
 .mono-manage-row {
-  padding: 8px 10px; border-radius: 11px;
+  padding: var(--mg-s2) var(--mg-s3); border-radius: var(--mg-r2);
   background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
   border: 1px solid var(--mg-line);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
@@ -2034,7 +2046,7 @@
   width: 5px; border-radius: 3px;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), 0 0 6px -1px currentColor;
 }
-.mono-manage-name { color: #e2dac6; font-weight: 600; }
+.mono-manage-name { font-family: var(--mg-font-text); color: #e2dac6; font-weight: 600; }
 
 /* ---------- continuous animation: bidding-war pulse on the live high bid ---------- */
 @media (prefers-reduced-motion: no-preference) {
