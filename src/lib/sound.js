@@ -158,6 +158,26 @@ const SFX = {
   chessPromote: () => { [784, 1047, 1319].forEach((f, i) => tone({ freq: f, t0: i * 0.07, type: 'triangle', dur: 0.12, gain: 0.1 })) },
   // short resolved cadence (neutral — the result banner says who won)
   chessGameOver: () => { [523, 659, 784].forEach((f, i) => tone({ freq: f, t0: i * 0.12, type: 'triangle', dur: 0.26, gain: 0.15 })) },
+
+  // ---- المندس (Al-Mundass): night-in-the-hara flavored. ----
+  // the kill: a heavy dark impact — low noise body + a saw plunge (no gore, all dread)
+  munKill: () => { noise({ dur: 0.09, gain: 0.3, type: 'lowpass', freq: 260, q: 0.9 }); tone({ freq: 300, glideTo: 70, type: 'sawtooth', dur: 0.38, gain: 0.2 }); tone({ freq: 72, type: 'sine', dur: 0.3, gain: 0.12 }) },
+  // body reported: two urgent alarm blasts
+  munBody: () => { [880, 880].forEach((f, i) => tone({ freq: f, t0: i * 0.16, type: 'square', dur: 0.12, gain: 0.14 })); tone({ freq: 660, t0: 0.32, type: 'square', dur: 0.2, gain: 0.12 }) },
+  // دقّ المهباش — three accelerating wooden pestle knocks that gather the hara
+  munMihbash: () => { [0, 0.18, 0.32].forEach((t0, i) => { noise({ t0, dur: 0.06, gain: 0.28, type: 'lowpass', freq: 500 - i * 60, q: 1 }); tone({ freq: 220 - i * 25, t0, type: 'sine', dur: 0.09, gain: 0.12 }) }) },
+  // votes locked → tally reveal pip
+  munVote: () => { tone({ freq: 620, type: 'sine', dur: 0.06, gain: 0.09 }); tone({ freq: 470, t0: 0.06, type: 'sine', dur: 0.09, gain: 0.08 }) },
+  // ejection: a long falling whoosh out of the hara
+  munEject: () => { tone({ freq: 700, glideTo: 120, type: 'triangle', dur: 0.55, gain: 0.16 }); noise({ t0: 0.05, dur: 0.4, gain: 0.08, type: 'bandpass', freq: 900, q: 0.7 }) },
+  // a chore finished — warm little payoff
+  munTask: () => { tone({ freq: 740, type: 'triangle', dur: 0.1, gain: 0.12 }); tone({ freq: 1108, t0: 0.09, type: 'triangle', dur: 0.16, gain: 0.12 }) },
+  // قطع الكهرباء — alternating klaxon, twice
+  munSabotage: () => { [0, 0.22].forEach((t0) => { tone({ freq: 520, t0, type: 'sawtooth', dur: 0.11, gain: 0.13 }); tone({ freq: 370, t0: t0 + 0.11, type: 'sawtooth', dur: 0.11, gain: 0.13 }) }) },
+  // power restored — rising relief
+  munFixed: () => { tone({ freq: 392, type: 'sine', dur: 0.1, gain: 0.11 }); tone({ freq: 523, t0: 0.09, type: 'sine', dur: 0.1, gain: 0.11 }); tone({ freq: 784, t0: 0.18, type: 'sine', dur: 0.16, gain: 0.11 }) },
+  // defeat: a slow minor descent (win reuses the shared `win` cadence)
+  munLose: () => { [440, 392, 311, 262].forEach((f, i) => tone({ freq: f, t0: i * 0.16, type: 'triangle', dur: 0.3, gain: 0.14 })) },
 }
 
 function play(name) {

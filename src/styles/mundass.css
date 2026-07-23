@@ -157,3 +157,38 @@
   .mun-tasklist { display: none; }
   .mun-taskbar { max-width: none; }
 }
+
+/* ---- polish pass: portraits, room chip, death card, meeting flourishes ---- */
+.mun-portrait { display: block; flex-shrink: 0; image-rendering: auto; }
+.mun-roomchip { background: rgba(20,24,30,.85); border: 1px solid rgba(255,217,122,.35); color: #ffe9a8; font-weight: 800; font-size: 13px; padding: 7px 14px; border-radius: 10px; white-space: nowrap; }
+.mun-taskbar-count { float: inline-end; color: #dfe5ee; letter-spacing: 0; }
+.mun-cd.sm { font-size: 15px; }
+
+.mun-diedcard { position: absolute; top: 38%; left: 50%; transform: translate(-50%,-50%); z-index: 9; text-align: center; background: rgba(40,8,8,.94); border: 2px solid #e23c3c; border-radius: 18px; padding: 22px 44px; animation: munRoleIn .4s ease; max-width: 92vw; }
+.mun-diedcard-skull { font-size: 44px; line-height: 1; margin-bottom: 6px; }
+.mun-diedcard-title { font-size: 26px; font-weight: 900; color: #ff9a9a; }
+.mun-diedcard-sub { margin-top: 6px; font-size: 13px; color: #d8b8b8; }
+
+.mun-meet { animation: munMeetIn .35s ease; }
+@keyframes munMeetIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+.mun-meet-card { animation: munMeetIn .35s ease backwards; }
+.mun-meet-card:nth-child(2) { animation-delay: .04s; }
+.mun-meet-card:nth-child(3) { animation-delay: .08s; }
+.mun-meet-card:nth-child(4) { animation-delay: .12s; }
+.mun-meet-card:nth-child(5) { animation-delay: .16s; }
+.mun-meet-card:nth-child(6) { animation-delay: .2s; }
+.mun-meet-card:nth-child(n+7) { animation-delay: .24s; }
+
+.mun-meet-ejectstage { display: flex; justify-content: center; margin-bottom: 8px; }
+.mun-eject-bean { animation: munEjectSpin 2.2s ease-out; }
+@keyframes munEjectSpin { from { transform: translateY(-30px) rotate(0); opacity: 0; } 30% { opacity: 1; } to { transform: translateY(6px) rotate(720deg); opacity: 1; } }
+.mun-meet-ejectstage.was .mun-eject-bean { filter: drop-shadow(0 0 14px rgba(255,80,80,.7)); }
+
+.mun-meet-tally-track { flex: 1; height: 14px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.mun-meet-tally-track i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg,#c8a24a,#ffd97a); transition: width .7s cubic-bezier(.2,.8,.2,1); }
+
+.mun-end-row.was-mundass { border: 1px solid rgba(226,60,60,.45); background: rgba(180,40,40,.1); }
+
+@media (max-width: 640px) {
+  .mun-roomchip { display: none; }
+}

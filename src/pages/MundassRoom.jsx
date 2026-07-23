@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Copy, Check, Play, LogOut, Crown, Ghost, RotateCcw, Zap, Skull, Siren } from 'lucide-react'
+import { Copy, Check, Play, LogOut, Crown, Ghost, RotateCcw, Zap, Skull, Siren, Volume2, VolumeX } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
+import { sound } from '../lib/sound.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { useMundassRoom } from '../hooks/useMundassRoom.js'
@@ -11,7 +12,8 @@ import Confetti from '../components/Confetti.jsx'
 import MundassCanvas from '../games/mundass/MundassCanvas.jsx'
 import MeetingOverlay from '../games/mundass/MeetingOverlay.jsx'
 import TaskModal from '../games/mundass/minigames.jsx'
-import { COLORS, MANHOLES } from '../games/mundass/map.js'
+import BeanPortrait from '../games/mundass/BeanPortrait.jsx'
+import { MANHOLES } from '../games/mundass/map.js'
 
 // المندس room: lobby → the hara (canvas + HUD) → meetings → end reveal.
 // All authority is server-side (mundass-action); this page renders state and
@@ -49,12 +51,25 @@ export default function MundassRoom() {
   const [roleCard, setRoleCard] = useState(false)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [roomChip, setRoomChip] = useState(null) // the room I'm standing in
+  const [died, setDied] = useState(false) // "you were killed" card
+  const [muted, setMuted] = useState(sound.getMuted())
   const [, forceTick] = useState(0) // 1s HUD ticker (cooldown ring)
 
   const joinedRef = useRef(false)
   const closedToastRef = useRef(false)
   const roleShownRef = useRef(null)
   const prevPhaseRef = useRef(phase)
+  const prevAliveRef = useRef(true)
+  const prevSabotageRef = useRef(null)
+  const prevStageRef = useRef(null)
+  const endSoundRef = useRef(false)
+
+  // Audio: arm the one-time unlock gesture + mirror mute state for the toggle.
+  useEffect(() => {
+    sound.installUnlock()
+    return sound.subscribe(setMuted)
+  }, [])
 
   // ---- lifecycle: auto-join from a shared link, best-effort leave ----
   useEffect(() => {
@@ -104,8 +119,49 @@ export default function MundassRoom() {
     if (phase === 'meeting' && prev !== 'meeting') {
       setOpenTask(null)
       setChat([]) // each meeting gets a fresh council log
+      sound.play(state.meeting?.kind === 'body' ? 'munBody' : 'munMihbash')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, players, myId])
+
+  // ---- event sounds + "you were killed" card (state-transition driven, so
+  // every client hears its own view of the moment regardless of who acted) ----
+  useEffect(() => {
+    const wasAlive = prevAliveRef.current
+    prevAliveRef.current = !iAmGhost
+    if (wasAlive && iAmGhost && phase === 'playing') {
+      // killed in the dark (ejections announce themselves in the reveal)
+      sound.play('munKill')
+      setDied(true)
+      const to = setTimeout(() => setDied(false), 2600)
+      return () => clearTimeout(to)
+    }
+  }, [iAmGhost, phase])
+
+  useEffect(() => {
+    const prev = prevSabotageRef.current
+    prevSabotageRef.current = state.sabotage
+    if (phase !== 'playing' && phase !== 'meeting') return
+    if (!prev && state.sabotage === 'power') sound.play('munSabotage')
+    if (prev === 'power' && !state.sabotage && phase === 'playing') sound.play('munFixed')
+  }, [state.sabotage, phase])
+
+  useEffect(() => {
+    const prev = prevStageRef.current
+    prevStageRef.current = state.meeting?.stage || null
+    if (state.meeting?.stage === 'reveal' && prev !== 'reveal') {
+      sound.play('munVote')
+      if (state.meeting?.result?.ejected) setTimeout(() => sound.play('munEject'), 350)
+    }
+  }, [state.meeting?.stage, state.meeting?.result])
+
+  useEffect(() => {
+    if (room?.status !== 'finished' || endSoundRef.current) return
+    endSoundRef.current = true
+    const winner = state.winner || room.winner
+    const iWon = winner && me?.role && (winner === 'mundass') === (me.role === 'mundass')
+    sound.play(iWon ? 'win' : 'munLose')
+  }, [room?.status, state.winner, room?.winner, me?.role])
 
   // ---- meeting chat over the ephemeral bus ----
   useEffect(() => {
@@ -141,15 +197,22 @@ export default function MundassRoom() {
 
   const useNearest = useCallback(() => {
     if (!nearest) return
-    if (nearest.kind === 'task') setOpenTask(nearest.taskId)
-    else if (nearest.kind === 'breaker') setOpenTask('fix')
-    else if (nearest.kind === 'report') act('report', { victim: nearest.victim })
-    else if (nearest.kind === 'mihbash') act('emergency')
+    if (nearest.kind === 'task') { sound.play('select'); setOpenTask(nearest.taskId) }
+    else if (nearest.kind === 'breaker') { sound.play('select'); setOpenTask('fix') }
+    else if (nearest.kind === 'report') { sound.play('munBody'); act('report', { victim: nearest.victim }) }
+    else if (nearest.kind === 'mihbash') { act('emergency') }
     else if (nearest.kind === 'manhole') {
+      sound.play('select')
       const next = MANHOLES[(nearest.index + 1) % MANHOLES.length]
       canvasRef.current?.teleport(next.x, next.y + 60)
     }
   }, [nearest, act])
+
+  const doKill = useCallback(() => {
+    if (!killTarget) return
+    sound.play('munKill')
+    act('kill', { victim: killTarget.victim, x: Math.round(killTarget.x), y: Math.round(killTarget.y) })
+  }, [killTarget, act])
 
   // Keyboard: E / Space = use, Q = kill (mundass).
   useEffect(() => {
@@ -157,18 +220,19 @@ export default function MundassRoom() {
       if (phase !== 'playing' || openTask) return
       const k = e.key.toLowerCase()
       if (k === 'e' || k === ' ') useNearest()
-      if (k === 'q' && isMundass && killTarget) {
-        act('kill', { victim: killTarget.victim, x: Math.round(killTarget.x), y: Math.round(killTarget.y) })
-      }
+      if (k === 'q' && isMundass && killTarget) doKill()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [phase, openTask, useNearest, isMundass, killTarget, act])
+  }, [phase, openTask, useNearest, isMundass, killTarget, doKill])
 
   const taskDone = useCallback((taskId) => {
     setOpenTask(null)
     if (taskId === 'fix') act('fix_sabotage')
-    else act('task_done', { taskId })
+    else {
+      sound.play('munTask')
+      act('task_done', { taskId })
+    }
   }, [act])
 
   const copyInvite = async () => {
@@ -241,7 +305,7 @@ export default function MundassRoom() {
               <div className="mun-lobby-players">
                 {players.map((p) => (
                   <div key={p.profile_id} className={`mun-lobby-player ${p.is_present ? '' : 'away'}`}>
-                    <span className="mun-meet-chip" style={{ background: COLORS[(p.color || 0) % COLORS.length] }} />
+                    <BeanPortrait colorIndex={p.color} size={40} />
                     <Avatar profile={p.profile} size="sm" />
                     <span className="mun-lobby-name">
                       {p.profile?.global_name || p.profile?.username}
@@ -287,12 +351,12 @@ export default function MundassRoom() {
               </div>
               <div className="mun-end-list">
                 {players.map((p) => (
-                  <div key={p.profile_id} className="mun-end-row">
-                    <span className="mun-meet-chip" style={{ background: COLORS[(p.color || 0) % COLORS.length] }} />
+                  <div key={p.profile_id} className={`mun-end-row ${reveal[p.profile_id] === 'mundass' ? 'was-mundass' : ''}`}>
+                    <BeanPortrait colorIndex={p.color} size={40} />
                     <Avatar profile={p.profile} size="sm" />
                     <span className="mun-lobby-name">{p.profile?.global_name || p.profile?.username}</span>
                     <span className={`mun-end-role ${reveal[p.profile_id] === 'mundass' ? 'mundass' : ''}`}>
-                      {reveal[p.profile_id] === 'mundass' ? t('mundass.roleMundass') : t('mundass.roleCrew')}
+                      {reveal[p.profile_id] === 'mundass' ? `🕵️ ${t('mundass.roleMundass')}` : t('mundass.roleCrew')}
                     </span>
                   </div>
                 ))}
@@ -316,6 +380,12 @@ export default function MundassRoom() {
   const killCdLeft = isMundass && me?.killCooldownUntil
     ? Math.max(0, Math.ceil((me.killCooldownUntil - serverNow()) / 1000))
     : 0
+  const killCdFrac = isMundass && room.kill_cooldown_seconds
+    ? Math.min(1, killCdLeft / room.kill_cooldown_seconds)
+    : 0
+  const sabCdLeft = isMundass && state.sabotageCdUntil
+    ? Math.max(0, Math.ceil((state.sabotageCdUntil - serverNow()) / 1000))
+    : 0
   const frozen = phase === 'meeting' || !!openTask || roleCard
   const useLabel = !nearest ? '' : nearest.kind === 'task' ? t('mundass.doTask')
     : nearest.kind === 'report' ? t('mundass.report')
@@ -336,14 +406,25 @@ export default function MundassRoom() {
         onMessage={onMessage}
         onNearest={setNearest}
         onKillTarget={setKillTarget}
+        onRoom={setRoomChip}
         lang={lang}
       />
 
       {/* top HUD: task bar + status */}
       <div className="mun-hud-top">
         <button className="mun-hud-quit" onClick={leave} title={t('mundass.leave')}><LogOut size={15} /></button>
+        <button
+          className="mun-hud-quit"
+          onClick={() => sound.toggleMute()}
+          title={muted ? 'unmute' : 'mute'}
+        >
+          {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+        </button>
         <div className="mun-taskbar">
-          <div className="mun-taskbar-label">{t('mundass.taskBar')}</div>
+          <div className="mun-taskbar-label">
+            {t('mundass.taskBar')}
+            <span className="mun-taskbar-count">{state.tasksDone || 0}/{state.tasksTotal || 0}</span>
+          </div>
           <div className="mun-taskbar-track">
             <div
               className="mun-taskbar-fill"
@@ -351,6 +432,9 @@ export default function MundassRoom() {
             />
           </div>
         </div>
+        {roomChip && (
+          <span className="mun-roomchip">{lang === 'ar' ? roomChip.ar : roomChip.en}</span>
+        )}
         {connState !== 'live' && <span className="mun-conn">{t('mundass.reconnecting')}</span>}
       </div>
 
@@ -381,18 +465,19 @@ export default function MundassRoom() {
           <>
             <button
               className="mun-act mun-act-sabotage"
-              disabled={!!state.sabotage}
+              disabled={!!state.sabotage || sabCdLeft > 0}
               onClick={() => act('sabotage')}
               title={t('mundass.sabotage')}
             >
-              <Zap size={22} />
+              {sabCdLeft > 0 && !state.sabotage ? <span className="mun-cd sm">{sabCdLeft}</span> : <Zap size={22} />}
             </button>
             <button
               className={`mun-act mun-act-kill ${killTarget && !killCdLeft ? 'ready' : ''}`}
               disabled={!killTarget || killCdLeft > 0}
-              onClick={() => killTarget && act('kill', {
-                victim: killTarget.victim, x: Math.round(killTarget.x), y: Math.round(killTarget.y),
-              })}
+              onClick={doKill}
+              style={killCdLeft > 0 ? {
+                background: `conic-gradient(rgba(255,120,120,.28) ${Math.round(killCdFrac * 360)}deg, rgba(120,30,30,.92) 0deg)`,
+              } : undefined}
             >
               {killCdLeft > 0 ? <span className="mun-cd">{killCdLeft}</span> : <Skull size={24} />}
             </button>
@@ -404,6 +489,15 @@ export default function MundassRoom() {
           </button>
         )}
       </div>
+
+      {/* "you were killed" card */}
+      {died && (
+        <div className="mun-diedcard">
+          <div className="mun-diedcard-skull">☠</div>
+          <div className="mun-diedcard-title">{t('mundass.youWereKilled')}</div>
+          <div className="mun-diedcard-sub">{t('mundass.ghostHint')}</div>
+        </div>
+      )}
 
       {/* role card */}
       {roleCard && me?.role && (
@@ -438,7 +532,7 @@ export default function MundassRoom() {
           myId={myId}
           iAmGhost={iAmGhost}
           serverNow={serverNow}
-          onVote={(target) => act('vote', { target })}
+          onVote={(target) => { sound.play('select'); act('vote', { target }) }}
           chat={chat}
           onSendChat={sendChat}
           t={t}

@@ -372,6 +372,7 @@ Deno.test('ghosts finishing their tasks still count — and can win the game', (
 
 Deno.test('only the mundass can cut the power; anyone can fix it', () => {
   const g = new G(4)
+  g.advance(21_000) // past the start-of-game sabotage grace
   assertEquals(g.act(g.crew()[0], { type: 'sabotage' }).error, 'not_mundass')
   assert(g.act(g.mundass(), { type: 'sabotage' }).ok)
   assertEquals(g.state.sabotage, 'power')
@@ -380,6 +381,40 @@ Deno.test('only the mundass can cut the power; anyone can fix it', () => {
   assertEquals(g.act(g.crew()[0], { type: 'emergency' }).error, 'fix_sabotage_first')
   assert(g.act(g.crew()[1], { type: 'fix_sabotage' }).ok)
   assertEquals(g.state.sabotage, null)
+})
+
+Deno.test('sabotage has a start grace and a cooldown after every fix', () => {
+  const g = new G(4)
+  // blocked during the opening grace
+  assertEquals(g.act(g.mundass(), { type: 'sabotage' }).error, 'sabotage_cooldown')
+  g.advance(21_000)
+  assert(g.act(g.mundass(), { type: 'sabotage' }).ok)
+  g.act(g.crew()[0], { type: 'fix_sabotage' })
+  // immediately re-cutting is blocked, then allowed after the cooldown
+  assertEquals(g.act(g.mundass(), { type: 'sabotage' }).error, 'sabotage_cooldown')
+  g.advance(46_000)
+  assert(g.act(g.mundass(), { type: 'sabotage' }).ok)
+})
+
+Deno.test('meetings reset the mundass kill cooldown and re-arm sabotage', () => {
+  const g = new G(5)
+  g.ready() // kill is ready...
+  g.act(g.crew()[0], { type: 'emergency' })
+  g.advance(g.settings.discussionSecs * 1000 + 1)
+  g.act(g.crew()[0], { type: 'tick' })
+  for (const id of g.ids) {
+    if (g.state.meeting?.stage !== 'voting') break
+    g.act(id, { type: 'vote', target: 'skip' })
+  }
+  g.advance(7000)
+  g.act(g.crew()[0], { type: 'tick' })
+  assertEquals(g.state.phase, 'playing')
+  // ...but the meeting reset it: no kill at the respawn cluster
+  assertEquals(g.kill(g.crew()[0]).error, 'kill_cooldown')
+  // and the blackout can't drop the instant the hara disperses either
+  assertEquals(g.act(g.mundass(), { type: 'sabotage' }).error, 'sabotage_cooldown')
+  g.ready()
+  assert(g.kill(g.crew()[0]).ok)
 })
 
 // ---------- leave ----------

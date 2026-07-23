@@ -82,12 +82,19 @@ export interface PublicState {
   tasksDone: number
   tasksTotal: number
   sabotage: 'power' | null
+  // Team sabotage cooldown (epoch ms): armed at start, after a fix, and after
+  // every meeting, so the power can't be strobed. Public — reveals nothing
+  // about WHO the mundass is, only when the next cut could come.
+  sabotageCdUntil: number
   meeting: Meeting | null
   winner: 'crew' | 'mundass' | null
   // Filled only when phase === 'ended': the classic full-cast reveal.
   reveal: Record<string, Role> | null
   startedAt: number | null
 }
+
+export const SABOTAGE_COOLDOWN_MS = 45_000
+export const SABOTAGE_START_GRACE_MS = 20_000
 
 export interface Ctx {
   state: PublicState
@@ -125,6 +132,7 @@ export function initialState(): PublicState {
     tasksDone: 0,
     tasksTotal: 0,
     sabotage: null,
+    sabotageCdUntil: 0,
     meeting: null,
     winner: null,
     reveal: null,
@@ -180,6 +188,7 @@ export function startGame(
     phase: 'playing',
     alive: Object.fromEntries(players.map((p) => [p, true])),
     tasksTotal: crewCount * Math.min(settings.tasksPerPlayer, TASK_IDS.length),
+    sabotageCdUntil: now + SABOTAGE_START_GRACE_MS,
     startedAt: now,
   }
   return { state, secrets }
@@ -273,9 +282,18 @@ function closeVoting(ctx: Ctx): void {
 }
 
 function endMeeting(ctx: Ctx): void {
-  const { state } = ctx
+  const { state, secrets, settings, now } = ctx
   state.meeting = null
   state.phase = 'playing'
+  // Everyone respawns clustered at the mihbash — without a fresh cooldown the
+  // mundass could knife someone the instant the meeting closed. Same for an
+  // immediate blackout. Classic Among Us pacing: reset both at meeting end.
+  for (const uid of Object.keys(secrets)) {
+    if (secrets[uid].role === 'mundass') {
+      secrets[uid].killCooldownUntil = now + settings.killCooldownSecs * 1000
+    }
+  }
+  state.sabotageCdUntil = now + SABOTAGE_COOLDOWN_MS
   checkWin(ctx)
 }
 
@@ -399,6 +417,7 @@ export function applyAction(ctx: Ctx, caller: string, action: Action): EngineRes
       if (!me || me.role !== 'mundass') return fail('not_mundass')
       if (!state.alive[caller]) return fail('you_are_dead')
       if (state.sabotage) return fail('already_sabotaged')
+      if (now < (state.sabotageCdUntil || 0)) return fail('sabotage_cooldown')
       state.sabotage = 'power'
       return okr()
     }
@@ -408,6 +427,7 @@ export function applyAction(ctx: Ctx, caller: string, action: Action): EngineRes
       if (!me || !state.alive[caller]) return fail('you_are_dead')
       if (!state.sabotage) return okr(false)
       state.sabotage = null
+      state.sabotageCdUntil = now + SABOTAGE_COOLDOWN_MS
       return okr()
     }
 
