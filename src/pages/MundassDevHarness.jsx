@@ -171,7 +171,7 @@ export default function MundassDevHarness() {
           ['meet: reveal', () => startMeeting('reveal')],
           ['meet: off', () => setMeeting(null)],
           ['bots: ' + (botsOn ? 'on' : 'off'), () => setBotsOn(!botsOn)],
-          ...TASK_IDS_CLIENT.map((id) => [id, () => setOpenTask(id)]),
+          ...[...TASK_IDS_CLIENT, 'fix'].map((id) => [id, () => setOpenTask(id)]),
         ].map(([label, fn]) => (
           <button key={label} className="btn btn-line btn-sm" onClick={fn}>{label}</button>
         ))}

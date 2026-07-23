@@ -196,3 +196,126 @@
 /* ---- 16-player lobbies: denser meeting grid ---- */
 .mun-meet { width: min(96vw, 780px); }
 .mun-meet-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
+
+/* ---- meaningful minigames (mun-g-*) ---- */
+.mun-g-flavor { font-size: 12.5px; font-style: italic; color: #8f99a8; margin: -6px 0 10px; }
+.mun-g-successflash { position: absolute; inset: 0; background: rgba(10,30,18,.88); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; animation: munRoleIn .25s ease; z-index: 3; }
+.mun-g-successflash span { font-size: 54px; color: #5dff8a; font-weight: 900; line-height: 1; }
+.mun-g-successflash b { color: #d9ffe6; font-size: 18px; }
+.mun-modal { position: relative; }
+.mun-g-hint { text-align: center; font-size: 13px; font-weight: 700; color: #cfd6e0; margin-bottom: 8px; }
+.mun-g-oops { color: #ff8f8f; font-weight: 800; font-size: 13px; }
+.mun-g-svg { display: block; width: 100%; touch-action: none; user-select: none; }
+.mun-g-field { position: relative; height: 260px; background: #202730; border-radius: 12px; overflow: hidden; touch-action: none; user-select: none; }
+.mun-g-field .mun-g-hint { position: absolute; top: 6px; left: 0; right: 0; z-index: 2; }
+.mun-g-field.tree { background: radial-gradient(circle at 50% 30%, #2c3a28 0 40%, #202730 75%); }
+.mun-g-dragghost { position: absolute; transform: translate(-50%,-50%); font-size: 34px; pointer-events: none; z-index: 4; filter: drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+.mun-g-tray { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.mun-g-tray.low { bottom: 6px; }
+.mun-g-ing { display: flex; align-items: center; gap: 5px; background: #262d38; border: 2px solid rgba(255,255,255,.16); border-radius: 10px; padding: 7px 11px; color: #e8edf4; font-weight: 700; font-size: 12.5px; cursor: grab; touch-action: none; }
+.mun-g-ing span { font-size: 22px; }
+
+/* tea */
+.mun-g-pot { position: absolute; top: 44%; left: 50%; transform: translate(-50%,-50%); font-size: 72px; }
+.mun-g-pot.boiling { animation: munJitter .5s linear infinite; }
+.mun-g-pot.boiling.hard { animation-duration: .18s; }
+@keyframes munJitter { 0%,100% { transform: translate(-50%,-50%) rotate(0); } 25% { transform: translate(-51%,-50%) rotate(-2deg); } 75% { transform: translate(-49%,-50%) rotate(2deg); } }
+.mun-g-potcount { position: absolute; top: 62%; left: 50%; transform: translateX(-50%); color: #ffd97a; font-weight: 900; }
+.mun-g-flame { position: absolute; top: 60%; left: 50%; transform: translateX(-50%); font-size: 30px; }
+.mun-g-boilmeter { position: absolute; top: 40px; bottom: 16px; right: 14px; width: 20px; background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden; }
+.mun-g-boilfill { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(180deg,#e2b53c,#c22a2a); }
+.mun-g-boilband { position: absolute; left: 0; right: 0; bottom: 84%; height: 16%; background: rgba(67,181,129,.4); border-block: 2px solid #43b581; z-index: 2; }
+.mun-g-bigbtn { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: #38414d; color: #eef2f8; border: 2px solid rgba(255,255,255,.2); border-radius: 12px; font-weight: 900; font-size: 15px; padding: 12px 22px; cursor: pointer; }
+.mun-g-bigbtn.go { background: #2d7d46; border-color: #6fe09a; box-shadow: 0 0 16px rgba(67,181,129,.5); }
+
+/* satellite */
+.mun-g-tv { position: relative; width: 200px; height: 120px; background: #10151c; border: 3px solid #3a4048; border-radius: 10px; overflow: hidden; }
+.mun-g-static { position: absolute; inset: 0; background: repeating-conic-gradient(#3c434d 0% .0001%, #12161c .0002% .0004%); background-size: 7px 7px; animation: munStatic .18s steps(3) infinite; }
+@keyframes munStatic { to { background-position: 7px 7px; } }
+.mun-g-show { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+.mun-g-lockbar { position: absolute; bottom: 0; left: 0; height: 6px; background: #43b581; transition: width .1s linear; }
+.mun-g-lockbar.on { box-shadow: 0 0 8px #43b581; }
+.mun-g-signalrow { display: flex; align-items: flex-end; gap: 4px; height: 26px; }
+.mun-g-signalrow i { width: 10px; background: rgba(255,255,255,.14); border-radius: 3px 3px 0 0; }
+.mun-g-signalrow i:nth-child(1){height:6px} .mun-g-signalrow i:nth-child(2){height:9px}
+.mun-g-signalrow i:nth-child(3){height:12px} .mun-g-signalrow i:nth-child(4){height:15px}
+.mun-g-signalrow i:nth-child(5){height:18px} .mun-g-signalrow i:nth-child(6){height:21px}
+.mun-g-signalrow i:nth-child(7){height:24px} .mun-g-signalrow i:nth-child(8){height:26px}
+.mun-g-signalrow i.on { background: #43b581; }
+.mun-g-signaltxt { color: #79c98f; font-weight: 800; font-size: 13px; margin-inline-start: 6px; }
+.mun-g-sliderlab { width: 92%; display: flex; align-items: center; gap: 10px; color: #cfd6e0; font-weight: 700; font-size: 13.5px; }
+.mun-g-sliderlab input { flex: 1; }
+
+/* laundry */
+.mun-g-line-sway { position: absolute; top: 34px; left: 0; right: 0; height: 70px; animation: munSway 3.4s ease-in-out infinite; }
+@keyframes munSway { 0%,100% { transform: translateX(-9px); } 50% { transform: translateX(9px); } }
+.mun-g-line { position: absolute; top: 12px; left: 4%; right: 4%; height: 3px; background: rgba(220,220,220,.5); border-radius: 2px; }
+.mun-g-pin { position: absolute; top: 2px; transform: translateX(-50%); text-align: center; }
+.mun-g-pin i { font-size: 15px; font-style: normal; opacity: .8; }
+.mun-g-pin.used i { opacity: .35; }
+.mun-g-hungitem { display: block; font-size: 30px; animation: munHang 2.2s ease-in-out infinite; transform-origin: top center; }
+@keyframes munHang { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+.mun-g-basket { position: absolute; bottom: 6px; inset-inline-start: 12px; font-size: 34px; }
+
+/* coffee rhythm */
+.mun-g-mihbash { position: relative; width: 128px; height: 128px; border-radius: 50%; background: #262d38; border: 3px solid rgba(255,255,255,.18); cursor: pointer; touch-action: none; user-select: none; }
+.mun-g-mihbash.hit { border-color: #43b581; }
+.mun-g-mihbash.miss { border-color: #e23c3c; animation: munShake .22s ease; }
+.mun-g-beatring { position: absolute; inset: 8px; border: 3px solid rgba(255,217,122,.8); border-radius: 50%; pointer-events: none; }
+.mun-g-pestle { font-size: 52px; transition: transform .08s ease; display: inline-block; }
+.mun-g-beans { display: flex; gap: 6px; font-size: 20px; }
+.mun-g-beans span { opacity: .45; }
+.mun-g-beans span.ground { opacity: 1; }
+
+/* plants */
+.mun-g-potsrow { position: absolute; bottom: 14px; left: 0; right: 0; display: flex; justify-content: space-evenly; align-items: flex-end; }
+.mun-g-plantpot { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.mun-g-plant { font-size: 34px; }
+.mun-g-plantmeter { width: 10px; height: 40px; background: rgba(255,255,255,.1); border-radius: 999px; overflow: hidden; display: flex; align-items: flex-end; }
+.mun-g-plantmeter i { display: block; width: 100%; background: #3d8fd1; border-radius: 999px; }
+.mun-g-can { position: absolute; transform: translate(-50%,-70%); font-size: 40px; pointer-events: none; top: 40%; left: 50%; opacity: .55; }
+.mun-g-can.pouring { opacity: 1; }
+.mun-g-drops { position: absolute; top: 26px; left: 4px; animation: munDrip .5s linear infinite; font-size: 16px; }
+@keyframes munDrip { from { transform: translateY(0); opacity: 1; } to { transform: translateY(26px); opacity: 0; } }
+
+/* olives */
+.mun-g-canopy { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); font-size: 84px; }
+.mun-g-olive { position: absolute; transform: translate(-50%,-50%); font-size: 22px; pointer-events: none; }
+.mun-g-catchbasket { position: absolute; bottom: 4px; transform: translateX(-50%); font-size: 42px; pointer-events: none; text-align: center; }
+.mun-g-count { display: block; font-size: 13px; font-weight: 900; color: #ffd97a; }
+
+/* shelf */
+.mun-g-shelf { display: flex; gap: 10px; background: #4e3b26; padding: 12px; border-radius: 10px; }
+
+/* gas */
+.mun-g-stove { position: absolute; top: 26px; left: 32%; transform: translateX(-50%); font-size: 40px; height: 46px; }
+.mun-g-valve { position: absolute; top: 78px; left: 32%; transform: translateX(-50%); text-align: center; cursor: grab; }
+.mun-g-valve.idle { opacity: .45; }
+.mun-g-valvewheel { font-size: 56px; line-height: 1; }
+.mun-g-valveprog { width: 90px; height: 8px; margin: 6px auto 0; background: rgba(255,255,255,.1); border-radius: 999px; overflow: hidden; }
+.mun-g-valveprog i { display: block; height: 100%; background: #ffd97a; }
+.mun-g-jarrah { position: absolute; bottom: 14px; font-size: 52px; transform: translateX(-50%); touch-action: none; cursor: grab; }
+.mun-g-jarrah.old { left: 32%; }
+.mun-g-jarrah.new { left: 86%; }
+.mun-g-jarrah.set { left: 32%; cursor: default; }
+
+/* water pressure */
+.mun-g-gauge { position: relative; width: 88%; height: 30px; background: #202730; border-radius: 10px; overflow: hidden; }
+.mun-g-gaugezone { position: absolute; top: 0; bottom: 0; left: 42%; width: 30%; background: rgba(67,181,129,.3); border-inline: 2px solid #43b581; }
+.mun-g-needle2 { position: absolute; top: 0; bottom: 0; width: 4px; background: #e2b53c; transform: translateX(-50%); transition: left .06s linear; }
+.mun-g-needle2.good { background: #5dff8a; }
+.mun-mg-jar-water.sputter { animation: munSputter .2s linear infinite; }
+@keyframes munSputter { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* breaker */
+.mun-g-breaker { display: flex; gap: 12px; background: #39404a; border: 3px solid rgba(0,0,0,.4); border-radius: 12px; padding: 14px 16px; }
+.mun-g-switchcol { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mun-g-led { width: 10px; height: 10px; border-radius: 50%; background: #442222; }
+.mun-g-led.on { background: #5dff8a; box-shadow: 0 0 8px #5dff8a; }
+.mun-g-switch { position: relative; width: 26px; height: 52px; border-radius: 8px; background: #20262e; border: 2px solid rgba(255,255,255,.15); cursor: pointer; }
+.mun-g-switch span { position: absolute; left: 3px; right: 3px; height: 20px; border-radius: 6px; background: #8f99a8; bottom: 3px; transition: top .12s ease, bottom .12s ease, background .12s ease; top: auto; }
+.mun-g-switch.on span { top: 3px; bottom: auto; background: #43b581; }
+.mun-g-powerbar { width: 78%; height: 10px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.mun-g-powerbar i { display: block; height: 100%; background: linear-gradient(90deg,#e2b53c,#5dff8a); transition: width .25s ease; }
+.mun-g-powerbar.full { box-shadow: 0 0 12px rgba(93,255,138,.5); }
+.mun-g-shake { animation: munShake .3s ease; }
