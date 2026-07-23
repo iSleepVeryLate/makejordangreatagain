@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
-import { COLORS } from './map.js'
+import BeanPortrait from './BeanPortrait.jsx'
 
 // اجتماع الحارة — the full-screen meeting: discussion (chat), voting, reveal.
 // Votes go through onVote → the Edge Function; WHO voted is public
@@ -73,6 +73,13 @@ export default function MeetingOverlay({
           <div className="mun-meet-reveal">
             {result.ejected ? (
               <>
+                <div className={`mun-meet-ejectstage ${result.wasMundass ? 'was' : 'not'}`}>
+                  <BeanPortrait
+                    colorIndex={players.find((p) => p.profile_id === result.ejected)?.color || 0}
+                    size={84}
+                    className="mun-eject-bean"
+                  />
+                </div>
                 <div className="mun-meet-ejected">
                   {t('mundass.ejected', { name: nameOf(result.ejected) })}
                 </div>
@@ -84,20 +91,22 @@ export default function MeetingOverlay({
               <div className="mun-meet-ejected">{t('mundass.noEjection')}</div>
             )}
             <div className="mun-meet-tally">
-              {Object.entries(result.tally || {})
-                .sort((a, b) => b[1] - a[1])
-                .map(([target, n]) => (
+              {(() => {
+                const entries = Object.entries(result.tally || {}).sort((a, b) => b[1] - a[1])
+                const max = Math.max(1, ...entries.map(([, n]) => n))
+                return entries.map(([target, n]) => (
                   <div key={target} className="mun-meet-tally-row">
                     <span>{target === 'skip' ? t('mundass.skip') : nameOf(target)}</span>
-                    <span className="mun-meet-tally-bar">
-                      {Array.from({ length: n }, (_, i) => <i key={i} />)}
+                    <span className="mun-meet-tally-track">
+                      <i style={{ width: `${(100 * n) / max}%` }} />
                     </span>
                     <b>{n}</b>
                   </div>
-                ))}
+                ))
+              })()}
               {result.abstained > 0 && (
                 <div className="mun-meet-tally-row dim">
-                  <span>{t('mundass.abstained')}</span><span /><b>{result.abstained}</b>
+                  <span>{t('mundass.abstained')}</span><span className="mun-meet-tally-track" /><b>{result.abstained}</b>
                 </div>
               )}
             </div>
@@ -110,7 +119,7 @@ export default function MeetingOverlay({
               const voted = m.voted?.includes(uid)
               return (
                 <div key={uid} className={`mun-meet-card ${isAlive ? '' : 'dead'}`}>
-                  <span className="mun-meet-chip" style={{ background: COLORS[(p.color || 0) % COLORS.length] }} />
+                  <BeanPortrait colorIndex={p.color} ghost={!isAlive} size={36} />
                   <Avatar profile={p.profile} size="sm" />
                   <span className="mun-meet-name">
                     {nameOf(uid)}

@@ -891,7 +891,9 @@ export const STRINGS = {
   'mundass.playAgain': { en: 'Play again', ar: 'العب مرة ثانية' },
 
   // rule rejections (Edge Function error codes)
+  'mundass.youWereKilled': { en: 'You were killed!', ar: 'انقتلت!' },
   'mundass.rej.kill_cooldown': { en: 'Kill cooldown is still running.', ar: 'لسا المهلة ما خلصت.' },
+  'mundass.rej.sabotage_cooldown': { en: 'The power can’t be cut again yet.', ar: 'ما بتقدر تقطع الكهرباء هلق.' },
   'mundass.rej.emergency_used': { en: 'You already used your mihbash call.', ar: 'استعملت دقة المهباش تبعتك.' },
   'mundass.rej.fix_sabotage_first': { en: 'Fix the power first!', ar: 'صلّحوا الكهرباء أولًا!' },
   'mundass.rej.not_enough_players': { en: 'Not enough players yet.', ar: 'العدد لسا مش كافي.' },
