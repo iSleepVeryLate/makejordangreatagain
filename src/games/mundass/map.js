@@ -1,63 +1,100 @@
-// المندس — the حارة (old Amman neighborhood) world map.
+// المندس — the حارة (old Amman neighborhood) world map, v2.
 // Pure data + geometry helpers; the canvas renders from this, the HUD reads
-// station proximity from it. World units are abstract pixels (~2000×1300).
-// Walkability is the UNION of rects (rooms + courtyard + alleys): a move is
-// legal if the feet-point stays inside any rect, which makes doorways free —
-// rooms and alleys simply overlap.
+// station proximity from it.
+//
+// v2 layout doctrine (the v1 single-square was too open — nowhere to ambush,
+// nowhere to be alone, every body found in seconds):
+//   * a RING STREET (السكة) circles the hara; the courtyard sits at the heart,
+//     linked to the ring by four narrow alleys — chokepoints you must cross.
+//   * every room hangs off a street through a single door stub → most rooms
+//     are DEAD ENDS. Walking into one is a commitment.
+//   * the far corners are dangerous by design: the roof (NE), the garden (far
+//     W), and the electrical room (far SE, OUTSIDE the ring) are long, lonely
+//     walks — and the breaker lives out there, so a power cut forces someone
+//     to make that walk in the dark.
+//   * two زواريب (dead-end cul-de-sacs) off the streets: classic lure spots.
+//   * four manholes (بالوعات) form the mundass's cross-map escape network.
+//
+// Walkability is the UNION of rects (rooms + streets + stubs): a move is legal
+// if the feet-point stays inside any rect. Door stubs overlap both their room
+// and their street by ~50px, which is also what visually punches the doorway
+// through the wall when the streets are painted over the wall strokes.
 
-export const WORLD = { w: 2000, h: 1300 }
+export const WORLD = { w: 3200, h: 2000 }
 
-// Rooms of the hara. `floor` tints the floor; labels are bilingual.
+// Rooms. `floor` tints the floor; labels are bilingual.
 export const ROOMS = [
-  { id: 'courtyard', en: 'Courtyard', ar: 'ساحة الحارة', x: 700, y: 450, w: 600, h: 400, floor: '#c9b18a' },
-  { id: 'diwan', en: 'Diwan', ar: 'الديوان', x: 80, y: 80, w: 420, h: 300, floor: '#b48a63' },
-  { id: 'kitchen', en: 'Kitchen', ar: 'المطبخ', x: 640, y: 80, w: 340, h: 280, floor: '#9aa06b' },
-  { id: 'roof', en: 'Rooftop', ar: 'السطح', x: 1120, y: 80, w: 400, h: 300, floor: '#8f9bb0' },
-  { id: 'shop', en: 'Corner shop', ar: 'الدكانة', x: 80, y: 520, w: 340, h: 280, floor: '#ad8b5e' },
-  { id: 'power', en: 'Electrical', ar: 'غرفة الكهرباء', x: 1600, y: 520, w: 320, h: 260, floor: '#8a8f98' },
-  { id: 'garden', en: 'Garden', ar: 'الحاكورة', x: 80, y: 940, w: 420, h: 300, floor: '#7d9c6a' },
-  { id: 'garage', en: 'Garage', ar: 'الكراج', x: 760, y: 980, w: 400, h: 260, floor: '#97918a' },
-  { id: 'tap', en: 'Water tap', ar: 'حنفية الحارة', x: 1480, y: 980, w: 440, h: 260, floor: '#7f9aa3' },
+  { id: 'courtyard', en: 'Courtyard', ar: 'ساحة الحارة', x: 1280, y: 780, w: 640, h: 440, floor: '#c9b18a' },
+  { id: 'diwan', en: 'Diwan', ar: 'الديوان', x: 560, y: 520, w: 480, h: 330, floor: '#b48a63' },
+  { id: 'kitchen', en: 'Kitchen', ar: 'المطبخ', x: 1150, y: 520, w: 340, h: 260, floor: '#9aa06b' },
+  { id: 'roof', en: 'Rooftop', ar: 'السطح', x: 2200, y: 60, w: 560, h: 320, floor: '#8f9bb0' },
+  { id: 'shop', en: 'Corner shop', ar: 'الدكانة', x: 560, y: 1120, w: 380, h: 300, floor: '#ad8b5e' },
+  { id: 'power', en: 'Electrical', ar: 'غرفة الكهرباء', x: 2880, y: 1250, w: 280, h: 420, floor: '#8a8f98' },
+  { id: 'garden', en: 'Garden', ar: 'الحاكورة', x: 60, y: 1120, w: 240, h: 520, floor: '#7d9c6a' },
+  { id: 'garage', en: 'Garage', ar: 'الكراج', x: 1750, y: 1250, w: 420, h: 250, floor: '#97918a' },
+  { id: 'tap', en: 'Water tap', ar: 'حنفية الحارة', x: 2300, y: 1250, w: 360, h: 240, floor: '#7f9aa3' },
 ]
 
-// Alleys (walkable connectors). Drawn as darker stone.
+// Streets, links, door stubs, and the two زواريب. Drawn as darker stone,
+// painted over the wall strokes (doorways appear wherever they overlap a room).
 export const ALLEYS = [
-  { x: 80, y: 590, w: 1840, h: 120 }, // main horizontal alley
-  { x: 940, y: 80, w: 120, h: 1140 }, // main vertical alley
-  { x: 240, y: 360, w: 120, h: 290 }, // diwan ↓
-  { x: 1260, y: 360, w: 120, h: 290 }, // rooftop ↓
-  { x: 240, y: 650, w: 120, h: 350 }, // ↓ garden
-  { x: 1620, y: 650, w: 120, h: 380 }, // ↓ water tap
+  // the ring street
+  { x: 340, y: 340, w: 2520, h: 110 }, // north street
+  { x: 340, y: 1550, w: 2520, h: 110 }, // south street
+  { x: 340, y: 340, w: 110, h: 1320 }, // west street
+  { x: 2750, y: 340, w: 110, h: 1320 }, // east street
+  // courtyard ↔ ring links (the four chokepoints)
+  { x: 1545, y: 400, w: 110, h: 430 }, // north link
+  { x: 1545, y: 1170, w: 110, h: 430 }, // south link
+  { x: 400, y: 945, w: 930, h: 110 }, // west link
+  { x: 1870, y: 945, w: 930, h: 110 }, // east link
+  // door stubs (one per dead-end room; the diwan gets two — it's the hub room)
+  { x: 860, y: 400, w: 110, h: 170 }, // north street → diwan
+  { x: 740, y: 800, w: 110, h: 195 }, // diwan → west link
+  { x: 1250, y: 400, w: 110, h: 170 }, // north street → kitchen
+  { x: 2450, y: 330, w: 110, h: 120 }, // north street → roof stairs
+  { x: 700, y: 1000, w: 110, h: 170 }, // west link → shop
+  { x: 2810, y: 1400, w: 120, h: 110 }, // east street → electrical
+  { x: 250, y: 1300, w: 140, h: 110 }, // west street → garden
+  { x: 1900, y: 1450, w: 110, h: 150 }, // garage → south street
+  { x: 2420, y: 1440, w: 110, h: 160 }, // tap → south street
+  // زواريب — dead-end cul-de-sacs (nothing there… except sometimes a mundass)
+  { x: 1900, y: 140, w: 110, h: 250 }, // north zaroub
+  { x: 900, y: 1610, w: 110, h: 250 }, // south zaroub
 ]
 
 const WALKABLE = [...ROOMS.map(({ x, y, w, h }) => ({ x, y, w, h })), ...ALLEYS]
 
 // Task stations: engine TASK_IDS → world position + emoji prop + bilingual name.
+// Deliberately flung to the corners — chores make you travel.
 export const STATIONS = {
-  wires: { x: 1780, y: 620, room: 'power', icon: '🔌', en: 'Connect the wires', ar: 'وصّل الأسلاك' },
-  tea: { x: 800, y: 180, room: 'kitchen', icon: '🫖', en: 'Make the tea', ar: 'اعمل شاي' },
-  satellite: { x: 1400, y: 170, room: 'roof', icon: '📡', en: 'Fix the satellite', ar: 'ظبّط الستلايت' },
-  laundry: { x: 1210, y: 300, room: 'roof', icon: '👕', en: 'Hang the laundry', ar: 'انشر الغسيل' },
-  coffee: { x: 270, y: 190, room: 'diwan', icon: '☕', en: 'Grind the coffee', ar: 'اطحن القهوة' },
-  plants: { x: 190, y: 1120, room: 'garden', icon: '🪴', en: 'Water the plants', ar: 'اسقِ الزرع' },
-  olives: { x: 400, y: 1030, room: 'garden', icon: '🫒', en: 'Pick the olives', ar: 'اقطف الزيتون' },
-  shelf: { x: 230, y: 620, room: 'shop', icon: '🛒', en: 'Stock the shelf', ar: 'رتّب الدكانة' },
-  gas: { x: 950, y: 1120, room: 'garage', icon: '🛢️', en: 'Swap the gas cylinder', ar: 'بدّل جرة الغاز' },
-  water: { x: 1740, y: 1100, room: 'tap', icon: '🚰', en: 'Fill the jerrycan', ar: 'عبّي المي' },
+  wires: { x: 3030, y: 1560, room: 'power', icon: '🔌', en: 'Connect the wires', ar: 'وصّل الأسلاك' },
+  tea: { x: 1330, y: 620, room: 'kitchen', icon: '🫖', en: 'Make the tea', ar: 'اعمل شاي' },
+  satellite: { x: 2400, y: 170, room: 'roof', icon: '📡', en: 'Fix the satellite', ar: 'ظبّط الستلايت' },
+  laundry: { x: 2620, y: 290, room: 'roof', icon: '👕', en: 'Hang the laundry', ar: 'انشر الغسيل' },
+  coffee: { x: 780, y: 660, room: 'diwan', icon: '☕', en: 'Grind the coffee', ar: 'اطحن القهوة' },
+  plants: { x: 170, y: 1270, room: 'garden', icon: '🪴', en: 'Water the plants', ar: 'اسقِ الزرع' },
+  olives: { x: 170, y: 1540, room: 'garden', icon: '🫒', en: 'Pick the olives', ar: 'اقطف الزيتون' },
+  shelf: { x: 740, y: 1280, room: 'shop', icon: '🛒', en: 'Stock the shelf', ar: 'رتّب الدكانة' },
+  gas: { x: 1950, y: 1380, room: 'garage', icon: '🛢️', en: 'Swap the gas cylinder', ar: 'بدّل جرة الغاز' },
+  water: { x: 2480, y: 1350, room: 'tap', icon: '🚰', en: 'Fill the jerrycan', ar: 'عبّي المي' },
 }
 
 // The mihbash (brass coffee grinder) — banging it calls the neighborhood meeting.
-export const MIHBASH = { x: 1000, y: 620 }
-// Breaker box — fixes the power cut.
-export const BREAKER = { x: 1650, y: 700 }
-// Manholes (بالوعات) — mundass-only fast travel, cycled in order.
+export const MIHBASH = { x: 1600, y: 930 }
+// Breaker box — fixes the power cut. Far SE, outside the ring: the blackout
+// walk is the scariest walk in the hara, on purpose.
+export const BREAKER = { x: 3000, y: 1330 }
+// Manholes (بالوعات) — mundass-only fast travel, cycled in order:
+// courtyard → garage → electrical → garden → courtyard.
 export const MANHOLES = [
-  { x: 780, y: 810, room: 'courtyard' },
-  { x: 830, y: 1190, room: 'garage' },
-  { x: 150, y: 990, room: 'garden' },
+  { x: 1350, y: 1150, room: 'courtyard' },
+  { x: 2060, y: 1430, room: 'garage' },
+  { x: 3060, y: 1610, room: 'power' },
+  { x: 150, y: 1590, room: 'garden' },
 ]
 
-export const SPAWN = { x: 1000, y: 720, ring: 90 } // circle below the mihbash
+export const SPAWN = { x: 1600, y: 1040, ring: 90 } // below the mihbash dais
 
 export const INTERACT_RADIUS = 95
 export const KILL_RADIUS = 85
