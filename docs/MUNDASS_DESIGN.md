@@ -30,7 +30,7 @@ grinder in the courtyard, the traditional call that gathers the whole neighborho
 
 ## Players & roles
 
-- 4–10 players. 1 mundass at 4–7 players, 2 at 8–10.
+- 4–16 players (community nights run ~15). 1 mundass at 4–7 players, 2 at 8–12, 3 at 13–16.
 - Roles are **server-secret**: assigned by the Edge Function into a table only the owner can
   read (RLS `user_id = auth.uid()`). Nothing role-shaped ever appears in public room state.
 - Host settings: discussion 45s, voting 30s, kill cooldown 25s, tasks per player 4.

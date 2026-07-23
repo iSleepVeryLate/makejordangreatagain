@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
 }
 
 export const MIN_PLAYERS = 4
-export const MAX_PLAYERS = 10
+export const MAX_PLAYERS = 16
 
 // Task catalog — ids are shared with the client, which maps them to minigames
 // and world coordinates. The engine only cares about ids and counts.
@@ -141,7 +141,9 @@ export function initialState(): PublicState {
 }
 
 export function mundassCount(playerCount: number): number {
-  return playerCount >= 8 ? 2 : 1
+  if (playerCount >= 13) return 3
+  if (playerCount >= 8) return 2
+  return 1
 }
 
 function shuffled<T>(arr: T[], rand: () => number): T[] {

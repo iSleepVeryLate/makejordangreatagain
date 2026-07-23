@@ -206,8 +206,10 @@ export function useMundassRoom(roomId) {
     const candidates = list.filter((p) => p.is_present && presentSet.has(p.profile_id))
     const elected = (candidates[0] || list[0])?.profile_id
     if (elected !== myId) {
+      // Stagger capped: in a 16-player room the last seats shouldn't wait 10s+
+      // to rescue a stalled meeting clock.
       const myIdx = Math.max(0, list.findIndex((p) => p.profile_id === myId))
-      const grace = BACKSTOP_BASE_MS + myIdx * BACKSTOP_STAGGER_MS
+      const grace = BACKSTOP_BASE_MS + Math.min(myIdx, 8) * BACKSTOP_STAGGER_MS
       if (overdue < grace) return
     }
     advancedForRef.current = deadline
