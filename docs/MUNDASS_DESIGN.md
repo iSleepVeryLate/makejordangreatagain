@@ -35,10 +35,18 @@ grinder in the courtyard, the traditional call that gathers the whole neighborho
   read (RLS `user_id = auth.uid()`). Nothing role-shaped ever appears in public room state.
 - Host settings: discussion 45s, voting 30s, kill cooldown 25s, tasks per player 4.
 
-## Map — الحارة (single-screen world ~ 2000×1300)
+## Map — الحارة (world ~ 3200×2000, v2 "ring street" layout)
 
-Rooms connected by alleys; simple rect-wall collision. Camera follows the player;
-soft vision radius (radial light mask) — shrinks hard during a power cut.
+A ring street (السكة) circles the hara; the courtyard sits at the heart, linked
+to the ring by four narrow chokepoint alleys. Rooms hang off the streets through
+single door stubs → most rooms are dead ends. The far corners (roof NE, garden
+far-W, electrical far-SE outside the ring) are long lonely walks — and the
+breaker lives out there, so a blackout forces someone to make that walk in the
+dark. Two زواريب (dead-end cul-de-sacs) are pure ambush bait. Four manholes form
+the mundass's escape network (courtyard → garage → electrical → garden). A
+HUD minimap shows rooms, my position, my undone stations, and the mihbash —
+never other players. Camera follows the player; soft vision radius (radial
+light mask) — shrinks hard during a power cut.
 
 1. **ساحة الحارة** (Courtyard) — center, spawn point, the **مهباش** (emergency button)
 2. **الديوان** (Guest hall) — coffee grinding task

@@ -83,13 +83,13 @@ export default function MundassDevHarness() {
         const id = `b${i + 1}`
         if (i % 3 === 0) {
           const ph = a + i
-          return { t: 'pos', id, x: 1000 + Math.cos(ph) * 220, y: 660 + Math.sin(ph) * 110, fx: Math.cos(ph) > 0 ? 1 : -1, m: 1 }
+          return { t: 'pos', id, x: 1600 + Math.cos(ph) * 230, y: 980 + Math.sin(ph) * 120, fx: Math.cos(ph) > 0 ? 1 : -1, m: 1 }
         }
         if (i % 3 === 1) {
           const ph = -a * 0.7 + i
-          return { t: 'pos', id, x: 1000 + Math.cos(ph) * 120, y: 680 + Math.sin(ph) * 60, fx: 1, m: 1 }
+          return { t: 'pos', id, x: 1600 + Math.cos(ph) * 120, y: 1020 + Math.sin(ph) * 70, fx: 1, m: 1 }
         }
-        const spots = [[810, 210], [280, 220], [1400, 230], [240, 660], [1760, 650], [960, 1110]]
+        const spots = [[1330, 620], [780, 660], [2400, 170], [740, 1280], [3030, 1560], [1950, 1380]]
         const [sx, sy] = spots[i % spots.length]
         return { t: 'pos', id, x: sx + Math.cos(a + i) * 40, y: sy + Math.sin(a + i) * 26, fx: 1, m: 1 }
       })
@@ -165,7 +165,7 @@ export default function MundassDevHarness() {
         {[
           ['role: ' + role, () => setRole(role === 'crew' ? 'mundass' : 'crew')],
           ['power cut', () => setSabotage(sabotage ? null : 'power')],
-          ['body', () => setBodies(bodies.length ? [] : [{ victim: 'b2', x: 1050, y: 700 }])],
+          ['body', () => setBodies(bodies.length ? [] : [{ victim: 'b2', x: 1680, y: 1050 }])],
           ['meet: discuss', () => startMeeting('discussion')],
           ['meet: vote', () => startMeeting('voting')],
           ['meet: reveal', () => startMeeting('reveal')],

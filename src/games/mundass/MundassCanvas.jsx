@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import {
-  WORLD, ROOMS, ALLEYS, STATIONS, MIHBASH, BREAKER, MANHOLES, COLORS,
+  WORLD, ROOMS, ALLEYS, STATIONS, MIHBASH, BREAKER, MANHOLES, COLORS, SPAWN,
   SPEED, GHOST_SPEED, VISION, VISION_BLACKOUT, KILL_RADIUS,
   moveWithCollision, nearestInteraction, spawnPoint, roomAt, dist,
 } from './map.js'
@@ -234,11 +234,11 @@ function buildMapLayer(lang) {
     ctx.stroke()
     ;['👕', '🩳', '🧦'].forEach((e2, i) => emoji(e2, lx + 80 + i * 90, ly - 16, 24))
   }
-  // Garden: olive tree + planters + low stone wall
+  // Garden: olive tree + planters + low stone wall (narrow-tall far-west plot)
   {
     const r = ROOMS.find((rr) => rr.id === 'garden')
-    const tx = r.x + 320
-    const ty = r.y + 120
+    const tx = r.x + 130
+    const ty = r.y + 110
     ctx.strokeStyle = '#4a3524'
     ctx.lineWidth = 14
     ctx.beginPath(); ctx.moveTo(tx, ty + 60); ctx.quadraticCurveTo(tx - 6, ty + 20, tx + 4, ty - 6); ctx.stroke()
@@ -252,12 +252,12 @@ function buildMapLayer(lang) {
     for (const [ox, oy] of [[-20, -36], [18, -48], [40, -16], [-4, -8], [28, -38]]) {
       ctx.beginPath(); ctx.arc(tx + ox, ty + oy, 3.4, 0, Math.PI * 2); ctx.fill()
     }
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       ctx.fillStyle = '#5d442e'
-      roundRect(ctx, r.x + 40, r.y + 190 + i * 34, 150, 22, 6)
+      roundRect(ctx, r.x + 30, r.y + 300 + i * 40, 180, 24, 6)
       ctx.fill()
       ctx.fillStyle = '#33502b'
-      for (let px = 0; px < 5; px++) emoji('🌱', r.x + 58 + px * 30, r.y + 206 + i * 34, 15)
+      for (let px = 0; px < 5; px++) emoji('🌱', r.x + 50 + px * 34, r.y + 318 + i * 40, 15)
     }
   }
   // Shop: shelves + counter
@@ -328,10 +328,10 @@ function buildMapLayer(lang) {
     }
     ctx.restore()
     ctx.fillStyle = '#22262c'
-    ctx.beginPath(); ctx.arc(r.x + 320, r.y + 200, 20, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(r.x + 360, r.y + 80, 20, 0, Math.PI * 2); ctx.fill()
     ctx.strokeStyle = '#3a4048'
     ctx.lineWidth = 5
-    ctx.beginPath(); ctx.arc(r.x + 320, r.y + 200, 12, 0, Math.PI * 2); ctx.stroke()
+    ctx.beginPath(); ctx.arc(r.x + 360, r.y + 80, 12, 0, Math.PI * 2); ctx.stroke()
   }
   // Water tap: basin + jerrycans + puddle
   {
@@ -445,8 +445,14 @@ function buildMapLayer(lang) {
     ctx.fillText(secondary, px, py + 18)
   }
 
-  // -- doorway lamp glows --
-  for (const [gx, gy] of [[300, 620], [1000, 400], [1000, 900], [1680, 650], [300, 940], [1320, 620]]) {
+  // -- doorway + street-corner lamp glows --
+  for (const [gx, gy] of [
+    [915, 485], [795, 900], [1305, 485], [2505, 390], [755, 1085], [2870, 1455],
+    [320, 1355], [1955, 1525], [2475, 1520], // room doorways
+    [395, 395], [2805, 395], [395, 1605], [2805, 1605], // ring corners
+    [1600, 830], [1600, 1170], [1330, 1000], [1870, 1000], // courtyard mouths
+    [1955, 200], [955, 1800], // the زواريب — lit just enough to tempt you in
+  ]) {
     glow(gx, gy, 90, 'rgba(255,190,100,%a)', 0.14)
   }
 
@@ -460,6 +466,29 @@ function buildMapLayer(lang) {
   return c
 }
 
+// The minimap: a tiny prerendered plan of the hara (rooms + streets only).
+// Drawn post-vision-mask so it's always readable; shows ME, my undone task
+// stations, and the mihbash — never other players (that would be wallhacks).
+const MINI_W = 156
+function buildMiniLayer() {
+  const k = MINI_W / WORLD.w
+  const c = document.createElement('canvas')
+  c.width = MINI_W
+  c.height = Math.round(WORLD.h * k)
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = 'rgba(12,15,20,0.85)'
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.fillStyle = 'rgba(120,130,145,0.55)'
+  for (const a of ALLEYS) ctx.fillRect(a.x * k, a.y * k, Math.max(2, a.w * k), Math.max(2, a.h * k))
+  for (const r of ROOMS) {
+    ctx.fillStyle = r.floor
+    ctx.globalAlpha = 0.75
+    ctx.fillRect(r.x * k, r.y * k, r.w * k, r.h * k)
+    ctx.globalAlpha = 1
+  }
+  return c
+}
+
 // ---------------------------------------------------------------- component
 const MundassCanvas = forwardRef(function MundassCanvas(
   { myId, players, stateRef, meRef, frozen, sendBroadcast, onMessage, onNearest, onKillTarget, onRoom, lang = 'en' },
@@ -467,7 +496,7 @@ const MundassCanvas = forwardRef(function MundassCanvas(
 ) {
   const canvasRef = useRef(null)
   const wrapRef = useRef(null)
-  const posRef = useRef({ x: 1000, y: 720, fx: 1, moving: false })
+  const posRef = useRef({ x: SPAWN.x, y: SPAWN.y, fx: 1, moving: false })
   const velRef = useRef({ x: 0, y: 0 })
   const walkRef = useRef(0)
   const camRef = useRef({ x: 0, y: 0, init: false })
@@ -510,6 +539,7 @@ const MundassCanvas = forwardRef(function MundassCanvas(
     if (!canvas || !wrap) return undefined
     const ctx = canvas.getContext('2d')
     const mapLayer = buildMapLayer(lang)
+    const miniLayer = buildMiniLayer()
     let raf = 0
     let timer = 0
     let last = performance.now()
@@ -859,6 +889,41 @@ const MundassCanvas = forwardRef(function MundassCanvas(
           ctx.fillText(nearestS.icon, 0, -14)
           ctx.restore()
         }
+      }
+
+      // ---- minimap (post-mask: always readable) ----
+      if (st.phase === 'playing') {
+        const mk = MINI_W / WORLD.w
+        const mx = vw - MINI_W - 12
+        const my = 64
+        ctx.globalAlpha = 0.92
+        ctx.drawImage(miniLayer, mx, my)
+        ctx.globalAlpha = 1
+        ctx.strokeStyle = 'rgba(255,217,122,0.4)'
+        ctx.lineWidth = 1.5
+        ctx.strokeRect(mx - 0.5, my - 0.5, miniLayer.width + 1, miniLayer.height + 1)
+        // my undone stations
+        if (Array.isArray(meSecret.tasks)) {
+          ctx.fillStyle = '#ffd95a'
+          for (const task of meSecret.tasks) {
+            if (task.done) continue
+            const s = STATIONS[task.id]
+            if (!s) continue
+            ctx.beginPath()
+            ctx.arc(mx + s.x * mk, my + s.y * mk, 2.6, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+        // the mihbash
+        ctx.fillStyle = 'rgba(255,190,100,0.9)'
+        ctx.beginPath()
+        ctx.arc(mx + MIHBASH.x * mk, my + MIHBASH.y * mk, 2.2, 0, Math.PI * 2)
+        ctx.fill()
+        // me (pulsing white)
+        ctx.fillStyle = '#ffffff'
+        ctx.beginPath()
+        ctx.arc(mx + pos.x * mk, my + pos.y * mk, 3 + Math.sin(now / 260) * 0.8, 0, Math.PI * 2)
+        ctx.fill()
       }
 
       // ---- red feedback vignette (fresh body / my death) ----
