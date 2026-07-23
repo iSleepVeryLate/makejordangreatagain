@@ -580,7 +580,9 @@ const MundassCanvas = forwardRef(function MundassCanvas(
 
     const pDown = (e) => {
       if (e.pointerType === 'mouse') return
-      canvas.setPointerCapture(e.pointerId)
+      // best-effort: setPointerCapture throws if the pointer already lifted,
+      // and a throw here would kill the touch joystick for the whole session
+      try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
       joyRef.current = { cx: e.clientX, cy: e.clientY, dx: 0, dy: 0, id: e.pointerId }
     }
     const pMove = (e) => {
