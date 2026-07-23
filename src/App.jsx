@@ -22,6 +22,10 @@ const DrawRoom = lazy(() => import('./pages/DrawRoom.jsx'))
 const MonopolyHome = lazy(() => import('./pages/MonopolyHome.jsx'))
 const MonopolyRoom = lazy(() => import('./pages/MonopolyRoom.jsx'))
 
+// المندس (Al-Mundass) — Jordanian social deduction (own room model, server-authoritative).
+const MundassHome = lazy(() => import('./pages/MundassHome.jsx'))
+const MundassRoom = lazy(() => import('./pages/MundassRoom.jsx'))
+
 // Public resident-resource pages (no auth required).
 const Explore = lazy(() => import('./pages/Explore.jsx'))
 const Tourism = lazy(() => import('./pages/Tourism.jsx'))
@@ -39,6 +43,8 @@ const MonopolyDevHarness = __DEV_SERVER__ ? lazy(() => import('./pages/MonopolyD
 // DEV-ONLY: Monopoly HUD harness — renders every HUD surface with mock data so the
 // HUD can be reviewed without a login / 2nd player (also tree-shaken out of prod).
 const MonopolyHudHarness = __DEV_SERVER__ ? lazy(() => import('./pages/MonopolyHudHarness.jsx')) : null
+// DEV-ONLY: المندس harness — canvas/minigames/meeting with mock data, no login.
+const MundassDevHarness = __DEV_SERVER__ ? lazy(() => import('./pages/MundassDevHarness.jsx')) : null
 
 function MeRedirect() {
   const { profile, loading } = useAuth()
@@ -123,6 +129,22 @@ export default function App() {
         }
       />
       <Route
+        path="/mundass"
+        element={
+          <RequireAuth>
+            <MundassHome />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mundass/:roomId"
+        element={
+          <RequireAuth>
+            <MundassRoom />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/leaderboard"
         element={
           <RequireAuth>
@@ -153,6 +175,9 @@ export default function App() {
       )}
       {__DEV_SERVER__ && MonopolyHudHarness && (
         <Route path="/__dev/monopoly-hud" element={<MonopolyHudHarness />} />
+      )}
+      {__DEV_SERVER__ && MundassDevHarness && (
+        <Route path="/__dev/mundass" element={<MundassDevHarness />} />
       )}
 
       <Route path="*" element={<Navigate to="/" replace />} />

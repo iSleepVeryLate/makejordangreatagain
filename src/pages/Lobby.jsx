@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight, Palette, Landmark } from 'lucide-react'
+import { Zap, Plus, Link2, Users, Trophy, Check, Crown, ArrowRight, Palette, Landmark, Ghost } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useOnline } from '../context/PresenceContext.jsx'
@@ -293,6 +293,19 @@ export default function Lobby() {
                   </div>
                   <div className="party-sub">
                     {t('app.hub.monopolySub')}
+                  </div>
+                </div>
+                <span className="party-go">{t('app.hub.partyPlay')} <ArrowRight size={15} /></span>
+              </button>
+
+              <button className="party-card" onClick={() => navigate('/mundass')}>
+                <span className="gicon r"><Ghost size={22} /></span>
+                <div className="party-info">
+                  <div className="party-title">
+                    {t('mundass.title')} <span className="party-new">{t('app.hub.newTag')}</span>
+                  </div>
+                  <div className="party-sub">
+                    {t('app.hub.mundassSub')}
                   </div>
                 </div>
                 <span className="party-go">{t('app.hub.partyPlay')} <ArrowRight size={15} /></span>

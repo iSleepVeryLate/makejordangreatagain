@@ -1,4 +1,4 @@
-import { Grid3x3, CircleDot, Castle, Brain, Grip, Palette, Circle } from 'lucide-react'
+import { Grid3x3, CircleDot, Castle, Brain, Grip, Palette, Ghost, Circle } from 'lucide-react'
 
 // Maps a game key -> a lucide glyph. Chess has no native lucide piece, so we
 // borrow Castle (the rook); checkers borrows Grip (a grid of discs); Draw & Guess
@@ -10,6 +10,7 @@ const ICONS = {
   trivia: Brain,
   checkers: Grip,
   draw_guess: Palette,
+  mundass: Ghost,
 }
 
 export default function GameIcon({ game, size = 20, ...rest }) {
