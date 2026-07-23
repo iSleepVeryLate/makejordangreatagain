@@ -332,8 +332,8 @@ export const STRINGS = {
   },
   'app.hub.newTag': { en: 'NEW', ar: 'جديد' },
   'app.hub.mundassSub': {
-    en: 'Someone in the hara is not who they say they are. Do your chores, watch your back, vote them out. 4-10 players.',
-    ar: 'في حدا بالحارة مش على نياته. خلّص أشغالك، دير بالك على حالك، وصوّتوا لطرده. 4-10 لاعبين.',
+    en: 'Someone in the hara is not who they say they are. Do your chores, watch your back, vote them out. 4-16 players.',
+    ar: 'في حدا بالحارة مش على نياته. خلّص أشغالك، دير بالك على حالك، وصوّتوا لطرده. 4-16 لاعبًا.',
   },
   'app.hub.onlineNow': { en: 'Online now', ar: 'متصل الآن' },
   'app.hub.justYou': { en: 'Just you for now.', ar: 'أنت فقط حتى الآن.' },
@@ -779,8 +779,8 @@ export const STRINGS = {
   'mundass.killCooldown': { en: 'Mundass cooldown', ar: 'مهلة المندس' },
   'mundass.createBtn': { en: 'Open the hara', ar: 'افتح الحارة' },
   'mundass.createNote': {
-    en: '4-10 players. Share the code — the game starts when the host says so.',
-    ar: '4-10 لاعبين. شارك الرمز — تبدأ اللعبة عندما يقرر المضيف.',
+    en: '4-16 players. Share the code — the game starts when the host says so.',
+    ar: '4-16 لاعبًا. شارك الرمز — تبدأ اللعبة عندما يقرر المضيف.',
   },
   'mundass.joinRoom': { en: 'Join a hara', ar: 'انضم لحارة' },
   'mundass.joinNote': { en: 'Got a code from a friend? Enter it here.', ar: 'معك رمز من صديق؟ أدخله هنا.' },
@@ -809,8 +809,8 @@ export const STRINGS = {
   'mundass.invite': { en: 'Invite', ar: 'دعوة' },
   'mundass.linkCopied': { en: 'Invite link copied!', ar: 'تم نسخ رابط الدعوة!' },
   'mundass.lobbyRules': {
-    en: 'Needs at least {n} players. One (or two, at 8+) will secretly be the Mundass.',
-    ar: 'تحتاج {n} لاعبين على الأقل. واحد منكم (أو اثنان عند 8+) سيكون المندس سرًا.',
+    en: 'Needs at least {n} players (up to 16). Hidden mundasseen: 1 — two at 8+, three at 13+.',
+    ar: 'تحتاج {n} لاعبين على الأقل (حتى 16). المندسّون سرًا: واحد — اثنان عند 8+ وثلاثة عند 13+.',
   },
   'mundass.needPlayers': { en: 'Need {n} more', ar: 'ينقص {n}' },
   'mundass.startGame': { en: 'Start the night', ar: 'ابدأ الليلة' },

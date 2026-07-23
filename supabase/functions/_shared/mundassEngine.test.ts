@@ -78,11 +78,33 @@ class G {
 
 // ---------- role assignment ----------
 
-Deno.test('mundass count: 1 for 4-7 players, 2 for 8-10', () => {
+Deno.test('mundass count: 1 for 4-7, 2 for 8-12, 3 for 13-16', () => {
   assertEquals(mundassCount(4), 1)
   assertEquals(mundassCount(7), 1)
   assertEquals(mundassCount(8), 2)
-  assertEquals(mundassCount(10), 2)
+  assertEquals(mundassCount(12), 2)
+  assertEquals(mundassCount(13), 3)
+  assertEquals(mundassCount(16), 3)
+})
+
+Deno.test('a full 15-player hara deals 3 mundasseen who all know each other', () => {
+  const g = new G(15)
+  const m = g.byRole('mundass')
+  assertEquals(m.length, 3)
+  assertEquals(g.byRole('crew').length, 12)
+  for (const uid of m) {
+    assertEquals(new Set(g.secrets[uid].mates), new Set(m.filter((x) => x !== uid)))
+  }
+  // 12 crew × 4 tasks
+  assertEquals(g.state.tasksTotal, 48)
+  // parity win still computes: kill crew down to 3 vs 3
+  g.ready()
+  for (let i = 0; i < 9; i++) {
+    g.kill(g.crew().find((c) => g.state.alive[c])!)
+    g.ready()
+  }
+  assertEquals(g.state.phase, 'ended')
+  assertEquals(g.state.winner, 'mundass')
 })
 
 Deno.test('start deals exactly one mundass at 5 players, everyone alive, tasks counted', () => {

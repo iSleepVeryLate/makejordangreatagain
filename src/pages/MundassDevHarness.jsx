@@ -11,11 +11,17 @@ import { MANHOLES } from '../games/mundass/map.js'
 // roles, cut the power, open any minigame, and step through a full meeting.
 // No login, no Supabase, no 2nd player needed.
 
+// A full 15-player Discord-night crowd — exercises the 16-color palette, the
+// dense meeting grid, and the many-peers render path.
+const BOT_NAMES = [
+  'أبو خليل', 'أم رامي', 'مهند', 'شهد', 'ليث', 'أبو عودة', 'رغد',
+  'قصي', 'تالا', 'أبو فارس', 'جود', 'عمار', 'لين', 'حمزة',
+]
 const MOCK_PLAYERS = [
   { profile_id: 'me', color: 0, is_present: true, profile: { global_name: 'أنا (Me)' } },
-  { profile_id: 'b1', color: 1, is_present: true, profile: { global_name: 'أبو خليل' } },
-  { profile_id: 'b2', color: 2, is_present: true, profile: { global_name: 'أم رامي' } },
-  { profile_id: 'b3', color: 3, is_present: true, profile: { global_name: 'مهند' } },
+  ...BOT_NAMES.map((name, i) => ({
+    profile_id: `b${i + 1}`, color: i + 1, is_present: true, profile: { global_name: name },
+  })),
 ]
 
 export default function MundassDevHarness() {
@@ -33,11 +39,14 @@ export default function MundassDevHarness() {
 
   const state = useMemo(() => ({
     phase: meeting ? 'meeting' : 'playing',
-    alive: { me: true, b1: true, b2: bodies.length === 0, b3: true },
+    alive: Object.fromEntries(MOCK_PLAYERS.map((p) => [
+      p.profile_id, !(p.profile_id === 'b2' && bodies.length > 0),
+    ])),
     bodies,
-    tasksDone: 3,
-    tasksTotal: 12,
+    tasksDone: 11,
+    tasksTotal: 48,
     sabotage,
+    sabotageCdUntil: 0,
     meeting,
     winner: null,
     reveal: null,
@@ -69,10 +78,21 @@ export default function MundassDevHarness() {
       if (!botsOn) return
       botAngleRef.current += 0.05
       const a = botAngleRef.current
-      const msgs = [
-        { t: 'pos', id: 'b1', x: 1000 + Math.cos(a) * 180, y: 650 + Math.sin(a) * 130, fx: Math.cos(a) > 0 ? 1 : -1, m: 1 },
-        { t: 'pos', id: 'b3', x: 810 + Math.cos(-a * 0.7) * 90, y: 210 + Math.sin(-a * 0.7) * 60, fx: 1, m: 1 },
-      ]
+      // the whole crowd wanders: two courtyard rings + a few room-dwellers
+      const msgs = BOT_NAMES.map((_, i) => {
+        const id = `b${i + 1}`
+        if (i % 3 === 0) {
+          const ph = a + i
+          return { t: 'pos', id, x: 1000 + Math.cos(ph) * 220, y: 660 + Math.sin(ph) * 110, fx: Math.cos(ph) > 0 ? 1 : -1, m: 1 }
+        }
+        if (i % 3 === 1) {
+          const ph = -a * 0.7 + i
+          return { t: 'pos', id, x: 1000 + Math.cos(ph) * 120, y: 680 + Math.sin(ph) * 60, fx: 1, m: 1 }
+        }
+        const spots = [[810, 210], [280, 220], [1400, 230], [240, 660], [1760, 650], [960, 1110]]
+        const [sx, sy] = spots[i % spots.length]
+        return { t: 'pos', id, x: sx + Math.cos(a + i) * 40, y: sy + Math.sin(a + i) * 26, fx: 1, m: 1 }
+      })
       msgs.forEach((m) => listenersRef.current.forEach((fn) => fn(m)))
     }, 100)
     return iv
@@ -85,9 +105,9 @@ export default function MundassDevHarness() {
   const startMeeting = (stage) => {
     const base = {
       kind: 'emergency', caller: 'b1', victim: null,
-      stage, endsAt: Date.now() + 45000, voted: stage === 'voting' ? ['b1'] : [],
+      stage, endsAt: Date.now() + 45000, voted: stage === 'voting' ? ['b1', 'b4', 'b7'] : [],
       result: stage === 'reveal'
-        ? { ejected: 'b3', wasMundass: true, tally: { b3: 3, skip: 1 }, abstained: 0 }
+        ? { ejected: 'b3', wasMundass: true, tally: { b3: 8, b6: 3, skip: 2 }, abstained: 2 }
         : null,
     }
     setMeeting(base)

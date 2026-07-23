@@ -476,6 +476,7 @@ const MundassCanvas = forwardRef(function MundassCanvas(
   const joyRef = useRef(null)
   const frozenRef = useRef(frozen)
   const lastSentRef = useRef(0)
+  const lastSentPosRef = useRef(null)
   const lastNearestRef = useRef('')
   const lastKillRef = useRef('')
   const lastRoomRef = useRef('')
@@ -636,9 +637,22 @@ const MundassCanvas = forwardRef(function MundassCanvas(
         pos.moving = false
       }
 
-      // ---- broadcast at 10 Hz ----
-      if (now - lastSentRef.current > BROADCAST_MS) {
+      // ---- position broadcast: adaptive rate + idle keepalive ----
+      // Big nights (15 players) at a fixed 10 Hz would push ~150 msg/s through
+      // one channel — enough to brush realtime throttling. So the send rate
+      // scales down with the head-count, and a standing-still player sends only
+      // a 1s keepalive (so peers never time them out). The receiving side's
+      // interpolation smooths the lower rate invisibly.
+      const headCount = (playersRef.current || []).length
+      const sendEvery = headCount > 12 ? 200 : headCount > 8 ? 150 : BROADCAST_MS
+      const lastP = lastSentPosRef.current
+      const movedSinceSend = !lastP
+        || Math.abs(lastP.x - pos.x) > 1 || Math.abs(lastP.y - pos.y) > 1
+        || lastP.m !== pos.moving || lastP.g !== iAmGhost || lastP.fx !== pos.fx
+      const sinceSend = now - lastSentRef.current
+      if ((movedSinceSend && sinceSend >= sendEvery) || sinceSend >= 1000) {
         lastSentRef.current = now
+        lastSentPosRef.current = { x: pos.x, y: pos.y, m: pos.moving, g: iAmGhost, fx: pos.fx }
         sendBroadcast({ t: 'pos', id: myId, x: Math.round(pos.x), y: Math.round(pos.y), fx: pos.fx, g: iAmGhost ? 1 : 0, m: pos.moving ? 1 : 0 })
       }
 

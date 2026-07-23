@@ -9,7 +9,8 @@ import AppNav from '../components/AppNav.jsx'
 
 // المندس — create/join landing (mirrors DrawHome).
 
-const DISCUSSION_OPTS = [30, 45, 60]
+// 90s exists for the big 15-player nights — more voices need more air time.
+const DISCUSSION_OPTS = [30, 45, 60, 90]
 const TASK_OPTS = [3, 4, 5]
 const COOLDOWN_OPTS = [20, 25, 35]
 

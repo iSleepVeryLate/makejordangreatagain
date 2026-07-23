@@ -67,7 +67,8 @@ export const GHOST_SPEED = 320
 export const VISION = 360
 export const VISION_BLACKOUT = 160 // crew vision during a power cut
 
-// Player palette — 10 distinct, hara-flavored colors (index = players.color).
+// Player palette — 16 distinct, hara-flavored colors (index = players.color).
+// 16 = the room cap; big Discord nights run 15 at a time.
 export const COLORS = [
   '#ce1126', // Jordanian red
   '#2d7d46', // flag green
@@ -79,12 +80,20 @@ export const COLORS = [
   '#f97316', // orange
   '#64748b', // slate
   '#a16207', // olive-brown
+  '#ece5d5', // white
+  '#2e3540', // charcoal
+  '#56ccf2', // sky
+  '#9acd32', // lime
+  '#8b5a2b', // brown
+  '#c026d3', // magenta
 ]
 export const COLOR_NAMES = [
   { en: 'Red', ar: 'أحمر' }, { en: 'Green', ar: 'أخضر' }, { en: 'Blue', ar: 'أزرق' },
   { en: 'Amber', ar: 'عنبري' }, { en: 'Violet', ar: 'بنفسجي' }, { en: 'Pink', ar: 'زهري' },
   { en: 'Teal', ar: 'تركوازي' }, { en: 'Orange', ar: 'برتقالي' }, { en: 'Slate', ar: 'رمادي' },
-  { en: 'Olive', ar: 'زيتوني' },
+  { en: 'Olive', ar: 'زيتوني' }, { en: 'White', ar: 'أبيض' }, { en: 'Charcoal', ar: 'فحمي' },
+  { en: 'Sky', ar: 'سماوي' }, { en: 'Lime', ar: 'ليموني' }, { en: 'Brown', ar: 'بني' },
+  { en: 'Magenta', ar: 'أرجواني' },
 ]
 
 function inRect(x, y, r, pad = 0) {
@@ -123,10 +132,16 @@ export function roomAt(x, y) {
   return null
 }
 
-/** Spawn position for player #i of n, ringed around the courtyard spawn point. */
+/**
+ * Spawn position for player #i of n, ringed around the courtyard spawn point.
+ * The ring grows into an ellipse with the head-count (16 beans need elbow room)
+ * but stays capped inside the courtyard's walkable rect.
+ */
 export function spawnPoint(i, n) {
   const a = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2
-  return { x: SPAWN.x + Math.cos(a) * SPAWN.ring, y: SPAWN.y + Math.sin(a) * SPAWN.ring }
+  const rx = Math.min(240, SPAWN.ring + n * 10)
+  const ry = Math.min(105, 55 + n * 4)
+  return { x: SPAWN.x + Math.cos(a) * rx, y: SPAWN.y + Math.sin(a) * ry }
 }
 
 /**

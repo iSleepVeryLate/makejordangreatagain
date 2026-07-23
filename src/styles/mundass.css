@@ -192,3 +192,7 @@
 @media (max-width: 640px) {
   .mun-roomchip { display: none; }
 }
+
+/* ---- 16-player lobbies: denser meeting grid ---- */
+.mun-meet { width: min(96vw, 780px); }
+.mun-meet-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
