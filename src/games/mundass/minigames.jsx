@@ -32,6 +32,15 @@ function shuffle(arr) {
 
 const L = (lang, en, ar) => (lang === 'ar' ? ar : en)
 
+// Best-effort pointer capture. setPointerCapture THROWS (NotFoundError) when
+// the pointer is no longer active by the time the handler runs — real thing on
+// fast taps / pens / some webviews — and it sits at the TOP of every drag
+// handler, so an uncaught throw silently kills the whole minigame. Capture is
+// an optimization (drag keeps tracking outside the field), never a requirement.
+function capturePointer(el, e) {
+  try { el?.setPointerCapture?.(e.pointerId) } catch { /* keep the drag alive */ }
+}
+
 /** win() → brief final-state beat → onDone (the modal adds its ✓ flash after). */
 function useWin(onDone) {
   const [won, setWon] = useState(false)
@@ -109,7 +118,7 @@ function Wires({ onDone }) {
               stroke="rgba(0,0,0,.5)" style={{ cursor: 'grab', touchAction: 'none' }}
               onPointerDown={(e) => {
                 if (done || won) return
-                e.currentTarget.ownerSVGElement.setPointerCapture(e.pointerId)
+                capturePointer(e.currentTarget.ownerSVGElement, e)
                 const p = relPos(e, svgRef.current)
                 setDrag({ i, x: p.x * (W / p.w), y: p.y * (H / p.h) })
               }}
@@ -212,7 +221,7 @@ function Tea({ lang, onDone }) {
                 key={it.id}
                 className="mun-g-ing"
                 onPointerDown={(e) => {
-                  e.currentTarget.setPointerCapture?.(e.pointerId)
+                  capturePointer(e.currentTarget, e)
                   const p = relPos(e, fieldRef.current)
                   setDrag({ id: it.id, x: p.x, y: p.y })
                 }}
@@ -342,7 +351,7 @@ function Laundry({ lang, onDone }) {
             key={ic}
             className="mun-g-ing"
             onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture?.(e.pointerId)
+              capturePointer(e.currentTarget, e)
               const p = relPos(e, fieldRef.current)
               setDrag({ icon: ic, x: p.x, y: p.y })
             }}
@@ -457,7 +466,7 @@ function Plants({ lang, onDone }) {
       className="mun-g-field"
       ref={fieldRef}
       onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture?.(e.pointerId)
+        capturePointer(e.currentTarget, e)
         const p = relPos(e, fieldRef.current)
         setCan({ x: p.x, y: p.y })
       }}
@@ -533,7 +542,7 @@ function Olives({ lang, onDone }) {
     <div
       className="mun-g-field tree"
       ref={fieldRef}
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); move(e) }}
+      onPointerDown={(e) => { capturePointer(e.currentTarget, e); move(e) }}
       onPointerMove={(e) => { if (e.buttons || e.pointerType === 'touch') move(e) }}
     >
       <div className="mun-g-hint">{L(lang, 'Catch the falling olives — 6 fill the basket', 'التقط الزيتون النازل — 6 حبات تعبّي السلة')}</div>
@@ -631,7 +640,7 @@ function useRotary(onTurn) {
   const ref = useRef(null)
   const lastRef = useRef(null)
   const down = (e) => {
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    capturePointer(e.currentTarget, e)
     const r = ref.current.getBoundingClientRect()
     lastRef.current = Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2))
   }
@@ -725,7 +734,7 @@ function Gas({ lang, onDone }) {
           style={dragJar?.which === 'old' ? { left: dragJar.x } : undefined}
           onPointerDown={(e) => {
             if (step !== 1) return
-            e.currentTarget.setPointerCapture?.(e.pointerId)
+            capturePointer(e.currentTarget, e)
             const p = relPos(e, fieldRef.current)
             setDragJar({ which: 'old', x: p.x })
           }}
@@ -736,7 +745,7 @@ function Gas({ lang, onDone }) {
           className="mun-g-jarrah new"
           style={dragJar?.which === 'new' ? { left: dragJar.x } : undefined}
           onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture?.(e.pointerId)
+            capturePointer(e.currentTarget, e)
             const p = relPos(e, fieldRef.current)
             setDragJar({ which: 'new', x: p.x })
           }}
